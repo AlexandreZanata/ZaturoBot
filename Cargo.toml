@@ -1,0 +1,49 @@
+[workspace]
+resolver = "3"
+members = ["apps/zaturo-hub", "apps/zaturo-worker", "crates/core", "crates/protocol", "crates/db", "crates/services", "crates/security", "crates/tools", "xtask"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[workspace.dependencies]
+anyhow = "1.0"
+axum = { version = "0.8", features = ["ws"] }
+clap = { version = "4.6", features = ["derive"] }
+futures-util = { version = "0.3", features = ["sink"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rusqlite = { version = "0.32.1", features = ["bundled"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+subtle = "2.6"
+tempfile = "3.27"
+thiserror = "2.0"
+tokio = { version = "1.53", features = ["macros", "rt-multi-thread", "net", "signal", "sync", "time", "io-util"] }
+tokio-tungstenite = { version = "0.29", features = ["rustls-tls-webpki-roots"] }
+toml = "0.8"
+tower = { version = "0.5", features = ["util", "limit"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+uuid = { version = "1.25", features = ["v4", "serde"] }
+url = "2.5"
+zaturo-core = { path = "crates/core" }
+zaturo-protocol = { path = "crates/protocol" }
+zaturo-db = { path = "crates/db" }
+zaturo-services = { path = "crates/services" }
+zaturo-security = { path = "crates/security" }
+zaturo-tools = { path = "crates/tools" }
+zaturo-hub = { path = "apps/zaturo-hub" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = "warn"
+
+[profile.release]
+lto = "thin"
+strip = true
+codegen-units = 1

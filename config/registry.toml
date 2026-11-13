@@ -1,0 +1,85 @@
+# Canonical inventory checked against source, documentation, and migrations.
+version = 1
+
+[[tools]]
+id = "diagnostic.v1"
+source = "crates/tools/src/lib.rs"
+status = "implemented"
+
+[[integrations]]
+id = "github"
+status = "planned"
+documentation = "docs/INTEGRATIONS.md"
+
+[[integrations]]
+id = "video"
+status = "planned"
+documentation = "docs/INTEGRATIONS.md"
+
+[[integrations]]
+id = "price-monitoring"
+status = "planned"
+documentation = "docs/INTEGRATIONS.md"
+
+[[integrations]]
+id = "gmail"
+status = "planned"
+documentation = "docs/INTEGRATIONS.md"
+
+[[features]]
+id = "foundation"
+phase = 1
+status = "implemented"
+
+[[features]]
+id = "ai-orchestration"
+phase = 2
+status = "planned"
+
+[[features]]
+id = "computer-use"
+phase = 3
+status = "planned"
+
+[[features]]
+id = "vault"
+phase = 4
+status = "planned"
+
+[[features]]
+id = "integrations"
+phase = 5
+status = "planned"
+
+[[features]]
+id = "scheduling"
+phase = 6
+status = "planned"
+
+[[features]]
+id = "clients"
+phase = 7
+status = "planned"
+
+[[features]]
+id = "advanced-autonomy"
+phase = 8
+status = "planned"
+
+[[migrations]]
+path = "crates/db/migrations/0001_hub.sql"
+documentation = "docs/MIGRATIONS.md"
+
+[[migrations]]
+path = "crates/db/migrations/0002_worker.sql"
+documentation = "docs/MIGRATIONS.md"
+
+[[configurations]]
+name = "HubConfig"
+source = "apps/zaturo-hub/src/config.rs"
+examples = ["config/hub.example.toml"]
+
+[[configurations]]
+name = "WorkerConfig"
+source = "apps/zaturo-worker/src/config.rs"
+examples = ["config/worker.example.toml"]

@@ -1,0 +1,37 @@
+[Unit]
+Description=ZaturoBot private coordination hub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=zaturo-hub
+Group=zaturo-hub
+WorkingDirectory=/var/lib/zaturo-hub
+EnvironmentFile=/etc/zaturo/hub.env
+ExecStart=/usr/local/bin/zaturo-hub --config /etc/zaturo/hub.toml serve
+Restart=on-failure
+RestartSec=5
+StateDirectory=zaturo-hub
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/zaturo-hub
+CapabilityBoundingSet=
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryHigh=150M
+MemoryMax=300M
+CPUQuota=50%
+TasksMax=32
+LimitNOFILE=1024
+LogRateLimitIntervalSec=30s
+LogRateLimitBurst=1000
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

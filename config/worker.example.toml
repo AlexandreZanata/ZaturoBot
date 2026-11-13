@@ -1,0 +1,10 @@
+# Local development. Use an HTTPS origin for a remote hub.
+hub_url = "http://127.0.0.1:7878"
+worker_id = "local-worker"
+database = "data/worker.db"
+workspace_root = "workspaces"
+artifact_root = "artifacts"
+capabilities = ["diagnostic.v1"]
+max_concurrent_tasks = 1
+heartbeat_seconds = 5
+reconnect_max_seconds = 30

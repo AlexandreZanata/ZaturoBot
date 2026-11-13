@@ -1,0 +1,67 @@
+{
+  "completed_tasks": 100,
+  "constraints": {
+    "hub_rlimit_as_bytes": 314572800,
+    "limit_semantics": "RLIMIT_AS caps virtual address space, not RSS; no cgroup memory limit is applied",
+    "malloc_arena_max": 2,
+    "measurement": "hub process /proc VmRSS and VmHWM; worker excluded"
+  },
+  "database_files_bytes": {
+    "hub.db": 274432,
+    "hub.db-shm": 32768,
+    "hub.db-wal": 4132392,
+    "worker.db": 4096,
+    "worker.db-shm": 32768,
+    "worker.db-wal": 1322552
+  },
+  "environment": {
+    "architecture": "x86_64",
+    "binary_sha256": {
+      "hub": "387740be821311040ea5f420f865a15082a5e35df64edf75e477b5bc30e74c93",
+      "worker": "062cf88884a014e506aba31118591b94d33993e4db4eabfaeacaad80016424ec"
+    },
+    "host_memory_bytes": 33337683968,
+    "kernel": "7.2.15-76070215-generic",
+    "logical_cpus": 16,
+    "os": "Linux-7.2.15-76070215-generic-x86_64-with-glibc2.39",
+    "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)"
+  },
+  "hub_memory": {
+    "peak_kernel_hwm_bytes": 9551872,
+    "peak_sampled_rss_bytes": 9551872,
+    "peak_virtual_bytes": 94629888,
+    "samples": 207
+  },
+  "idle": {
+    "rss_bytes": 8708096,
+    "virtual_bytes": 85811200
+  },
+  "load_seconds": 9.103539,
+  "restart": {
+    "completed_metadata_preserved": true,
+    "history_events_verified": 5,
+    "hub_memory": {
+      "peak_kernel_hwm_bytes": 8953856,
+      "peak_sampled_rss_bytes": 8953856,
+      "peak_virtual_bytes": 87945216,
+      "samples": 22
+    },
+    "worker_reconnected": true
+  },
+  "status": "passed",
+  "submission_seconds": 1.018641,
+  "target_observations": {
+    "idle_rss_below_150_mib": true,
+    "peak_hwm_below_300_mib": true,
+    "scope": "this synthetic workload only; these observations are not a production capacity guarantee"
+  },
+  "total_seconds": 11.34064,
+  "workload": {
+    "diagnostic_tasks": 100,
+    "http_submission_concurrency": 4,
+    "idle_seconds": 1,
+    "loopback_only": true,
+    "sampling_interval_ms": 50,
+    "worker_task_concurrency": 1
+  }
+}

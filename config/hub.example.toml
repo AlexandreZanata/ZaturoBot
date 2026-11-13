@@ -1,0 +1,10 @@
+# Local development. Remote access requires HTTPS/WSS termination or a secure tunnel.
+bind = "127.0.0.1:7878"
+client_url = "http://127.0.0.1:7878"
+database = "data/hub.db"
+worker_id = "local-worker"
+max_connections = 8
+max_queued_tasks = 256
+max_page_size = 100
+lease_seconds = 30
+max_workers = 1

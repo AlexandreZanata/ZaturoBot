@@ -1,0 +1,9 @@
+/target/
+/data/
+/.env
+/*.local.toml
+*.db
+*.db-shm
+*.db-wal
+/artifacts/
+/workspaces/

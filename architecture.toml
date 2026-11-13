@@ -1,0 +1,39 @@
+# Canonical permitted internal dependency edges. Checked against Cargo metadata.
+version = 1
+
+[crates.zaturo-core]
+path = "crates/core"
+may_depend_on = []
+
+[crates.zaturo-protocol]
+path = "crates/protocol"
+may_depend_on = ["zaturo-core"]
+
+[crates.zaturo-db]
+path = "crates/db"
+may_depend_on = ["zaturo-core"]
+
+[crates.zaturo-services]
+path = "crates/services"
+may_depend_on = ["zaturo-core", "zaturo-db"]
+
+[crates.zaturo-security]
+path = "crates/security"
+may_depend_on = ["zaturo-core"]
+
+[crates.zaturo-tools]
+path = "crates/tools"
+may_depend_on = ["zaturo-core"]
+
+[crates.zaturo-hub]
+path = "apps/zaturo-hub"
+may_depend_on = ["zaturo-core", "zaturo-protocol", "zaturo-db", "zaturo-services", "zaturo-security"]
+
+[crates.zaturo-worker]
+path = "apps/zaturo-worker"
+may_depend_on = ["zaturo-core", "zaturo-protocol", "zaturo-db", "zaturo-security", "zaturo-tools"]
+may_dev_depend_on = ["zaturo-hub"]
+
+[crates.xtask]
+path = "xtask"
+may_depend_on = []
