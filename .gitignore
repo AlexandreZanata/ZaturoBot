@@ -1,6 +1,9 @@
 /target/
 /data/
 /.env
+/.secrets/
+ssh-key-*.key
+ssh-key-*.key.pub
 /*.local.toml
 *.db
 *.db-shm

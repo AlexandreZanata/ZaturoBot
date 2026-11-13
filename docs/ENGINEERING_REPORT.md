@@ -2,8 +2,10 @@
 
 Date: 2026-11-13. Scope: the approved Phase 0 architecture/documentation foundation and
 Phase 1 authenticated hub-to-worker diagnostic system. The foundation is implemented
-and locally validated. No future product phase was silently activated, no paid model
-calls were made, and no production deployment or remote mutation was performed.
+and locally validated. No future product phase was silently activated and no paid model
+calls were made. Foundation validation did not deploy or mutate a production host.
+Later owner-authorized Oracle reuse preparation is separate operational work; its
+current evidence and boundaries are recorded in the [Oracle reuse report](../deploy/oracle/REUSE_VPS.md).
 
 ## Implemented behavior
 
@@ -151,8 +153,18 @@ service tokens. Runtime binaries do not load it automatically. Deployment-workst
 SSH variables are separate preparation metadata and are not consumed by the applications.
 No private key contents, real tokens, or owner certificates are committed in examples.
 Other local projects and certificate material remain outside this implementation's
-modification scope. Follow-up Oracle preparation remains pending working SSH access at
-report time; no VPS deletion, modification, installation, or deployment is claimed.
+modification scope. The owner later authorized preparation of the existing Oracle host
+and supplied its SSH identity. That operation is distinct from the foundation validation
+reported above; the [Oracle reuse report](../deploy/oracle/REUSE_VPS.md) is the canonical
+record of verified access, encrypted backup, exact cleanup boundaries, local project
+preservation, and staged configuration. Preparation completed and passed an independent
+new-session SSH verification at 2026-11-13 22:48 UTC. The retired application resources
+were removed only after full authenticated backup validation. All 3,634 recorded local
+PDF-project entries and eight critical hashes matched their preservation baseline.
+The dedicated hub identity/config/state paths and a staged unit are ready, but no hub
+binary or installed/enabled service exists. The remote RAM/disk snapshots in that report
+are host observations, not an Oracle hub workload benchmark. Preparation does not mean
+the hub was deployed.
 
 ## Intentionally deferred and unresolved decisions
 

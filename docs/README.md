@@ -14,6 +14,8 @@ For implementation, read [conventions](CONVENTIONS.md),
 [threat model](THREAT_MODEL.md), [migrations](MIGRATIONS.md),
 [resource limits](RESOURCE_LIMITS.md), and [observability](OBSERVABILITY.md).
 [Deployment](DEPLOYMENT.md) covers local development and future private installations.
+The [Oracle reuse report](../deploy/oracle/REUSE_VPS.md) records separately authorized
+host cleanup, encrypted recovery evidence, preserved local files, and staged preparation.
 
 Future work is specified in [agent architecture](AGENT_ARCHITECTURE.md),
 [LLM providers](LLM_PROVIDERS.md), [computer use](COMPUTER_USE.md),

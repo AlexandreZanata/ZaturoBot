@@ -1,8 +1,13 @@
 # Local and native deployment
 
 The initial implementation is development-only until the owner chooses and reviews a
-private installation. No VPS access, deployment, router changes, or package installation
-was performed during this foundation pass. Local commands are in the [README](../README.md).
+private installation. Foundation validation is separate from the owner-authorized
+Oracle reuse preparation documented in the [operational report](../deploy/oracle/REUSE_VPS.md).
+The owner-authorized preparation is complete: retired application resources were
+backed up and removed, and hub identity/config/state paths were prepared. The report
+owns the exact verification and preservation evidence. No hub binary or installed/enabled
+service exists; staged files are not evidence of a running ZaturoBot service.
+Local commands are in the [README](../README.md).
 
 ## Oracle hub
 
@@ -20,8 +25,12 @@ Do not open a public unauthenticated control API. A proxy must support WebSocket
 propagate connection closure, and avoid logging Authorization headers.
 
 Use separate random owner and worker tokens, generated locally, not committed examples.
-Protect the environment file with mode 0600 and directory with 0700. Tokens are service
-credentials only; never put Gmail/GitHub/provider keys on the hub. Rotate a token by
+For the system service, keep `/etc/zaturo` `root:zaturo-hub` mode `0750` and
+`hub.toml` `root:zaturo-hub` mode `0640` so the hub can read its nonsecret settings.
+Keep `hub.env` root-owned mode `0600`; the system systemd manager loads it.
+The hub state directory is owned by `zaturo-hub` mode `0700`. Distinguish configuration
+read access from secret-file access rather than applying one blanket directory mode.
+Tokens are service credentials only; never put Gmail/GitHub/provider keys on the hub. Rotate a token by
 updating both relevant endpoints and restarting them; an API rotation workflow is future work.
 
 ## Debian notebook
