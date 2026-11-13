@@ -1,9 +1,10 @@
 # Prompt declarations
 
-No executable model prompts exist in Phases 0/1. This directory documents the declaration
-contract; it does not provide a hidden agent loop. The registry's prompt list is empty.
+The Phase 2 `diagnostic-planner` prompt is the static trusted instruction for the bounded
+coding diagnostic. Its strict action schema and declaration live beside it. The prompt
+has no template variables: owner requests and observations are separate JSON messages.
 
-When Phase 2 adds prompts, register each path, stable ID, purpose, version, permitted
+When adding prompts, register each path, stable ID, purpose, version, permitted
 variables, output schema, and owning component. Separate trusted system instructions
 from fenced untrusted evidence. Render only declared variables; reject missing/unknown
 variables. Treat provider/model configuration as data and never embed credentials.

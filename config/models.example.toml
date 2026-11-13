@@ -1,0 +1,22 @@
+# Safe disabled example. Activation requires the owner's worker-local key and public-coding authorization.
+enabled = false
+provider = "opencode-go"
+default_model = "deepseek-v4.1-flash"
+allowed_models = ["deepseek-v4.1-flash"]
+allowed_privacy = ["public_coding"]
+allow_training_models = false
+allow_global_processing = false
+timeout_seconds = 30
+max_context_bytes = 8192
+max_response_bytes = 16384
+max_output_tokens = 512
+max_attempts = 2
+retry_base_millis = 1000
+concurrent_requests = 1
+
+[budget]
+per_request_tokens = 16384
+per_task_tokens = 65536
+per_day_tokens = 131072
+per_month_tokens = 1048576
+max_task_model_calls = 4

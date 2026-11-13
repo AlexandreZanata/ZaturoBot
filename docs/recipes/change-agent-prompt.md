@@ -1,6 +1,6 @@
 # Change an agent prompt
 
-There are no executable prompts in the foundation. For Phase 2, read the
+The bounded diagnostic planner is a registered static trusted prompt. Read the
 [prompt declaration contract](../../prompts/README.md) and provider/privacy policies.
 
 Identify the purpose, stable ID/version, permitted variables, trusted instruction source,

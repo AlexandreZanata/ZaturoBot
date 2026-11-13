@@ -34,7 +34,7 @@ status = "implemented"
 [[features]]
 id = "ai-orchestration"
 phase = 2
-status = "planned"
+status = "implemented"
 
 [[features]]
 id = "computer-use"
@@ -74,6 +74,10 @@ documentation = "docs/MIGRATIONS.md"
 path = "crates/db/migrations/0002_worker.sql"
 documentation = "docs/MIGRATIONS.md"
 
+[[migrations]]
+path = "crates/db/migrations/0003_worker_model_budget.sql"
+documentation = "docs/MIGRATIONS.md"
+
 [[configurations]]
 name = "HubConfig"
 source = "apps/zaturo-hub/src/config.rs"
@@ -83,3 +87,8 @@ examples = ["config/hub.example.toml"]
 name = "WorkerConfig"
 source = "apps/zaturo-worker/src/config.rs"
 examples = ["config/worker.example.toml"]
+
+[[configurations]]
+name = "ModelsConfig"
+source = "crates/llm/src/config.rs"
+examples = ["config/models.example.toml"]

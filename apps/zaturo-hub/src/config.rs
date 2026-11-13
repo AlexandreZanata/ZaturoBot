@@ -18,7 +18,9 @@ pub struct HubConfig {
 }
 impl HubConfig {
     pub fn load(path: &std::path::Path) -> Result<Self> {
-        let value: Self = toml::from_str(&std::fs::read_to_string(path)?)?;
+        let value: Self = toml::from_str(&std::fs::read_to_string(path)?).map_err(|_| {
+            anyhow::anyhow!("invalid hub configuration; source values are not logged")
+        })?;
         value.validate()?;
         Ok(value)
     }

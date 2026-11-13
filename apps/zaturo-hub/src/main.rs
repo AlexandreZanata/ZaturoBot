@@ -39,6 +39,8 @@ enum TaskCommand {
         idempotency_key: Option<String>,
         #[arg(long, default_value = "Run the approved read-only diagnostic.")]
         request: String,
+        #[arg(long)]
+        data_policy: Option<String>,
     },
     List {
         #[arg(long)]
@@ -97,14 +99,19 @@ async fn main() -> Result<()> {
                 target,
                 idempotency_key,
                 request,
+                data_policy,
             } => {
-                if kind != "diagnostic" {
-                    bail!("only diagnostic is implemented");
-                }
-                let mut task = NewTask::diagnostic(
-                    target,
-                    idempotency_key.unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
-                );
+                let key = idempotency_key.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+                let mut task = match (kind.as_str(), data_policy.as_deref()) {
+                    ("diagnostic", None) => NewTask::diagnostic(target, key),
+                    ("assisted_diagnostic", Some("public-coding")) => {
+                        NewTask::assisted_diagnostic(target, key)
+                    }
+                    ("assisted_diagnostic", _) => bail!(
+                        "assisted_diagnostic requires --data-policy public-coding; submit public coding context only"
+                    ),
+                    _ => bail!("unsupported task kind or disclosure policy"),
+                };
                 task.request = request;
                 post("/v1/tasks".into()).json(&task).send().await?
             }

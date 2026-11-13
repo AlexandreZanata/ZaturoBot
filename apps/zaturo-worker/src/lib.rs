@@ -1,7 +1,8 @@
 //! Outbound worker transport and durable, policy-checked diagnostic execution.
 pub mod config;
+mod execution;
 mod runtime;
-pub use runtime::{connect_once, run};
+pub use runtime::{connect_once, connect_once_with_router, run};
 
 pub fn now_ms() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};

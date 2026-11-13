@@ -4,8 +4,9 @@ use std::path::Path;
 use thiserror::Error;
 use uuid::Uuid;
 use zaturo_core::{
-    Assignment, ControlAction, DiagnosticResult, ExecutionBudget, Limits, NewTask, Task, TaskEvent,
-    TaskState, Worker, validate_identifier,
+    Assignment, AssistedResult, ControlAction, DataPolicy, DiagnosticResult, ExecutionBudget,
+    FailureCode, Limits, NewTask, OrchestrationResult, Task, TaskEvent, TaskKind, TaskState,
+    Worker, validate_identifier,
 };
 use zaturo_db::{HubStore, Repository};
 
@@ -79,6 +80,8 @@ impl Engine {
                 lease_token: None,
                 lease_expires_at: None,
                 result: None,
+                data_policy: request.data_policy,
+                orchestration: None,
                 failure: None,
             };
             repository.insert_task(&task, &request)?;
@@ -116,12 +119,13 @@ impl Engine {
     pub fn register(&self, id: &str, capabilities: &[String], now: i64) -> Result<Worker> {
         validate_identifier(id).map_err(Error::Invalid)?;
         if capabilities.len() > 16
-            || capabilities
-                .iter()
-                .any(|capability| capability != "diagnostic.v1")
+            || capabilities.iter().any(|capability| {
+                !matches!(capability.as_str(), "diagnostic.v1" | "agent.diagnostic.v1")
+            })
         {
             return Err(Error::Invalid(
-                "only registered diagnostic.v1 capability is supported".into(),
+                "only registered diagnostic and assisted diagnostic capabilities are supported"
+                    .into(),
             ));
         }
         let mut capabilities = capabilities.to_vec();
@@ -150,7 +154,8 @@ impl Engine {
             let task = if let Some(task) = repository.active_for_worker(worker_id)? {
                 task
             } else {
-                let Some(mut task) = repository.candidate(worker_id, now)? else {
+                let Some(mut task) = repository.candidate(worker_id, &worker.capabilities, now)?
+                else {
                     return Ok(None);
                 };
                 if !task
@@ -267,12 +272,62 @@ impl Engine {
         result: DiagnosticResult,
         now: i64,
     ) -> Result<Task> {
+        self.commit_completion(
+            task_id,
+            worker_id,
+            lease_token,
+            Completion {
+                result,
+                orchestration: None,
+            },
+            now,
+        )
+    }
+
+    pub fn complete_assisted(
+        &self,
+        task_id: &str,
+        worker_id: &str,
+        lease_token: &str,
+        result: DiagnosticResult,
+        orchestration: OrchestrationResult,
+        now: i64,
+    ) -> Result<Task> {
+        self.commit_completion(
+            task_id,
+            worker_id,
+            lease_token,
+            Completion {
+                result,
+                orchestration: Some(orchestration),
+            },
+            now,
+        )
+    }
+
+    fn commit_completion(
+        &self,
+        task_id: &str,
+        worker_id: &str,
+        lease_token: &str,
+        completion: Completion,
+        now: i64,
+    ) -> Result<Task> {
         self.store.transaction(|repository| {
             let mut task = repository.task(task_id)?.ok_or(Error::NotFound)?;
+            let assisted = completion.orchestration.is_some();
+            if assisted != (task.kind == TaskKind::AssistedDiagnostic)
+                || (assisted && task.data_policy != Some(DataPolicy::PublicCoding))
+            {
+                return Err(Error::Invalid(
+                    "completion does not match the authorized task kind and data policy".into(),
+                ));
+            }
             if task.state == TaskState::Completed
                 && task.assigned_worker.as_deref() == Some(worker_id)
                 && task.lease_token.as_deref() == Some(lease_token)
-                && task.result.as_ref() == Some(&result)
+                && task.result.as_ref() == Some(&completion.result)
+                && task.orchestration == completion.orchestration
             {
                 return Ok(task);
             }
@@ -280,22 +335,68 @@ impl Engine {
             if task.state != TaskState::Running {
                 return Err(Error::Conflict("completion requires a running task".into()));
             }
-            if !result.validates(&task.operation_id)
-                || serde_json::to_vec(&result).map_or(true, |bytes| {
-                    bytes.len() > task.budget.max_output_bytes as usize
-                })
-            {
+            let evidence_valid = completion.result.validates(&task.operation_id)
+                && completion
+                    .orchestration
+                    .as_ref()
+                    .is_none_or(OrchestrationResult::validates);
+            let output_size = match &completion.orchestration {
+                Some(orchestration) => serde_json::to_vec(&AssistedResult {
+                    diagnostic: completion.result.clone(),
+                    orchestration: orchestration.clone(),
+                }),
+                None => serde_json::to_vec(&completion.result),
+            }
+            .map_err(|_| Error::Invalid("result serialization failed".into()))?
+            .len();
+            if !evidence_valid || output_size > task.budget.max_output_bytes as usize {
                 return Err(Error::Invalid(
-                    "diagnostic result does not satisfy acceptance criteria".into(),
+                    "result does not satisfy typed acceptance criteria".into(),
                 ));
             }
-            task.result = Some(result);
+            task.result = Some(completion.result);
+            task.orchestration = completion.orchestration;
             transition(
                 repository,
                 &mut task,
                 TaskState::Completed,
                 now,
-                "Diagnostic acceptance criteria satisfied",
+                "Typed task acceptance criteria satisfied",
+            )?;
+            Ok(task)
+        })
+    }
+
+    pub fn fail(
+        &self,
+        task_id: &str,
+        worker_id: &str,
+        lease_token: &str,
+        code: FailureCode,
+        now: i64,
+    ) -> Result<Task> {
+        self.store.transaction(|repository| {
+            let mut task = repository.task(task_id)?.ok_or(Error::NotFound)?;
+            if task.state == TaskState::Failed
+                && task.assigned_worker.as_deref() == Some(worker_id)
+                && task.lease_token.as_deref() == Some(lease_token)
+                && task.failure.as_deref() == Some(code.as_str())
+            {
+                return Ok(task);
+            }
+            check_lease(&task, worker_id, lease_token, now)?;
+            if task.state != TaskState::Running {
+                return Err(Error::Conflict(
+                    "failure reporting requires a running task".into(),
+                ));
+            }
+            task.failure = Some(code.as_str().into());
+            transition(
+                repository,
+                &mut task,
+                TaskState::Failed,
+                now,
+                "Worker reported a bounded failure category",
             )?;
             Ok(task)
         })
@@ -381,6 +482,11 @@ impl Engine {
         }
         Ok(())
     }
+}
+
+struct Completion {
+    result: DiagnosticResult,
+    orchestration: Option<OrchestrationResult>,
 }
 
 fn check_lease(task: &Task, worker_id: &str, lease_token: &str, now: i64) -> Result<()> {

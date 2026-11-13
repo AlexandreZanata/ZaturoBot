@@ -5,11 +5,13 @@ and reversible. Security-critical activation waits for explicit evidence and aut
 
 - Q01 — License adoption: recommend MIT OR Apache-2.0. The owner must confirm before
   adding license texts or making a licensed release. Public visibility is not a grant.
-- Q02 — Remote topology: choose VPN-only access or a private TLS proxy, DNS/certificates,
-  device ACLs, and service-token provisioning/rotation. No production deployment authorized.
-- Q03 — Provider eligibility: verify Go's current coding-workload restrictions and each
-  data-category/privacy setting. Decide whether general non-coding tasks need another
-  provider. Candidate model IDs remain configuration choices, not guaranteed capabilities.
+- Q02 — Remote topology: resolved for this deployment by ADR-0009: a verified SSH22
+  tunnel reaches a loopback hub. A future VPN, TLS proxy, additional devices, or rotation
+  API remains a separate scoped decision; no public control endpoint is opened.
+- Q03 — Provider eligibility: resolved for the bounded public-coding diagnostic by
+  ADR-0010 and dated official research. Only deepseek-v4.1-flash is allowed; paid smoke
+  verification is expressly authorized. General non-coding/unattended workloads, new
+  data categories, and any retention-policy reliance beyond its date remain unresolved.
 - Q04 — Notebook capability: identify CPU, storage, display/server availability, and
   GPU/video encoder support before desktop/video adoption. No GPU assumptions are made.
 - Q05 — Unattended unlock: choose a vault key-management and recovery policy; automatic

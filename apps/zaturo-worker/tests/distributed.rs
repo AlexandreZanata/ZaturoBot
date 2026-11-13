@@ -43,6 +43,7 @@ fn worker_config(path: &std::path::Path, url: String) -> WorkerConfig {
         max_concurrent_tasks: 1,
         heartbeat_seconds: 1,
         reconnect_max_seconds: 2,
+        models_config: None,
     }
 }
 

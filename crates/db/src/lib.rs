@@ -1,6 +1,7 @@
 //! SQLite repositories. State-machine decisions belong to services.
 
 mod journal;
+mod model_budget;
 mod repository;
 
 pub use journal::WorkerJournal;
@@ -22,6 +23,8 @@ pub enum Error {
     SchemaVersion,
     #[error("operation belongs to another task or has a conflicting result")]
     OperationConflict,
+    #[error("model reservation or usage exceeds a configured budget")]
+    BudgetExceeded,
 }
 
 fn connection(
@@ -38,6 +41,12 @@ fn connection(
     let version: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
     if version == 0 {
         connection.execute_batch(&format!("BEGIN IMMEDIATE;\n{migration}\nCOMMIT;"))?;
+    } else if expected_version == 3 && version == 2 {
+        connection.execute_batch(concat!(
+            "BEGIN IMMEDIATE;\n",
+            include_str!("../migrations/0003_worker_model_budget.sql"),
+            "\nCOMMIT;"
+        ))?;
     } else if version != expected_version {
         return Err(Error::SchemaVersion);
     }

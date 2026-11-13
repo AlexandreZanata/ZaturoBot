@@ -1,0 +1,22 @@
+[Unit]
+Description=Private SSH tunnel to the ZaturoBot hub
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/zaturobot/tunnel.env
+ExecStart=/usr/bin/ssh -N -T -p ${ZATURO_DEPLOY_SSH_PORT} -i ${ZATURO_DEPLOY_SSH_KEY} -L 127.0.0.1:17878:127.0.0.1:7878 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UpdateHostKeys=no -o ExitOnForwardFailure=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 ${ZATURO_DEPLOY_SSH_USER}@${ZATURO_DEPLOY_SSH_HOST}
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=true
+MemoryMax=64M
+TasksMax=8
+LimitNOFILE=128
+LogRateLimitIntervalSec=30s
+LogRateLimitBurst=100
+
+[Install]
+WantedBy=default.target

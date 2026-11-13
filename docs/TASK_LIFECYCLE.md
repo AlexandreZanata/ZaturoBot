@@ -17,7 +17,7 @@ milliseconds. Inject current time into service operations and tests.
 - `RETRY_PENDING` → `QUEUED`, `PAUSED`, `CANCELLED`, or `FAILED`.
 - `COMPLETED`, `FAILED`, and `CANCELLED` are terminal.
 
-Not every legal domain transition has an API in Phase 1. In particular, approval records
+Not every legal domain transition has an API in the current implementation. In particular, approval records
 and approval resolution are planned. The diagnostic follows creation, queue, assignment,
 running, and validated completion; it never requests a human approval.
 
@@ -25,7 +25,8 @@ running, and validated completion; it never requests a human approval.
 
 A task has task/operation UUIDs, original request, kind, target worker, required
 capabilities, state, priority, tool/output budget, retry count/cap, created/updated/deadline
-UTC times, assigned worker, lease token/expiry, optional result, and failure reason.
+UTC times, assigned worker, lease token/expiry, optional diagnostic result, optional
+assisted orchestration evidence, optional data policy, and failure reason.
 The diagnostic permits one tool call with a bounded result. `NewTask` limits request
 size, priority, attempts, timeout, worker identifier, and idempotency-key length. The
 foundation timeout is a total creation-to-completion deadline of 1–300 seconds, not a
@@ -36,7 +37,8 @@ extensions; the diagnostic produces an inline bounded result rather than a file 
 
 Equivalent repeated creation with an idempotency key returns the existing task; a
 conflicting payload fails. Assignment increments attempts and creates a fencing lease.
-A worker must register the required `diagnostic.v1` capability before claim. Heartbeats
+A worker must register the required task capability before claim: `diagnostic.v1` for
+a direct diagnostic, or `agent.diagnostic.v1` for an assisted diagnostic. Heartbeats
 renew only that worker's active valid lease. Only matching worker, task, lease, state,
 and accepted typed result can complete work. Exact duplicate completed reports are
 idempotent; stale or conflicting reports cannot overwrite durable completion.
@@ -62,3 +64,25 @@ Completion is acceptance-based: the diagnostic must identify its operation and t
 report success on Linux, and provide bounded nonempty architecture/summary fields.
 A transport ACK alone is never acceptance evidence. See
 [recovery recipe](recipes/recover-interrupted-job.md) and [protocol](COMMUNICATION_PROTOCOL.md).
+
+## Assisted diagnostic and spend recovery
+
+`assisted_diagnostic` requires the owner's explicit `public_coding` data policy. The
+worker advertises its assisted capability only when a validated real model route is
+configured; a fake client is not a production substitute. A successful assisted outcome
+retains the direct typed diagnostic plus the selected model, bounded summary, step/tool
+counts, and validated usage. Typed worker failures are fenced by the same worker/task/
+lease checks; a stale failure cannot terminate newer work.
+
+The separate worker ledger reserves each paid attempt before transmission. Token and
+call admission are atomic across request/task/UTC-day/UTC-month scopes. Pending and
+uncertain requests remain charged after restart. A response that exceeds its reservation
+records debt and prevents further affected model dispatch. Final assisted outcomes are
+journaled before reporting; reconnect can resend that evidence without another model
+request. An unresolved paid request without a cached final outcome fails safely for
+reconciliation rather than claiming zero spend or blindly restarting the model loop.
+
+Pause/cancel prevents subsequent model/tool dispatch. It cannot revoke a request already
+accepted by the provider, so cancellation preserves the corresponding reservation.
+Long-running jobs, approval resolution, richer tools, and arbitrary project work remain
+later capabilities, not consequences of the new task kind.

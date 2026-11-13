@@ -9,7 +9,9 @@ rendering, or heavyweight scanning there. Build release artifacts elsewhere.
 The notebook has 22 GB RAM; its GPU is unknown. Use bounded concurrency and owner-selected
 CPU/RAM limits. The foundation executes one short deterministic diagnostic at a time.
 Future tools need per-process time/memory/CPU budgets and owned process-group cleanup.
-Provider token/cost limits are planned separately in [LLM providers](LLM_PROVIDERS.md).
+Phase 2 request/task/day/month token and model-call limits are enforced through the
+worker ledger; provider selection and accounting semantics are in
+[LLM providers](LLM_PROVIDERS.md).
 
 ## Enforcement and capacity
 
@@ -37,6 +39,10 @@ The systemd examples contain service memory/CPU caps and log-rate limits. Caps c
 resource use and may terminate a process; they do not prove a workload fits. A private
 TLS proxy can add connection/header/idle limits as defense in depth. Protect host file
 descriptors, journald storage, and database disk capacity separately.
+
+The model path additionally bounds context/response bytes, provider timeout, attempts,
+concurrency, and planner steps. The hub never performs inference or stores its API key.
+A paid timeout is retained in the ledger, not reclaimed as free capacity.
 
 ## Reproducible measurement
 

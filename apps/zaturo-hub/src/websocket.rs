@@ -74,7 +74,7 @@ async fn session(state: AppState, mut socket: WebSocket) {
     else {
         return;
     };
-    if worker_id != state.config.worker_id || capabilities != ["diagnostic.v1"] {
+    if worker_id != state.config.worker_id {
         return;
     }
     {
@@ -151,6 +151,16 @@ async fn session(state: AppState, mut socket: WebSocket) {
                         if outstanding.as_deref() != Some(task_id.as_str()) { break; }
                         let completed_id = task_id.clone();
                         (database(&state, move |e| e.complete(&task_id, &id, &lease_token, result, now_ms()).map(|_| ())).await, Some(completed_id))
+                    }
+                    ClientMessage::CompletedAssisted { task_id, lease_token, result } => {
+                        if outstanding.as_deref() != Some(task_id.as_str()) { break; }
+                        let completed_id = task_id.clone();
+                        (database(&state, move |e| e.complete_assisted(&task_id, &id, &lease_token, result.diagnostic, result.orchestration, now_ms()).map(|_| ())).await, Some(completed_id))
+                    }
+                    ClientMessage::Failed { task_id, lease_token, code } => {
+                        if outstanding.as_deref() != Some(task_id.as_str()) { break; }
+                        let completed_id = task_id.clone();
+                        (database(&state, move |e| e.fail(&task_id, &id, &lease_token, code, now_ms()).map(|_| ())).await, Some(completed_id))
                     }
                 };
                 if result.is_err() { if !send(&mut socket, ServerMessage::Error { code: "reconciliation_required".into() }).await { break; } break; }

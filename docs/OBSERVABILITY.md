@@ -11,10 +11,15 @@ evidence determine completion; a successful HTTP response or process exit alone 
 Distinguish failed, cancelled, paused, waiting approval, retry pending, and active work.
 An unreachable worker is device state, not automatic proof that its operation failed.
 
-No dashboard, notification pipeline, token-usage telemetry, provider selection, or tool
-process log collection is implemented for absent subsystems. When those features arrive,
-add bounded fields for model ID, usage, approval decision, tool result, retry cause, and
-artifact references, without private chain-of-thought or secrets.
+Assisted task results now include selected model, planning steps, model-call count,
+confirmed token usage, optional provider-reported monetary cost, and a completeness flag. If a
+retry follows an uncertain attempt, the result's confirmed usage is only a lower bound;
+the durable worker reservation ledger remains the spend source of truth. Failure events
+use typed categories rather than arbitrary provider messages.
+
+No dashboard, notification pipeline, approval decision telemetry, or owned-tool-process
+log collection exists for absent subsystems. Add those fields with their actual feature,
+without private chain-of-thought, raw prompts, provider bodies, or secrets.
 
 ## Retention and investigation
 

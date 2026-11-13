@@ -74,7 +74,16 @@ fn walk(root: &Path, directory: &Path) -> Result<()> {
         if entry.file_type()?.is_dir() {
             if !matches!(
                 entry.file_name().to_str(),
-                Some(".git" | ".agents" | ".codex" | ".aws" | "target" | "data" | "node_modules")
+                Some(
+                    ".git"
+                        | ".secrets"
+                        | ".agents"
+                        | ".codex"
+                        | ".aws"
+                        | "target"
+                        | "data"
+                        | "node_modules"
+                )
             ) {
                 walk(root, &path)?;
             }

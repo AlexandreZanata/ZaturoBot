@@ -162,8 +162,14 @@ impl Repository<'_> {
             .query_row(UNFINISHED_COUNT_SQL, [], |row| row.get(0))?)
     }
 
-    pub fn candidate(&self, worker_id: &str, now: i64) -> Result<Option<Task>, Error> {
-        Ok(self.task_query("SELECT body FROM tasks WHERE state='QUEUED' AND target_worker=?1 AND deadline_at>?2 ORDER BY priority DESC,created_at,id LIMIT 1",params![worker_id,now])?.pop())
+    pub fn candidate(
+        &self,
+        worker_id: &str,
+        capabilities: &[String],
+        now: i64,
+    ) -> Result<Option<Task>, Error> {
+        // The service supplies authorized capabilities; SQL only applies the requested filter.
+        Ok(self.task_query("SELECT body FROM tasks WHERE state='QUEUED' AND target_worker=?1 AND deadline_at>?2 AND NOT EXISTS (SELECT 1 FROM json_each(json_extract(tasks.body,'$.required_capabilities')) AS required WHERE required.value NOT IN (SELECT value FROM json_each(?3))) ORDER BY priority DESC,created_at,id LIMIT 1",params![worker_id,now,serde_json::to_string(capabilities)?])?.pop())
     }
 
     pub fn active_for_worker(&self, worker_id: &str) -> Result<Option<Task>, Error> {

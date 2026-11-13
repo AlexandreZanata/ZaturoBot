@@ -1,9 +1,9 @@
 [workspace]
 resolver = "3"
-members = ["apps/zaturo-hub", "apps/zaturo-worker", "crates/core", "crates/protocol", "crates/db", "crates/services", "crates/security", "crates/tools", "xtask"]
+members = ["apps/zaturo-hub", "apps/zaturo-worker", "crates/core", "crates/protocol", "crates/db", "crates/services", "crates/security", "crates/tools", "crates/llm", "crates/orchestrator", "xtask"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.99"
 publish = false
@@ -36,6 +36,8 @@ zaturo-services = { path = "crates/services" }
 zaturo-security = { path = "crates/security" }
 zaturo-tools = { path = "crates/tools" }
 zaturo-hub = { path = "apps/zaturo-hub" }
+zaturo-llm = { path = "crates/llm" }
+zaturo-orchestrator = { path = "crates/orchestrator" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

@@ -1,11 +1,11 @@
 use crate::{Error, connection};
 use rusqlite::{Connection, OptionalExtension, params};
 use std::{path::Path, sync::Mutex};
-use zaturo_core::DiagnosticResult;
+use zaturo_core::{AssistedResult, DiagnosticResult};
 
 /// Local diagnostic intents and results; never synchronize the underlying file.
 pub struct WorkerJournal {
-    connection: Mutex<Connection>,
+    pub(crate) connection: Mutex<Connection>,
 }
 
 impl WorkerJournal {
@@ -13,8 +13,12 @@ impl WorkerJournal {
         Ok(Self {
             connection: Mutex::new(connection(
                 path,
-                2,
-                include_str!("../migrations/0002_worker.sql"),
+                3,
+                concat!(
+                    include_str!("../migrations/0002_worker.sql"),
+                    "\n",
+                    include_str!("../migrations/0003_worker_model_budget.sql")
+                ),
             )?),
         })
     }
@@ -29,16 +33,16 @@ impl WorkerJournal {
         let mut connection = self.connection.lock().map_err(|_| Error::Poisoned)?;
         let transaction =
             connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        let existing: Option<(String, Option<String>)> = transaction
+        let existing: Option<(String, String, Option<String>)> = transaction
             .query_row(
-                "SELECT task_id,result_json FROM operations WHERE operation_id=?1",
+                "SELECT task_id,kind,result_json FROM operations WHERE operation_id=?1",
                 [operation_id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()?;
         let result = match existing {
-            Some((owner, result)) => {
-                if owner != task_id {
+            Some((owner, kind, result)) => {
+                if owner != task_id || kind != "diagnostic" {
                     return Err(Error::OperationConflict);
                 }
                 result.map(|body| serde_json::from_str(&body)).transpose()?
@@ -99,6 +103,71 @@ impl WorkerJournal {
             .map(|body| serde_json::from_str(&body))
             .transpose()
             .map_err(Error::from)
+    }
+
+    /// A final assisted result is replayable; pending model reservations are not new authorization.
+    pub fn begin_assisted(
+        &self,
+        operation_id: &str,
+        task_id: &str,
+        now: i64,
+    ) -> Result<Option<AssistedResult>, Error> {
+        let mut connection = self.connection.lock().map_err(|_| Error::Poisoned)?;
+        let transaction =
+            connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let existing: Option<(String, String, Option<String>)> = transaction
+            .query_row(
+                "SELECT task_id,kind,assisted_json FROM operations WHERE operation_id=?1",
+                [operation_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .optional()?;
+        let cached = match existing {
+            Some((owner, kind, result)) => {
+                if owner != task_id || kind != "assisted_diagnostic" {
+                    return Err(Error::OperationConflict);
+                }
+                result.map(|s| serde_json::from_str(&s)).transpose()?
+            }
+            None => {
+                transaction.execute("INSERT INTO operations(operation_id,task_id,kind,started_at,updated_at) VALUES (?1,?2,'assisted_diagnostic',?3,?3)",params![operation_id,task_id,now])?;
+                None
+            }
+        };
+        transaction.commit()?;
+        Ok(cached)
+    }
+
+    pub fn record_assisted(
+        &self,
+        operation_id: &str,
+        result: &AssistedResult,
+        now: i64,
+    ) -> Result<(), Error> {
+        if !result.validates(operation_id) || serde_json::to_vec(result)?.len() > 4096 {
+            return Err(Error::OperationConflict);
+        }
+        let mut connection = self.connection.lock().map_err(|_| Error::Poisoned)?;
+        let transaction =
+            connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let existing:Option<(Option<String>,Option<String>)>=transaction.query_row("SELECT result_json,assisted_json FROM operations WHERE operation_id=?1 AND kind='assisted_diagnostic'",[operation_id],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
+        let Some((Some(diagnostic), assisted)) = existing else {
+            return Err(Error::OperationConflict);
+        };
+        if serde_json::from_str::<DiagnosticResult>(&diagnostic)? != result.diagnostic {
+            return Err(Error::OperationConflict);
+        }
+        if let Some(body) = assisted
+            && serde_json::from_str::<AssistedResult>(&body)? != *result
+        {
+            return Err(Error::OperationConflict);
+        }
+        transaction.execute(
+            "UPDATE operations SET assisted_json=?2,updated_at=?3 WHERE operation_id=?1",
+            params![operation_id, serde_json::to_string(result)?, now],
+        )?;
+        transaction.commit()?;
+        Ok(())
     }
 }
 

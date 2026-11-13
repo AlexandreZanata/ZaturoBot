@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Diagnostic planner action",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "tool"],
+      "properties": {
+        "action": { "const": "tool" },
+        "tool": { "const": "diagnostic.v1" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "summary"],
+      "properties": {
+        "action": { "const": "finish" },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 512 }
+      }
+    }
+  ]
+}

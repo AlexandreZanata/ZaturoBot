@@ -1983,7 +1983,7 @@ checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -2017,14 +2017,14 @@ dependencies = [
 
 [[package]]
 name = "zaturo-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "zaturo-db"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "rusqlite",
  "serde",
@@ -2036,7 +2036,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-hub"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -2056,8 +2056,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "zaturo-llm"
+version = "0.2.0"
+dependencies = [
+ "axum",
+ "futures-util",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "toml",
+ "zaturo-core",
+]
+
+[[package]]
+name = "zaturo-orchestrator"
+version = "0.2.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "toml",
+ "zaturo-core",
+ "zaturo-llm",
+ "zaturo-security",
+]
+
+[[package]]
 name = "zaturo-protocol"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -2066,7 +2095,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-security"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "sha2",
  "subtle",
@@ -2076,7 +2105,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-services"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde_json",
  "tempfile",
@@ -2088,14 +2117,15 @@ dependencies = [
 
 [[package]]
 name = "zaturo-tools"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
+ "serde_json",
  "zaturo-core",
 ]
 
 [[package]]
 name = "zaturo-worker"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -2113,6 +2143,8 @@ dependencies = [
  "zaturo-core",
  "zaturo-db",
  "zaturo-hub",
+ "zaturo-llm",
+ "zaturo-orchestrator",
  "zaturo-protocol",
  "zaturo-security",
  "zaturo-tools",

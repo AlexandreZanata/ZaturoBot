@@ -14,7 +14,8 @@ version definitions. Review upstream license notices before distributing binarie
   and embedded migrations. Bundled SQLite makes builds reproducible and needs a C compiler.
 - `tokio-tungstenite` and `futures-util`: outbound worker WebSocket transport and typed
   asynchronous stream/sink operations. Rustls provides remote TLS verification.
-- `reqwest`: owner CLI HTTP calls and validated origin parsing at the composition roots.
+- `reqwest`: owner CLI HTTP calls, validated origin parsing at the composition roots,
+  and the worker-local bounded OpenCode Go adapter.
   Disable default features and select Rustls; do not depend on a system OpenSSL runtime.
 - `url`: canonical origin-policy parsing in the security crate, shared by both apps.
 - `clap`: typed, discoverable CLI arguments and help output.

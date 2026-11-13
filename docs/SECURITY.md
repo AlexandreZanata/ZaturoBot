@@ -7,8 +7,8 @@ The owner policy is authoritative; model proposals and external content are not.
 
 Owner API access and worker transport use separate bearer credentials. Worker identity
 is bound to configured registration rather than trusted from a message. Application configuration
-rejects unsafe values, and credential debug output is redacted. Only the typed diagnostic
-capability is dispatchable; no shell, provider, browser, or credential broker exists.
+rejects unsafe values, and credential debug output is redacted. The typed diagnostic is the only executable tool. A bounded model planner can propose
+it through the assisted task route; no shell, browser, or credential broker exists.
 Tasks, claims, messages, history pages, connections, and retries have explicit limits.
 The production TCP listener admits only 32 sockets, including unauthenticated/partial
 HTTP requests and upgraded sockets, with a 30-second I/O idle timeout. Separate limits
@@ -22,8 +22,9 @@ one shared endpoint validator requiring an HTTPS origin or literal-loopback HTTP
 without user information, path, query, or fragment.
 
 Bind loopback for local development. Remote operation must use a secure private path;
-prefer an owner-managed VPN such as Tailscale. Direct remote plaintext HTTP/WebSocket
-is forbidden. A reverse proxy may terminate TLS while the hub stays loopback-bound.
+the installed private topology uses an authenticated SSH tunnel to a loopback hub.
+A VPN such as Tailscale remains a later alternative. Direct remote plaintext
+HTTP/WebSocket is forbidden. A reverse proxy may terminate TLS while the hub stays loopback-bound.
 No external account keys belong on the VPS. Hub/worker authentication tokens are service
 credentials and must be protected with owner-only file access and rotation.
 
@@ -43,6 +44,21 @@ operation and scope; expired or mismatched approvals fail closed.
 
 Redaction reduces accidental exposure; it does not encrypt process memory or environment
 variables. The foundation is not a sandbox for hostile local code. Run separate Unix
-identities and protect databases/backups. Persistent encrypted vault storage, device
-credential rotation APIs, browser isolation, and provider-data controls remain planned.
+identities and protect databases/backups. Persistent encrypted vault storage, device credential rotation APIs, and browser
+isolation remain planned. Phase 2 provider routing admits only explicit public-coding
+requests, the owner-selected model, and approved Global processing; it is not a general
+sensitive-data classifier.
 Never dump environment variables or authenticated request headers while debugging.
+
+## Model and publication boundaries
+
+The provider key stays in the worker's protected local environment and never travels to
+the hub, model prompts, task results, Git, or application logs. The router and policy
+checks are deterministic; model output cannot bypass them. Paid requests reserve budget
+before dispatch, and uncertain outcomes remain charged across restart. A model summary
+alone is not diagnostic acceptance evidence.
+
+Ignored `.secrets/` contains owner-controlled operational material outside the source
+artifact. Repository documentation walks skip it. The publication gate checks Git-visible
+working files, staged content, and reachable history with redacted failures. Passing
+that heuristic is not a substitute for reviewing the actual staged diff before push.

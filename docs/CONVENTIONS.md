@@ -17,7 +17,8 @@ may select and connect implementations, but must not invent a second lifecycle.
 
 `cargo xtask check` runs formatting, warnings-as-errors linting, tests, rustdoc, dependency
 rules, and documentation/registry contracts. `cargo xtask arch` and `cargo xtask docs`
-provide focused feedback. CI invokes the same entry point. Check failures identify
+provide focused feedback. `cargo xtask secrets` separately validates publication
+boundaries over Git-visible work, staging, and history. CI invokes the same entry point. Check failures identify
 which canonical source must be updated; do not weaken a guardrail to avoid a failure.
 
 Use descriptive test names for behavioral invariants. Test invalid inputs, stale

@@ -14,10 +14,14 @@ pub struct WorkerConfig {
     pub max_concurrent_tasks: usize,
     pub heartbeat_seconds: u64,
     pub reconnect_max_seconds: u64,
+    #[serde(default)]
+    pub models_config: Option<PathBuf>,
 }
 impl WorkerConfig {
     pub fn load(path: &Path) -> Result<Self> {
-        let value: Self = toml::from_str(&std::fs::read_to_string(path)?)?;
+        let value: Self = toml::from_str(&std::fs::read_to_string(path)?).map_err(|_| {
+            anyhow::anyhow!("invalid worker configuration; source values are not logged")
+        })?;
         value.validate()?;
         Ok(value)
     }
@@ -25,8 +29,25 @@ impl WorkerConfig {
         zaturo_security::validate_endpoint(&self.hub_url)?;
         zaturo_core::validate_identifier(&self.worker_id).map_err(anyhow::Error::msg)?;
         ensure!(
-            self.capabilities == ["diagnostic.v1"] && self.max_concurrent_tasks == 1,
-            "phase one allows one diagnostic task"
+            self.max_concurrent_tasks == 1
+                && self.capabilities.contains(&"diagnostic.v1".into())
+                && self.capabilities.len() <= 2
+                && self
+                    .capabilities
+                    .iter()
+                    .all(|c| matches!(c.as_str(), "diagnostic.v1" | "agent.diagnostic.v1"))
+                && self
+                    .capabilities
+                    .iter()
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .len()
+                    == self.capabilities.len(),
+            "one task and only registered diagnostic capabilities are allowed"
+        );
+        ensure!(
+            !self.capabilities.iter().any(|c| c == "agent.diagnostic.v1")
+                || self.models_config.is_some(),
+            "assisted capability requires a model configuration"
         );
         ensure!(
             (1..=5).contains(&self.heartbeat_seconds),

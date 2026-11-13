@@ -1,23 +1,39 @@
 # Agent architecture
 
-Status: planned for Phase 2. The current worker executes a deterministic task directly;
-it does not call a model, reason autonomously, or spawn specialist agents.
+Phase 2 implements one bounded coding-environment diagnostic loop. It does not provide
+arbitrary project editing, a shell, browser/desktop control, external communications,
+or specialist agents. Those capabilities remain in their later roadmap phases.
 
-The future orchestrator consumes an owner task plus bounded context, asks a model for a
-structured proposal, validates it, requests policy authorization, dispatches one typed
-tool, records its result, and evaluates task acceptance. Models cannot dispatch tools or
-access credentials directly. Tool observations are untrusted data with provenance.
+`zaturo-orchestrator` receives an owner-authorized public coding request and a provider-
+independent model interface. Its trusted [planner prompt](../prompts/diagnostic-planner.md)
+is static and versioned. Owner text and tool observations are separate JSON messages,
+not substitutions into system instructions. Only declared structured actions can cross
+the parser; additional fields, unknown tools, and proposed privilege changes fail closed.
 
-A provider-independent request carries purpose, allowed models, response schema,
-privacy category, deadline, and budget reservation. The provider adapter translates wire
-formats; the orchestrator owns planning and task progress. The policy engine remains
-outside both. Store concise decision summaries and evidence references, not private
-chain-of-thought. Memory should separate owner preferences, project facts, and transient
-task context, with provenance and retention.
+The executable sequence is limited to two planning steps and one real tool:
 
-Dependencies: [provider contract](LLM_PROVIDERS.md), typed tool registry, durable
-operation journal, and policy grants. Threats: prompt injection, forged tool claims,
-context disclosure, runaway loops, and budget races. Acceptance requires a fake model
-fixture that proposes forbidden tools, bounded step/token/time limits, and recovery
-without repeating uncertain external effects. No multi-agent team is needed before one
-agent can satisfy those criteria reliably.
+1. The model proposes `diagnostic.v1` without arbitrary arguments.
+2. The policy/executor authorizes the read-only tool and returns its typed observation.
+3. The model returns a bounded summary grounded in that observation.
+4. Independent result acceptance verifies tool identity, operation identity, diagnostic
+   success, model policy, and bounded usage/evidence before the task can complete.
+
+A finish-before-tool proposal, repeated tool request, unregistered action, or extra step
+cannot report success. The model can propose, but it cannot dispatch tools, read secrets,
+grant approval, or change policy. The worker executor journals intent/result around the
+typed diagnostic and the final assisted outcome before hub reporting.
+
+The model router enforces the [provider contract](LLM_PROVIDERS.md); durable worker
+reservations enforce spend admission across tasks and restarts. Cancellation stops
+further dispatch, while a model request that may already have reached the provider stays
+accounted for. Unknown paid-request outcomes require reconciliation rather than blind
+retries. A completed journaled outcome is safe to resend after reconnection.
+
+Store concise summaries, selected model, usage, tool evidence, operation/request identity,
+and error categories. Do not store private chain-of-thought, raw credentials, or complete
+provider error bodies. Fake-model tests cover prompt-injection attempts, malformed
+actions, denied routes, budgets, cancellation, and restart/uncertain-request handling.
+
+The natural-language summary remains untrusted model output. Local validation proves the
+recorded tool/operation contract and bounds; it does not prove every sentence in a model
+summary is semantically true. The typed diagnostic is the authoritative task evidence.

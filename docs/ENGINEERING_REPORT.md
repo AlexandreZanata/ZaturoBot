@@ -213,7 +213,8 @@ with a nonterminal eligible task. Both binaries accept `--config PATH`; defaults
 committed local examples. The [README](../README.md), [deployment](DEPLOYMENT.md), and
 [testing](TESTING.md) contain detailed setup and reproducibility boundaries.
 
-The next recommended product phase is Phase 2: a bounded orchestrator and fake-model
-acceptance tests, followed by a provider adapter only after official endpoint, workload,
-and data-policy verification. Production deployment and the requested Oracle preparation
-are separate operational work; they are not evidence that future product features exist.
+At this foundation checkpoint, the next recommended product phase was Phase 2. The
+subsequently authorized implementation and its verification are recorded in
+[the Phase 2 report](PHASE2_REPORT.md); the current [roadmap](ROADMAP.md) owns phase status.
+Operational installation is separately evidenced and does not imply that later desktop,
+vault, integration, scheduling, or client features exist.

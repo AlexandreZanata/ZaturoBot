@@ -2,6 +2,12 @@
 
 use serde::{Deserialize, Serialize};
 
+mod model;
+pub use model::{
+    AssistedResult, DataPolicy, FailureCode, ModelBudgetLimits, ModelBudgetSnapshot,
+    ModelCallState, ModelReservation, ModelUsage, OrchestrationResult, ReservationStatus,
+};
+
 pub const TASK_STATES: &[&str] = &[
     "CREATED",
     "QUEUED",
@@ -76,12 +82,14 @@ impl TaskState {
 pub enum TaskKind {
     #[default]
     Diagnostic,
+    AssistedDiagnostic,
 }
 
 impl TaskKind {
     pub fn capability(self) -> &'static str {
         match self {
             Self::Diagnostic => "diagnostic.v1",
+            Self::AssistedDiagnostic => "agent.diagnostic.v1",
         }
     }
 }
@@ -96,6 +104,8 @@ pub struct NewTask {
     pub priority: i32,
     pub max_attempts: u32,
     pub timeout_seconds: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_policy: Option<DataPolicy>,
 }
 
 impl NewTask {
@@ -111,6 +121,19 @@ impl NewTask {
             priority: 0,
             max_attempts: 3,
             timeout_seconds: 300,
+            data_policy: None,
+        }
+    }
+
+    /// The caller explicitly chooses public coding data; this is not inferred from request text.
+    pub fn assisted_diagnostic(
+        target_worker: impl Into<String>,
+        idempotency_key: impl Into<String>,
+    ) -> Self {
+        Self {
+            kind: TaskKind::AssistedDiagnostic,
+            data_policy: Some(DataPolicy::PublicCoding),
+            ..Self::diagnostic(target_worker, idempotency_key)
         }
     }
 
@@ -130,6 +153,11 @@ impl NewTask {
         }
         if !(1..=300).contains(&self.timeout_seconds) {
             return Err("timeout_seconds must be between 1 and 300".into());
+        }
+        if (self.kind == TaskKind::AssistedDiagnostic)
+            != (self.data_policy == Some(DataPolicy::PublicCoding))
+        {
+            return Err("assisted diagnostics require explicit public_coding data policy; diagnostics accept none".into());
         }
         Ok(())
     }
@@ -207,6 +235,10 @@ pub struct Task {
     pub lease_token: Option<String>,
     pub lease_expires_at: Option<i64>,
     pub result: Option<DiagnosticResult>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_policy: Option<DataPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub orchestration: Option<OrchestrationResult>,
     pub failure: Option<String>,
 }
 

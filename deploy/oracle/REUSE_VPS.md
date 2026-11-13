@@ -1,11 +1,12 @@
 # Oracle host reuse: verified operational report
 
-Status: owner-authorized preparation completed and independently verified through a new
-SSH session at 2026-11-13 22:48 UTC. The retired PDF deployment was backed up, then its
-confirmed resources were removed. The host is prepared for a future ZaturoBot hub;
-no hub binary or installed/enabled service exists and no hub is running. No Git push
-was performed. The foundation implementation and its local benchmarks remain separate
-from these later operational actions.
+Historical checkpoint: owner-authorized cleanup was independently verified through a
+new SSH session on 2026-11-13 at 18:48 America/Cuiaba (22:48 UTC). The retired PDF
+deployment was backed up, then its confirmed resources were removed. At that checkpoint
+the host was prepared for a future hub; no hub binary/service had been installed and no
+Git push had occurred. Subsequent owner-authorized activation is separate from this
+cleanup evidence and the original local foundation benchmark. See
+[the live deployment runbook](../../docs/LIVE_DEPLOYMENT.md) for current service activation.
 
 ## Scope and local preservation
 
@@ -118,11 +119,13 @@ The post-cleanup snapshot reported 952 MiB total RAM, 256 MiB used, and 696 MiB 
 the earlier snapshot reported 368 MiB used and 583 MiB available. `df -h` reported
 4.5G used on a 48G filesystem after cleanup versus 5.3G used before. These are host
 snapshots, not ZaturoBot memory benchmarks, and do not establish application capacity.
-The hub has never run on this host during preparation.
+The hub had not run on this host at the end of the preparation checkpoint.
 
-Remaining deployment work is to choose the private VPN/TLS access path, review target
-binary compatibility and service credentials, install a release only when authorized,
-activate the reviewed unit, and measure the real target workload. The local
+At that checkpoint, remaining deployment work was to choose the private access path,
+review target binary compatibility and service credentials, install an authorized
+release, activate the reviewed unit, and measure the real target workload. The owner
+subsequently authorized an SSH-tunneled installation; its current activation evidence
+is separate from these historical cleanup observations. The local
 [foundation benchmark](../../docs/benchmark-local.json) is independent evidence from a
 development machine. Ongoing backup/recovery, firewall, logging retention, updates,
 and SSH-key protection remain operator responsibilities.

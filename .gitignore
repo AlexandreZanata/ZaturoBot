@@ -4,7 +4,7 @@
 /.secrets/
 ssh-key-*.key
 ssh-key-*.key.pub
-/*.local.toml
+*.local.toml
 *.db
 *.db-shm
 *.db-wal

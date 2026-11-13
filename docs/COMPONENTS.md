@@ -14,20 +14,27 @@ stable discovery keys; [architecture.toml](../architecture.toml) is the dependen
   shared secure-origin/private-bind policy, and capability policy independent of a model.
   App configuration structs validate operational settings at their composition roots.
 - `zaturo-tools` — `crates/tools`: the registered deterministic diagnostic executor.
+- `zaturo-llm` — `crates/llm`: provider-independent requests, strict model/privacy
+  routing, bounded OpenCode Go transport, cancellation, and synthetic fake client.
+- `zaturo-orchestrator` — `crates/orchestrator`: strict structured proposals, bounded
+  diagnostic planning, policy/executor ports, evidence-based completion, and no shell.
 - `zaturo-hub` — `apps/zaturo-hub`: HTTP/WebSocket composition, pre-HTTP bounded TCP listener,
   notification-driven dispatch with durable fallback, and owner CLI.
 - `zaturo-worker` — `apps/zaturo-worker`: outbound connection, journal reconciliation,
   authorized execution, result reporting, and reconnect.
-- `xtask` — `xtask`: the shared CI/local quality entry point and contract checks.
+- `xtask` — `xtask`: the shared CI/local quality entry point, architecture/documentation
+  contracts, and bounded Git-visible secret/history publication checks.
 
 ## Registrations and extension points
 
-`diagnostic` is the only implemented task kind; `diagnostic.v1` is its tool/capability ID.
+`diagnostic` is the direct task kind. Phase 2 adds `assisted_diagnostic` with capability
+`agent.diagnostic.v1`; both use the one executable tool `diagnostic.v1`.
 Future `github`, `video`,
 `price-monitoring`, and `gmail` integrations are planned registrations in
 [registry](../config/registry.toml); none contacts an external account today.
-No executable AI prompts or provider adapters are installed. Read the
-[prompt contract](../prompts/README.md) before adding one.
+The `diagnostic-planner` prompt and OpenCode Go adapter form the bounded Phase 2 route.
+Read the [prompt contract](../prompts/README.md) and
+[model policy](LLM_PROVIDERS.md) before changing them.
 
 [Direct dependency rationale](DEPENDENCIES.md) explains external packages.
 [Engineering report](ENGINEERING_REPORT.md) records validation and measured local results.

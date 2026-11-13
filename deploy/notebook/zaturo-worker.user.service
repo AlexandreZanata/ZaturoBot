@@ -1,0 +1,27 @@
+[Unit]
+Description=ZaturoBot local execution worker
+Wants=zaturo-hub-tunnel.service
+After=zaturo-hub-tunnel.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=%h/.local/share/zaturobot
+EnvironmentFile=%h/.config/zaturobot/worker.env
+ExecStart=%h/.local/lib/zaturobot/zaturo-worker --config %h/.config/zaturobot/worker.toml connect
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=true
+MemoryHigh=256M
+MemoryMax=512M
+CPUQuota=100%
+TasksMax=32
+LimitNOFILE=1024
+LogRateLimitIntervalSec=30s
+LogRateLimitBurst=1000
+
+[Install]
+WantedBy=default.target

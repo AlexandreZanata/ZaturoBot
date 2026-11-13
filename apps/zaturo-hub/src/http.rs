@@ -27,7 +27,9 @@ pub fn router(state: AppState) -> Router {
         .merge(owner_routes)
         .route(
             "/healthz",
-            get(|| async { Json(serde_json::json!({"status":"ok","protocol":1})) }),
+            get(|| async {
+                Json(serde_json::json!({"status":"ok","protocol":zaturo_protocol::VERSION}))
+            }),
         )
         .route("/v1/worker", get(websocket::upgrade))
         .layer(DefaultBodyLimit::max(MAX_MESSAGE_BYTES))

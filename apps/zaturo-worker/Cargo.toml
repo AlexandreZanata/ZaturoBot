@@ -21,6 +21,8 @@ zaturo-protocol.workspace = true
 zaturo-db.workspace = true
 zaturo-security.workspace = true
 zaturo-tools.workspace = true
+zaturo-llm.workspace = true
+zaturo-orchestrator.workspace = true
 
 [dev-dependencies]
 axum.workspace = true

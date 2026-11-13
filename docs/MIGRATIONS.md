@@ -11,6 +11,17 @@ migrations to apply to the same database. The worker journal records operation i
 a completed diagnostic result before reporting it, so an acknowledged transport message
 is not the only evidence of execution. Each store applies only its own schema migration.
 
+`crates/db/migrations/0003_worker_model_budget.sql` upgrades the worker journal from
+version 2 to version 3. It adds durable model reservations/usage and assisted outcome
+metadata without altering the independent hub schema version 1. Existing direct
+diagnostic results remain readable. Migration tests open a version-2 worker fixture,
+upgrade it, and preserve its committed journal evidence.
+
+Pending/uncertain reservations remain charged across restart; missing responses are not
+free budget. Rolling back a version-3 worker requires restoring a consistent version-2
+backup or a separately designed downgrade. Do not synchronize the worker database to
+the hub or treat the two version numbers as one ordered schema stream.
+
 Enable WAL, foreign keys, and bounded busy handling for file databases. Apply migrations
 transactionally and record schema version. Migration tests create a new database, reopen
 it, and verify previously committed tasks/events/journal entries remain usable.

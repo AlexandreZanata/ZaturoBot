@@ -63,6 +63,8 @@ struct Prompts {
 #[serde(deny_unknown_fields)]
 struct Prompt {
     id: String,
+    purpose: String,
+    owner: String,
     version: u32,
     path: String,
     variables: Vec<String>,
@@ -421,6 +423,21 @@ fn check_prompts(root: &Path) -> Result<()> {
     );
     for prompt in declaration.prompts {
         ensure!(
+            prompt.purpose.split_whitespace().count() >= 4 && prompt.purpose.len() <= 256,
+            "prompt needs a bounded meaningful purpose: {}",
+            prompt.id
+        );
+        let architecture: toml::Value =
+            toml::from_str(&fs::read_to_string(root.join("architecture.toml"))?)?;
+        ensure!(
+            architecture
+                .get("crates")
+                .and_then(|crates| crates.get(&prompt.owner))
+                .is_some(),
+            "prompt {} has an unknown owning component",
+            prompt.id
+        );
+        ensure!(
             prompt.version > 0,
             "prompt version must be positive: {}",
             prompt.id
@@ -489,6 +506,40 @@ mod tests {
         assert!(placeholders("Read {{ }}").is_err());
         assert!(placeholders("Read text}}").is_err());
         assert!(toml::from_str::<Prompts>("prompts=[]\nunknown=true").is_err());
+    }
+
+    #[test]
+    fn prompt_purpose_and_owner_are_required_and_checked() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path();
+        fs::create_dir(root.join("prompts")).unwrap();
+        fs::write(
+            root.join("architecture.toml"),
+            "[crates.planner]\npath='crates/planner'\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("prompts/plan.md"),
+            "Return one bounded structured action.",
+        )
+        .unwrap();
+        fs::write(root.join("prompts/schema.json"), r#"{"type":"object"}"#).unwrap();
+        let valid = "[[prompts]]\nid='plan'\npurpose='Choose one bounded diagnostic action'\nowner='planner'\nversion=1\npath='prompts/plan.md'\nvariables=[]\noutput_schema='prompts/schema.json'\n";
+        fs::write(root.join("prompts/registry.toml"), valid).unwrap();
+        check_prompts(root).unwrap();
+        fs::write(
+            root.join("prompts/registry.toml"),
+            valid.replace("owner='planner'", "owner='missing'"),
+        )
+        .unwrap();
+        assert!(check_prompts(root).is_err());
+        fs::write(
+            root.join("prompts/registry.toml"),
+            valid.replace("Choose one bounded diagnostic action", ""),
+        )
+        .unwrap();
+        assert!(check_prompts(root).is_err());
+        assert!(toml::from_str::<Prompts>(&valid.replace("owner='planner'\n", "")).is_err());
     }
 
     #[test]

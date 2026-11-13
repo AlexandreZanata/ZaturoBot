@@ -1,40 +1,58 @@
-# Model providers
+# Model providers and routing
 
-Status: planned for Phase 2. No adapter, provider API key, paid call, or model prompt is
-active. The diagnostic demonstration does not need a model.
+Phase 2 introduces a provider-independent client, a bounded router, and an OpenCode Go
+adapter. The owner's current model policy allows only `deepseek-v4.1-flash`; there is
+no model fallback. [Official-source research](OPENCODE_GO_RESEARCH.md) owns the dated
+endpoint, authentication, usage, workload, and privacy evidence.
 
-OpenCode Go is the preferred candidate. `deepseek-v4.1-flash` and
-`muse-spark-1.3-contributor` are configuration candidates, not immutable guarantees.
-The official [Go documentation](https://opencode.ai/docs/console/go/) is the authority;
-verify it again immediately before implementation. The older `/docs/go/` URL redirects.
+`zaturo-llm` owns transport and model routing. `zaturo-orchestrator` owns the structured
+proposal loop. Typed tool execution and policy authorization remain separate. Tests
+use a fake model or synthetic loopback HTTP responses. A fake client is not a production
+provider, and normal CI never uses the owner's paid account.
 
-The 2026-11-13 reference inspection found coding-agent traffic restrictions, product
-User-Agent and stable `x-opencode-session` expectations for direct clients. DeepSeek
-V4.1 Flash requires the Global privacy region; Muse Spark 1.3 requires enabling paid
-endpoints that may train on submissions. Do not enable either policy for sensitive data
-without explicit authorization. Presence in a model catalog does not grant workload
-eligibility, especially for general research, email, or video automation.
+## Configuration and activation
 
-Before writing a real adapter, record exact endpoints, auth, API styles, headers, session
-semantics, current IDs, vision/tool/structured-output capabilities, token/rate limits,
-usage fields, terms, retention, training, and permitted use cases from official sources.
-Unverified values remain disabled. OpenTatu's adapter suggests isolating transport,
-router, retry policy, and a fake client; its current values are not copied as guarantees.
+`ModelsConfig` is canonical in `crates/llm/src/config.rs`; the safe
+[example](../config/models.example.toml) is disabled. The worker optionally loads a
+model-config path and receives the API key through its protected local environment.
+The hub never receives the provider key. Enabling the example alone is insufficient:
+the exact model allowlist, coding purpose, explicit public-coding classification,
+owner-authorized Global processing, request limits, and durable budget admission must
+all pass before an outbound request. Training models and sensitive data are denied.
 
-## Provider-independent contract
+The only active privacy class is `public_coding`. This is an explicit owner assertion,
+not a content detector. Do not submit secrets merely because a request has that label.
+The API cannot infer privacy from filenames, source repositories, or model names.
 
-A model request carries purpose, model allowlist, bounded messages, output schema,
-privacy category, session/operation ID, timeout, and reservation. A response carries
-validated content, finish reason, usage, optional price data, and provider metadata.
-Capabilities are explicit metadata, not inferred from an identifier. Route by purpose;
-keep tools and orchestration independent of adapter wire formats.
+## Bounded request contract
 
-Use capped exponential backoff only for classified retryable failures. A timeout may
-have consumed tokens; reconcile accounting before retry. Reserve task/request/daily/
-monthly limits locally and reconcile actual usage. Apply privacy authorization before
-sending code, email, documents, or screenshots; training-eligible models need a specific
-data-category grant. Keep targeted evidence and summaries rather than entire histories.
+A request carries operation/session/request identity, coding purpose, classified
+messages, a configured output limit, and a reservation. Context bytes, response bytes,
+request duration, attempts, and concurrent requests are bounded. Secret-safe errors
+expose categories, not arbitrary provider response bodies or authenticated headers.
+The stable provider session identifies the task conversation across its two planning
+steps; every attempt has a distinct durable reservation identity.
 
-Acceptance: synthetic fake-client tests for malformed output, denied model/data routes,
-rate limits, timeouts, usage races, and budget exhaustion. Real-provider smoke tests are
-explicit opt-in and require workload eligibility; they never run in normal CI.
+A response carries bounded text, the selected model, token usage, and optional provider
+charge data. The router rejects an unexpected model or malformed usage. The integer
+micro-dollar field records only provider-reported `usage.cost`, rounded upward. It never
+substitutes Go allowance consumption for a monetary charge. Unavailable dollar data
+stays absent rather than becoming an invented price or zero. The current budget
+admission is token/call based; a separate dollar-denominated spending cap is not claimed.
+
+## Budgeting, retry, and interruption
+
+The worker's SQLite journal reserves tokens and model-call capacity before dispatch.
+Request, task, UTC-day, and UTC-month limits are checked transactionally. Settle validated
+usage against the reservation. Pending or uncertain attempts remain charged across
+restart. A provider overrun is retained as debt and blocks further affected calls.
+
+Retries are limited to explicitly classified retryable responses and capped backoff;
+timeouts, lost responses, cancellation after send, or an interrupted paid request never
+prove that nothing was charged. A repeated reservation cannot silently send the same
+request again. Uncertain execution stops for reconciliation. Stored complete assisted
+results can be replayed to the hub without another model call.
+
+Actual verification evidence belongs to [the Phase 2 report](PHASE2_REPORT.md).
+Future provider adapters, data categories, native tool calls, vision, and general agent
+workloads require new contracts and tests; they are not enabled by this implementation.

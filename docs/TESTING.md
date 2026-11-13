@@ -1,7 +1,8 @@
 # Testing and validation
 
 `cargo xtask check` is the repository/CI gate. It runs formatting, clippy with denied
-warnings, workspace tests, rustdoc, dependency checks, and documentation/registry checks.
+warnings, workspace tests, rustdoc, dependency checks, documentation/registry checks,
+and the bounded Git-visible publication-secret check.
 Run focused package tests while editing, then the gate once the change is complete.
 
 Tests are executable contracts. Use injected UTC times, temporary SQLite files, synthetic
@@ -24,10 +25,28 @@ test process; separate CLI processes are exercised by the local demonstration. R
 - Transport: local hub/worker lifecycle with persisted history, disconnect/reconnect, and
   hub/worker restart during or around assignment.
 
+Phase 2 adds fake-model and synthetic HTTP fixtures for malformed actions, forbidden
+tools/routes, exclusive model selection, privacy denial, token accounting, bounded
+retries, cancellation, and uncertain paid-request recovery. SQLite tests exercise
+reservation races, UTC day/month limits, budget debt, and worker schema upgrades.
+An opt-in paid smoke test needs explicit owner authorization and is separate from CI.
+Source fixtures contain synthetic data only.
+
+`cargo xtask secrets` checks nonignored Git-visible working files, staged blobs, and
+reachable historical blobs and commit/tag messages. It rejects known private/runtime paths, private-key blocks,
+common provider-token prefixes, and literal credential assignments without echoing
+values. Ignored `.env` and `.secrets/` are never opened. Mutation tests prove that a
+secret left staged, in a commit message, or in older history still fails after cleaning
+the working file. This
+heuristic guard is not proof that every possible encoded secret has been detected.
+
+CI checks out reachable history (`fetch-depth: 0`) so its publication scan does not
+silently inspect only a shallow tip. Object/list/history limits fail explicitly rather
+than loading arbitrary artifacts without bounds.
+
 A missing future feature has a planned acceptance contract, not a passing fake test.
-There is no LLM adapter, vault encryption, recurring scheduler, desktop, or integration
-whose real behavior can be claimed by this suite. Fake-model tests become mandatory in
-Phase 2. Source fixtures must contain synthetic data only.
+Vault encryption, recurring scheduling, desktop control, and personal integrations
+remain absent until their own behavioral evidence exists.
 
 Memory/load evidence is separate from correctness tests; see
 [resource limits](RESOURCE_LIMITS.md). Record commands actually run and environmental

@@ -3,6 +3,7 @@
 mod architecture;
 mod contracts;
 mod documentation;
+mod secrets;
 
 use anyhow::{Context, Result, bail};
 use std::{path::Path, process::Command};
@@ -12,13 +13,14 @@ fn main() -> Result<()> {
     let command = args.first().map(String::as_str).unwrap_or("check");
     let locked = args.iter().skip(1).any(|arg| arg == "--locked");
     if args.iter().skip(1).any(|arg| arg != "--locked") {
-        bail!("usage: cargo xtask [check|arch|docs] [--locked]");
+        bail!("usage: cargo xtask [check|arch|docs|secrets] [--locked]");
     }
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .context("xtask must be located directly below the repository root")?;
     match command {
         "arch" => architecture::check(root, locked)?,
+        "secrets" => secrets::check(root)?,
         "docs" => {
             documentation::check(root)?;
             contracts::check(root)?;
@@ -27,6 +29,7 @@ fn main() -> Result<()> {
             architecture::check(root, locked)?;
             documentation::check(root)?;
             contracts::check(root)?;
+            secrets::check(root)?;
             run(root, &["fmt", "--all", "--", "--check"])?;
             let lock_arg: &[&str] = if locked { &["--locked"] } else { &[] };
             let mut clippy = vec!["clippy", "--workspace", "--all-targets"];
@@ -40,7 +43,7 @@ fn main() -> Result<()> {
             docs.extend_from_slice(lock_arg);
             run(root, &docs)?;
         }
-        _ => bail!("unknown command {command:?}; use check, arch, or docs"),
+        _ => bail!("unknown command {command:?}; use check, arch, docs, or secrets"),
     }
     println!("Repository {command} checks passed.");
     Ok(())

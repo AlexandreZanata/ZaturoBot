@@ -10,14 +10,18 @@ the engineering report. Planned contracts do not imply runtime availability.
 Rust workspace, canonical agent documentation, checked dependency boundaries, CI command,
 SQLite task engine, authenticated owner/worker communication, deterministic diagnostic,
 worker journal, bounded leases/retries, and local run/deployment instructions. The API/CLI
-is the initial client. Dashboard and real production installation are deferred.
+is the initial client. Private installation is separately owner-authorized; its actual
+state is operational evidence, while the dashboard remains deferred.
 
-<!-- feature:ai-orchestration status:planned -->
+<!-- feature:ai-orchestration status:implemented -->
 ## Phase 2: AI orchestration
 
-Provider-independent router, verified eligible OpenCode Go adapter, structured planner,
-tool registry expansion, fake model tests, privacy authorization, and budget accounting.
+The bounded public-coding diagnostic adds the exclusive DeepSeek route, versioned static
+prompt, strict structured actions, independent typed-tool policy, fake-model/HTTP
+fixtures, cancellation, and durable request/task/day/month token admission. This phase
+does not implement arbitrary code changes or general personal tasks.
 Gate: prohibited proposals cannot cross policy; errors/restarts cannot spend unboundedly.
+The final integration/activation evidence is recorded in the Phase 2 engineering report.
 
 <!-- feature:computer-use status:planned -->
 ## Phase 3: Linux computer use
@@ -58,4 +62,5 @@ Gate: secure sessions, accessible controls, owner takeover, and reconnect tests.
 Multiple workers, specialist agents, durable memory, delegation, and provider optimization.
 Gate: a single-worker agent is already reliable and measured before complexity grows.
 
-This pass stops after validation of Phases 0/1. No future phase is implicitly authorized.
+This pass stops after the explicitly authorized Phase 2 and private installation.
+Phase 3 computer use and every later feature still require their own scoped request.
