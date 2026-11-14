@@ -60,3 +60,13 @@ bcprov-jdk15to18 artifact to avoid duplicate crypto classes. Kage's fixed transi
 and kotlin-result libraries remain Gradle dependencies; no dynamic versions. See the
 [upstream library](https://github.com/android-password-store/kage) and packaged notices.
 The MCP adapter adds no Python runtime dependency beyond the 3.11+ standard library.
+
+
+The0.6 computer adapter crate reuses existing workspace dependencies only. Python3.11+
+stdlib helpers add no runtime pip package. Optional external backends are pinned
+computer-use-linux0.7.53 (MIT) and @playwright/mcp0.0.85 (Apache-2.0), verified against
+source and installed artifact hashes, with separate notices. They are not linked into
+the hub, and upstream scripts/setup/code-evaluation tools are never forwarded. Postiz
+(AGPL-3.0) is an independently operated API service, not imported or installed on the VPS.
+The BitLupa bridge reads its documented external schema without copying its private source.
+See [computer](COMPUTER_USE.md) and [social](SOCIAL_MANAGEMENT.md) contracts.

@@ -1,6 +1,6 @@
 use crate::{
     BudgetPort, CallContext, Cancellation, Error, LlmClient, Message, ModelRequest, ModelResponse,
-    ModelsConfig, PrivacyClass,
+    ModelsConfig,
 };
 use std::{
     sync::Arc,
@@ -119,14 +119,11 @@ impl Router {
         if !self.config.enabled {
             return Err(Error::Disabled);
         }
-        let privacy = if self.config.provider == "opencode-console" {
-            PrivacyClass::Personal
-        } else {
-            PrivacyClass::PublicCoding
-        };
-        if context.privacy != privacy || !self.config.allowed_privacy.contains(&context.privacy) {
+        if context.privacy != self.config.privacy()
+            || !self.config.allowed_privacy.contains(&context.privacy)
+        {
             return Err(Error::Denied(
-                "explicit public-coding disclosure is required",
+                "request privacy must match its explicitly configured route",
             ));
         }
         if !self.config.allow_global_processing {
@@ -134,9 +131,14 @@ impl Router {
                 "the selected model requires explicit Global processing authorization",
             ));
         }
+        let max_step = if self.config.is_personal_route() {
+            self.config.budget.max_task_model_calls.min(8)
+        } else {
+            2
+        };
         if zaturo_core::validate_identifier(&context.operation_id).is_err()
             || zaturo_core::validate_identifier(&context.task_id).is_err()
-            || !(1..=2).contains(&context.step)
+            || !(1..=max_step).contains(&context.step)
             || messages.is_empty()
             || messages.len() > 8
         {
@@ -199,6 +201,7 @@ impl Router {
         {
             return Err(Error::InvalidResponse);
         }
+        self.config.validate_billing(response)?;
         Ok(())
     }
     async fn backoff(

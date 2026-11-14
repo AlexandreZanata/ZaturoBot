@@ -1,6 +1,7 @@
 //! Hub composition and bounded transport. Domain decisions live in services.
 mod activity;
 mod clients;
+mod computer;
 pub mod config;
 mod devices;
 mod files;

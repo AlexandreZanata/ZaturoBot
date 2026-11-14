@@ -7,11 +7,21 @@ orchestration, plus explicitly authorized encrypted cross-network device files a
 bounded diagnostic workers. The owner additionally authorized native Linux Slint and
 Android Kotlin clients, a persistent day-filtered chat/activity feed, YoutubeBot service
 integration and Android USB foundations. The owner also authorized bounded personal
-DeepSeek chat through the Console API, generation-only YoutubeBot requests with actual
+DeepSeek chat through the owner-authorized Go API, generation-only YoutubeBot requests with actual
 login diagnostics, an inert shared MCP task area, and explicit USB messaging-app opening
 with ephemeral encrypted screenshots in Android. Shared instructions are data until the
 owner asks the receiving agent to act under its own local policy.
-Full desktop automation, general vault,
+The owner additionally authorized the bounded0.6 semantic Linux/browser and social
+foundation: pinned model-independent MCP backends, exact owner-approved input/drafts,
+read-only BitLupa stored offers and ephemeral private PC captures. This does not permit
+an unrestricted shell or treating webpage/model text as action authority.
+The owner explicitly superseded the prior Console-only personal route: native chat and
+computer planning use Personal-classified Go with allow_personal_go=true, one attempt,
+exclusive DeepSeek and subscription-only response acceptance. Keep provider Extra Usage
+off; no Console credit fallback, automatic top-up or model substitution. The prior402 is
+historical evidence, not a prerequisite for the new route. See ADR-0021 and the provider
+contract; this opt-in never relabels personal data as public coding.
+Full desktop isolation, general vault,
 scheduling and arbitrary account actions remain planned.
 
 ## Read only the context you need

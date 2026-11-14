@@ -145,6 +145,8 @@ def call(hub, name, arguments):
         if set(body) - allowed or required - body.keys():
             raise ValueError("invalid create/update fields")
         return hub.request("/v1/shared/tasks" + ("/" + identity + "/updates" if identity else ""), body)
+    if arguments["message"].strip().lower().startswith(("/aprovar ","/recusar ")):
+        raise ValueError("Computer action approvals require the native owner interface")
     return hub.request("/v1/chat", {**arguments, "action": "assistant"})
 
 
@@ -175,7 +177,7 @@ def serve(hub, source, sink):
                 if not isinstance(params, dict) or not isinstance(params.get("protocolVersion"), str):
                     raise ValueError("invalid initialize")
                 initialized = True
-                result = {"protocolVersion": params["protocolVersion"] if params["protocolVersion"] in {"2024-11-05","2025-03-26","2025-06-18",VERSION} else VERSION, "capabilities": {"tools": {}}, "serverInfo": {"name": "zaturobot", "version": "0.5.0"}, "instructions": TRUST}
+                result = {"protocolVersion": params["protocolVersion"] if params["protocolVersion"] in {"2024-11-05","2025-03-26","2025-06-18",VERSION} else VERSION, "capabilities": {"tools": {}}, "serverInfo": {"name": "zaturobot", "version": "0.6.0"}, "instructions": TRUST}
             elif not initialized:
                 raise ValueError("initialize required")
             elif method == "ping":

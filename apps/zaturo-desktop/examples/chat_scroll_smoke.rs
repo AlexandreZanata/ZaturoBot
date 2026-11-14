@@ -18,6 +18,7 @@ fn item(index: i64) -> FeedItem {
         task_id: None,
         artifact_id: None,
         sensitive: false,
+        capture: None,
     }
 }
 fn page(start: i64, end: i64, more: bool) -> FeedPage {

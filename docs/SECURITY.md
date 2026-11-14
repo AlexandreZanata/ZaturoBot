@@ -47,7 +47,10 @@ variables. The foundation is not a sandbox for hostile local code. Run separate 
 identities and protect databases/backups. Persistent encrypted vault storage, device credential rotation APIs, and browser
 isolation remain planned. Phase 2 provider routing admits only explicit public-coding
 requests, the owner-selected model, and approved Global processing; it is not a general
-sensitive-data classifier.
+sensitive-data classifier. ADR-0021 separately authorizes Personal/Go only with explicit
+allow_personal_go opt-in, one attempt, exclusive DeepSeek and unchanged independent grants.
+Personal data is never reclassified as public coding. Subscription receipt checks cannot
+reverse a provider charge; Extra Usage must remain off. See [provider policy](LLM_PROVIDERS.md).
 Never dump environment variables or authenticated request headers while debugging.
 
 ## Model and publication boundaries

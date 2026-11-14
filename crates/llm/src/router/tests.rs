@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    PrivacyClass,
+    BillingSource, ModelBilling, PrivacyClass,
     fake::{FakeBudget as Budget, FakeClient, FakeReply},
 };
 use zaturo_core::ModelUsage;
@@ -39,11 +39,32 @@ fn response() -> ModelResponse {
             output_tokens: 20,
             cost_microusd: Some(2),
         },
+        billing: None,
         finish_reason: "stop".into(),
         duration_ms: 1,
         model_calls: 1,
         usage_complete: true,
     }
+}
+fn personal_response() -> ModelResponse {
+    ModelResponse {
+        usage: ModelUsage {
+            cost_microusd: Some(0),
+            ..response().usage
+        },
+        billing: Some(ModelBilling {
+            source: BillingSource::Go,
+            allowance_microusd: Some(31),
+        }),
+        ..response()
+    }
+}
+fn personal_config() -> ModelsConfig {
+    let mut config = config();
+    config.allow_personal_go = true;
+    config.allowed_privacy = vec![PrivacyClass::Personal];
+    config.max_attempts = 1;
+    config
 }
 fn messages() -> Vec<Message> {
     vec![
@@ -278,4 +299,176 @@ fn canonical_config_rejects_model_changes_and_secret_debug_is_redacted() {
     let mut answer = response();
     answer.content = text.into();
     assert!(!format!("{request:?} {answer:?}").contains(text));
+}
+
+#[test]
+fn personal_go_is_explicit_exact_single_attempt_nontraining_and_deepseek_only() {
+    let public = config();
+    assert!(!public.allow_personal_go);
+    assert_eq!(public.privacy(), PrivacyClass::PublicCoding);
+    assert!(!public.is_personal_route());
+    let personal = personal_config();
+    personal.validate().unwrap();
+    assert_eq!(personal.privacy(), PrivacyClass::Personal);
+    assert!(personal.is_personal_route());
+    let mut invalid = personal.clone();
+    invalid.allow_personal_go = false;
+    assert!(invalid.validate().is_err());
+    invalid = personal.clone();
+    invalid.allowed_privacy = vec![PrivacyClass::PublicCoding];
+    assert!(invalid.validate().is_err());
+    invalid = personal.clone();
+    invalid.allowed_privacy.push(PrivacyClass::PublicCoding);
+    assert!(invalid.validate().is_err());
+    invalid = personal.clone();
+    invalid.max_attempts = 2;
+    assert!(invalid.validate().is_err());
+    invalid = personal.clone();
+    invalid.allow_training_models = true;
+    assert!(invalid.validate().is_err());
+    invalid = personal.clone();
+    invalid.default_model = "unapproved".into();
+    assert!(invalid.validate().is_err());
+    invalid = personal.clone();
+    invalid.provider = "opencode-console".into();
+    assert!(invalid.validate().is_err());
+    invalid.allow_personal_go = false;
+    invalid.validate().unwrap();
+    assert_eq!(invalid.privacy(), PrivacyClass::Personal);
+    assert!(invalid.is_personal_route());
+}
+
+#[tokio::test]
+async fn personal_go_privacy_mismatch_is_denied_before_reservation_or_dispatch() {
+    let client = Arc::new(FakeClient::new([FakeReply::Answer(personal_response())]));
+    let route = router(personal_config(), client.clone());
+    let budget = Budget::default();
+    assert!(matches!(
+        route
+            .complete(&context(), messages(), &budget, &Cancellation::new())
+            .await,
+        Err(Error::Denied(_))
+    ));
+    assert_eq!(client.calls(), 0);
+    assert!(budget.states().is_empty());
+}
+
+#[tokio::test]
+async fn personal_go_settles_known_usage_then_denies_nonincluded_billing_without_retry() {
+    let mut rejected = vec![response()];
+    for source in [
+        BillingSource::Balance,
+        BillingSource::Byok,
+        BillingSource::Free,
+    ] {
+        let mut reply = personal_response();
+        reply.billing.as_mut().unwrap().source = source;
+        rejected.push(reply);
+    }
+    for cost in [None, Some(1)] {
+        let mut reply = personal_response();
+        reply.usage.cost_microusd = cost;
+        rejected.push(reply);
+    }
+    let mut no_source = personal_response();
+    no_source.billing = None;
+    rejected.push(no_source);
+    for reply in rejected {
+        let client = Arc::new(FakeClient::new([
+            FakeReply::Answer(reply),
+            FakeReply::Answer(personal_response()),
+        ]));
+        let route = router(personal_config(), client.clone());
+        let budget = Budget::default();
+        let mut context = context();
+        context.privacy = PrivacyClass::Personal;
+        assert_eq!(
+            route
+                .complete(&context, messages(), &budget, &Cancellation::new())
+                .await
+                .unwrap_err(),
+            Error::BillingSource
+        );
+        assert_eq!(client.calls(), 1);
+        assert_eq!(budget.states().len(), 1);
+        assert_eq!(budget.states()["operation-1:1:1"], "settled");
+    }
+}
+
+#[tokio::test]
+async fn personal_go_provider_rejection_retains_uncertainty_and_never_retries() {
+    let client = Arc::new(FakeClient::new([
+        FakeReply::Error(Error::RateLimited {
+            retry_after_seconds: None,
+        }),
+        FakeReply::Answer(personal_response()),
+    ]));
+    let route = router(personal_config(), client.clone());
+    let mut context = context();
+    context.privacy = PrivacyClass::Personal;
+    let budget = Budget::default();
+    assert!(matches!(
+        route
+            .complete(&context, messages(), &budget, &Cancellation::new())
+            .await,
+        Err(Error::RateLimited { .. })
+    ));
+    assert_eq!(client.calls(), 1);
+    assert_eq!(budget.states()["operation-1:1:1"], "uncertain");
+}
+
+#[tokio::test]
+async fn personal_step_capacity_never_expands_the_two_step_coding_route() {
+    let client = Arc::new(FakeClient::new([FakeReply::Answer(response())]));
+    let route = router(config(), client.clone());
+    let budget = Budget::default();
+    let mut coding = context();
+    coding.step = 2;
+    route
+        .complete(&coding, messages(), &budget, &Cancellation::new())
+        .await
+        .unwrap();
+    coding.step = 3;
+    assert_eq!(
+        route
+            .complete(&coding, messages(), &budget, &Cancellation::new())
+            .await
+            .unwrap_err(),
+        Error::InvalidRequest
+    );
+    assert_eq!(client.calls(), 1);
+    assert_eq!(budget.states().len(), 1);
+
+    for (provider, explicit_go) in [("opencode-go", true), ("opencode-console", false)] {
+        for configured_calls in [1, 4, 8, 16] {
+            let mut personal = personal_config();
+            personal.provider = provider.into();
+            personal.allow_personal_go = explicit_go;
+            personal.budget.max_task_model_calls = configured_calls;
+            let client = Arc::new(FakeClient::new([FakeReply::Answer(personal_response())]));
+            let route = router(personal, client.clone());
+            let budget = Budget::default();
+            let mut context = context();
+            context.privacy = PrivacyClass::Personal;
+            context.step = configured_calls.min(8);
+            route
+                .complete(&context, messages(), &budget, &Cancellation::new())
+                .await
+                .unwrap();
+            for forbidden in [0, configured_calls.min(8) + 1] {
+                context.step = forbidden;
+                assert_eq!(
+                    route
+                        .complete(&context, messages(), &budget, &Cancellation::new())
+                        .await
+                        .unwrap_err(),
+                    Error::InvalidRequest,
+                    "configured personal call limit {configured_calls}, step {forbidden}"
+                );
+            }
+            assert_eq!(client.calls(), 1);
+            assert_eq!(budget.states().len(), 1);
+            assert!(budget.states().values().all(|state| *state == "settled"));
+        }
+    }
 }

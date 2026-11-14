@@ -28,11 +28,11 @@ internal class PrivatePhoneView(private val activity: Activity, private val ui: 
     private var card: View? = null
     private var revision = 0L
     private class PrivateFailure(val safeText: String): Exception()
-    fun start(worker: String,device: String) {
+    fun start(worker: String,device: String,source: String="android") {
         clear()
         val current=++revision
         val stop=AtomicBoolean(false);cancelled=stop
-        status("Solicitando captura privada do celular no computador…")
+        status("Solicitando captura privada no computador…")
         executor.execute {
             var created: String?=null
             try {
@@ -41,7 +41,7 @@ internal class PrivatePhoneView(private val activity: Activity, private val ui: 
                 check(!stop.get())
                 val client=api();client.registerViewer(identity.recipient().encodeToString())
                 check(!stop.get())
-                val initial=client.privateView(worker,device);created=initial.getString("id")
+                val initial=client.privateView(worker,device,source);created=initial.getString("id")
                 val id=created
                 main.post {if(current==revision && !stop.get()) session=id}
                 val end=SystemClock.elapsedRealtime()+55000
@@ -71,7 +71,7 @@ internal class PrivatePhoneView(private val activity: Activity, private val ui: 
                     bitmap=decoded
                     val layout=LinearLayout(activity).apply {orientation=LinearLayout.VERTICAL;setPadding(ui.dp(12),ui.dp(12),ui.dp(12),ui.dp(12));background=ui.rounded()}
                     layout.addView(ui.text("Tela privada · expira em até 60 segundos",12,MobileUi.YELLOW,true))
-                    val picture=ImageView(activity).apply {setImageBitmap(decoded);adjustViewBounds=true;contentDescription="Captura privada temporária do celular";isSaveEnabled=false}
+                    val picture=ImageView(activity).apply {setImageBitmap(decoded);adjustViewBounds=true;contentDescription="Captura privada temporária autorizada";isSaveEnabled=false}
                     image=picture;layout.addView(picture,LinearLayout.LayoutParams(-1,-2))
                     layout.addView(ui.button("Fechar captura",R.drawable.ic_close){clear()})
                     card=layout;attach(layout);status("Captura privada recebida. A imagem não entra no histórico.")

@@ -59,7 +59,7 @@ ordinary/sensitive-feed boundaries, the model route, and the private-view lifecy
 Free text is stored honestly as a request. Explicit diagnostic, YouTube-profile and USB
 inventory actions create typed tasks. Arbitrary text is not treated as permission to
 execute a shell or an unsupported operation. The public-coding model route stays separate. The owner-authorized 0.5 assistant uses
-the distinct bounded Personal/Console route described in [assistant/shared contracts](ASSISTANT_AND_SHARED_TASKS.md); account files and phone screens are never automatic model context.
+the distinct explicit-opt-in Personal/Go route (ADR-0021) described in [assistant/shared contracts](ASSISTANT_AND_SHARED_TASKS.md); account files and phone screens are never automatic model context.
 
 ## Authentication and transports
 

@@ -61,12 +61,11 @@ capture are implemented separately; see [Android](ANDROID_INTEGRATION.md). Neith
 an unrestricted model tool. Remaining integrations above retain their planned status.
 
 
-## Proposed commercial agency integration
+## Authorized semantic computer, BitLupa and social slices
 
-The [Autonomous Commerce contracts](planning/autonomous-commerce/04-INTEGRATION-CONTRACTS.md)
-propose authenticated, versioned, capability-scoped facts, drafts, operation receipts and
-Hub reports between ZaturoBot and MeuAssistente. They are not live endpoints. Preserve
-independent databases, local conversation ownership, existing synthetic-only WhatsApp and
-model-purpose boundaries. Publication and paid commerce inference remain gated by the
-[policy matrix](planning/autonomous-commerce/06-AUTONOMY-AND-POLICY-MATRIX.md) and current
-[official-source evidence](planning/autonomous-commerce/07-PLATFORM-COMPLIANCE.md).
+The registered semantic-computer integration uses model-independent Linux and browser
+backends under exact native owner confirmations. The bitlupa bridge reads real stored
+offers; live price-monitoring remains planned. The social Postiz connector supports
+reviewed initial drafts/post/schedule/status operations, not universal network comments
+or account login. See [computer use](COMPUTER_USE.md), [social](SOCIAL_MANAGEMENT.md),
+and ADR-0020.

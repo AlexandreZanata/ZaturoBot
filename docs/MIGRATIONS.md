@@ -70,3 +70,15 @@ store upgrade. New binaries accept the documented old versions; old binaries do 
 7/8. Rollback needs the matching pre-upgrade consistent database and compatible binary,
 with reconciliation of any newer work; never clear a journal merely to downgrade. These
 upgrades create local tables/indexes and do not bulk rewrite owner records or images.
+
+
+## Hub 7 to 9: bounded computer coordination
+
+`crates/db/migrations/0009_hub_computer.sql` adds `computer_steps` with a parent task foreign
+key, unique parent/sequence and a1..8 bound. Bodies retain the exact proposed action,
+owner-approval state and child identity; no screenshot bytes or provider credentials.
+HubStore upgrades old1/4/5/7 transactionally to9. Schema7 public recipients/shared tasks
+and previous task/feed/transfer data remain intact. Worker schema remains8, including
+all old service/model uncertainty fences. Rollout must back up SQLite consistently before
+starting the new hub; never restore an old binary over a migrated live DB automatically.
+Tests cover old data preservation and full rollback on a conflicting table.

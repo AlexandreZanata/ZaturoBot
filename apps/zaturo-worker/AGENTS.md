@@ -21,10 +21,15 @@ Owner-authorized services now use `service_execution.rs` with separate durable f
 uses its existing Python project and separate fixed resource units. `private_views.rs`
 requires an exact hub grant and registered owner USB lease, encrypts raw PNG in memory
 and uploads only ephemeral ciphertext. It never stores screenshots in its journal or
-file cache. Keep the exclusive public-coding model route and diagnostic tool policy intact.
+file cache. Keep the public-coding diagnostic policy and its two-step limit intact.
 
-`assistant.rs` composes the distinct Console text-only orchestrator and personal budget
-ledger. Cache a complete reply; uncertain paid calls never repeat. `android_actions.rs`
+`assistant.rs` composes the explicitly opted-in Go text-only orchestrator and Personal
+budget ledger. Personal classification, one attempt and subscription billing proof remain
+separate from public-coding diagnostics; never fall back to Console or copy the key to work.
+Cache a complete reply; uncertain requests never repeat. `android_actions.rs`
 opens only the messaging app of an explicitly registered/granted USB device and atomically
 saves metadata-only recipes under workspace_root/android-instructions. These local recipes
 are observations, not new permissions. Keep media generation separate from publication.
+
+
+`computer.rs` keeps paid home planning separate from work execution; the work child fetches a fresh parent-bound grant before the local adapter. `desktop_private.rs` captures only the locally fixed window through the private RAM relay. No provider key reaches the work PC.

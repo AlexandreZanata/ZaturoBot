@@ -1,6 +1,7 @@
 //! SQLite repositories. State-machine decisions belong to services.
 
 mod activity;
+mod computer;
 mod service_journal;
 mod shared;
 pub use service_journal::{PendingServiceJob, ServiceIntent};
@@ -47,20 +48,25 @@ fn connection(
     let version: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
     if version == 0 {
         connection.execute_batch(&format!("BEGIN IMMEDIATE;\n{migration}\nCOMMIT;"))?;
-    } else if expected_version == 7 && matches!(version, 1 | 4 | 5) {
+    } else if expected_version == 9 && matches!(version, 1 | 4 | 5 | 7) {
         let base = if version == 1 {
             include_str!("../migrations/0004_hub_transfers.sql")
         } else {
             ""
         };
-        connection.execute_batch(&format!(
-            "BEGIN IMMEDIATE;\n{base}\n{}\n{}\nCOMMIT;",
-            if version == 5 {
-                ""
-            } else {
-                include_str!("../migrations/0005_hub_activity.sql")
-            },
+        let activity = if matches!(version, 1 | 4) {
+            include_str!("../migrations/0005_hub_activity.sql")
+        } else {
+            ""
+        };
+        let shared = if version != 7 {
             include_str!("../migrations/0007_hub_shared.sql")
+        } else {
+            ""
+        };
+        connection.execute_batch(&format!(
+            "BEGIN IMMEDIATE;\n{base}\n{activity}\n{shared}\n{}\nCOMMIT;",
+            include_str!("../migrations/0009_hub_computer.sql")
         ))?;
     } else if expected_version == 8 && matches!(version, 2 | 3 | 6) {
         let base = if version == 2 {

@@ -48,6 +48,7 @@ impl DiagnosticExecutor for Executor {
 }
 fn response(content: &str) -> FakeReply {
     FakeReply::Answer(ModelResponse {
+        billing: None,
         model: zaturo_llm::DEEPSEEK_MODEL.into(),
         content: content.into(),
         usage: ModelUsage {

@@ -1,6 +1,9 @@
 //! Fast path for explicit owner commands. Unknown/conditional prose never authorizes tools.
 #[derive(Debug, PartialEq, Eq)]
 pub enum ChatIntent {
+    Computer { request: String },
+    PriceSearch { query: String },
+    ComputerApproval { id: String, allow: bool },
     Diagnostic,
     YoutubeProfiles,
     AndroidDevices,
@@ -10,6 +13,61 @@ pub enum ChatIntent {
     Conversation,
 }
 pub fn chat_intent(message: &str) -> ChatIntent {
+    let trimmed = message.trim();
+    for (prefix, allow) in [("/aprovar ", true), ("/recusar ", false)] {
+        if let Some(id) = trimmed.strip_prefix(prefix)
+            && crate::service::canonical_operation_id(id)
+        {
+            return ChatIntent::ComputerApproval {
+                id: id.into(),
+                allow,
+            };
+        }
+    }
+    for prefix in ["/computador ", "no computador: ", "tarefa no pc: "] {
+        if let Some(request) = trimmed.strip_prefix(prefix)
+            && crate::ordinary_text(request, 2048)
+        {
+            return ChatIntent::Computer {
+                request: request.into(),
+            };
+        }
+    }
+    for prefix in [
+        "/precos ",
+        "/preços ",
+        "pesquise no bitlupa ",
+        "pesquisar no bitlupa ",
+    ] {
+        if let Some(query) = trimmed.strip_prefix(prefix)
+            && crate::ordinary_text(query, 256)
+        {
+            return ChatIntent::PriceSearch {
+                query: query.into(),
+            };
+        }
+    }
+    // The owner's example remains an exact read-only product request, never an upgrade to Pro.
+    // Preserve byte offsets into the original product query across Unicode case expansion.
+    let lower = trimmed.to_ascii_lowercase();
+    if lower.starts_with("pesquise ")
+        && lower.contains("bitlupa")
+        && let Some(end) = lower.find(" usando ")
+    {
+        let mut query = &trimmed["pesquise ".len()..end];
+        for prefix in ["o celular ", "o smartphone ", "celular ", "smartphone "] {
+            if query.to_ascii_lowercase().starts_with(prefix) {
+                query = &query[prefix.len()..];
+                break;
+            }
+        }
+        if crate::ordinary_text(query, 256) {
+            return ChatIntent::PriceSearch {
+                query: query.into(),
+            };
+        }
+    }
+
     for prefix in [
         "/compartilhar ",
         "compartilhe com o codex: ",
@@ -92,6 +150,21 @@ pub fn chat_intent(message: &str) -> ChatIntent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn price_example_preserves_unicode_query_byte_boundaries() {
+        assert_eq!(
+            chat_intent("pesquise İphone usando BitLupa"),
+            ChatIntent::PriceSearch {
+                query: "İphone".into()
+            }
+        );
+        assert_eq!(
+            chat_intent("pesquise o celular POCO X7 usando o projeto BitLupa"),
+            ChatIntent::PriceSearch {
+                query: "POCO X7".into()
+            }
+        );
+    }
     #[test]
     fn explicit_commands_have_a_zero_model_fast_path() {
         assert_eq!(

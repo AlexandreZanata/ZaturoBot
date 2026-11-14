@@ -19,6 +19,10 @@ pub struct WorkerConfig {
     #[serde(default)]
     pub assistant_models_config: Option<PathBuf>,
     #[serde(default)]
+    pub computer_models_config: Option<PathBuf>,
+    #[serde(default)]
+    pub computer: Option<zaturo_computer::ComputerConfig>,
+    #[serde(default)]
     pub files: Option<FilesConfig>,
     #[serde(default)]
     pub youtube: Option<zaturo_youtube::YoutubeConfig>,
@@ -55,10 +59,14 @@ impl WorkerConfig {
         ensure!(
             self.max_concurrent_tasks == 1
                 && self.capabilities.contains(&"diagnostic.v1".into())
-                && self.capabilities.len() <= 9
+                && self.capabilities.len() <= 13
                 && self.capabilities.iter().all(|c| matches!(
                     c.as_str(),
-                    "diagnostic.v1"
+                    "computer.agent.v1"
+                        | "computer.action.v1"
+                        | "computer.private.v1"
+                        | "price.search.v1"
+                        | "diagnostic.v1"
                         | "assistant.chat.v1"
                         | "youtube.generate.v1"
                         | "agent.diagnostic.v1"
@@ -81,6 +89,21 @@ impl WorkerConfig {
                 || self.models_config.is_some(),
             "assisted capability requires a model configuration"
         );
+        ensure!(
+            !self.capabilities.iter().any(|c| c == "computer.agent.v1")
+                || self.computer_models_config.is_some(),
+            "computer planning requires its separate Console profile"
+        );
+        ensure!(
+            !self.capabilities.iter().any(|c| matches!(
+                c.as_str(),
+                "computer.action.v1" | "computer.private.v1" | "price.search.v1"
+            )) || self.computer.is_some(),
+            "computer actions require an explicit local profile"
+        );
+        if let Some(computer) = &self.computer {
+            computer.validate()?;
+        }
         if let Some(youtube) = &self.youtube {
             youtube.validate()?;
         }

@@ -79,6 +79,8 @@ class WorkServicesTests(unittest.TestCase):
             "[Service]\nExecStart=%h/.local/lib/zaturobot/zaturo-worker --config %h/.config/zaturobot/worker.toml connect\nMemoryMax=512M\n",
         )
         write(self.source / "deploy/mcp/zaturo_mcp.py", "# synthetic reviewed MCP fixture; never executed\n")
+        for filename in updater.COMPUTER_HELPERS:
+            write(self.source / "deploy/computer" / filename, "# synthetic reviewed computer helper; never executed\n")
         write(self.youtube / ".gitignore", ".venv/\n.local/\ndist/\n")
         write(
             self.youtube / "tools/ytbot/service.py",
@@ -341,7 +343,7 @@ class WorkServicesTests(unittest.TestCase):
             "--android-serial", "SYNTHETIC_USB_123", "--enable-private-view", "--enable-messages")
         self.assertEqual(status, 0, report)
         updated = tomllib.loads(self.worker_config.read_text())
-        self.assertEqual(set(updated["capabilities"]), updater.KNOWN_CAPS)
+        self.assertEqual(set(updated["capabilities"]), updater.KNOWN_CAPS - {"computer.agent.v1", "computer.action.v1", "computer.private.v1", "price.search.v1"})
         self.assertEqual(updated["assistant_models_config"], str(profile))
         self.assertEqual(updated["files"], original["files"])
         self.assertTrue(report["generation_granted"] and report["messages_granted"])
@@ -374,6 +376,158 @@ class WorkServicesTests(unittest.TestCase):
         self.assertNotEqual(status, 0)
         self.assertIn("explicitly supplied USB serial", error)
         self.assertEqual(self.worker_config.read_bytes(), before)
+
+    def computer_fixture(self):
+        profiles = self.config_dir / "native-profiles"
+        linux = write(profiles / "linux.toml", "enabled=false\nallow_input=false\nallow_capture=false\n")
+        browser = write(profiles / "browser.toml", "enabled=false\nallow_input=false\n")
+        provider = write(profiles / "postiz.env", "POSTIZ_API_KEY=synthetic-postiz-key-never-clone\n")
+        social = write(profiles / "social.toml", "enabled=false\nenv_file=" + json.dumps(str(provider)) + "\n")
+        bitlupa = self.base / "BitLupa"
+        bitlupa.mkdir(mode=0o700, exist_ok=True)
+        value = {"python": sys.executable, "scripts_root": str(self.base / "prior-reviewed-helper-path"),
+                 "linux_profile": str(linux), "browser_profile": str(browser), "social_profile": str(social),
+                 "bitlupa_project": str(bitlupa), "bitlupa_database": str(bitlupa / "not-created.db"),
+                 "capture_target": {"window_id": 7, "pid": 777, "app_id": "synthetic-editor"}}
+        profile = write(self.base / "computer.toml", updater.render_toml(value))
+        return profile, value, [linux, browser, social, provider]
+
+    @unittest.skipUnless(Path("/usr/bin/adb").is_file(), "host has no adb binary")
+    def test_all_thirteen_capabilities_preserve_planner_and_backend_profiles_without_key_cloning(self):
+        profile, value, protected_profiles = self.computer_fixture()
+        models = write(self.config_dir / "computer-models.toml", "# synthetic preexisting planner selection; never executed\n")
+        assistant = write(self.config_dir / "assistant-models.toml", "# synthetic existing chat selection\n")
+        original = dict(self.original)
+        original["computer"] = value
+        original["computer_models_config"] = str(models)
+        original["assistant_models_config"] = str(assistant)
+        original["capabilities"] = [*original["capabilities"], "assistant.chat.v1", "computer.agent.v1"]
+        write(self.worker_config, updater.render_toml(original))
+        protected = {p: p.read_bytes() for p in [*protected_profiles, models, assistant, self.env, self.identity, self.ssh]}
+        status, report = self.run_update("--apply", "--computer-config", str(profile),
+            "--enable-computer-actions", "--enable-computer-capture", "--enable-price-search",
+            "--enable-generation", "--enable-scheduling", "--android-serial", "SYNTHETIC_USB_123",
+            "--enable-private-view", "--enable-messages")
+        self.assertEqual(status, 0, report)
+        updated = tomllib.loads(self.worker_config.read_text())
+        self.assertEqual(set(updated["capabilities"]), updater.KNOWN_CAPS)
+        self.assertEqual(len(updated["capabilities"]), 13)
+        expected = dict(value)
+        installed = self.home / ".local/lib/zaturobot/computer"
+        expected["scripts_root"] = str(installed)
+        self.assertEqual(updated["computer"], expected)
+        self.assertEqual(updated["computer_models_config"], str(models))
+        self.assertEqual(protected, {p: p.read_bytes() for p in protected})
+        self.assertTrue(report["computer_actions_granted"] and report["computer_capture_granted"]
+                        and report["price_search_granted"] and report["computer_planner_preserved"])
+        self.assertEqual(stat.S_IMODE(installed.stat().st_mode), 0o700)
+        for filename in updater.COMPUTER_HELPERS:
+            path = installed / filename
+            self.assertEqual(path.read_bytes(), (self.source / "deploy/computer" / filename).read_bytes())
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o700)
+        self.assertFalse(Path(updated["computer"]["bitlupa_database"]).exists())
+        manifest = json.loads((Path(report["backup"]) / "manifest.json").read_text())
+        backed_up = {row["path"] for row in manifest["files"]}
+        self.assertTrue(all(str(p) not in backed_up for p in [*protected_profiles, models, assistant, profile]))
+        for path in Path(report["backup"]).rglob("*"):
+            if path.is_file():
+                self.assertNotIn(b"synthetic-postiz-key-never-clone", path.read_bytes())
+        status, repeat = self.run_update("--apply")
+        self.assertEqual(status, 0, repeat)
+        self.assertEqual(repeat["mode"], "already_current")
+        self.assertEqual(tomllib.loads(self.worker_config.read_text()), updated)
+        self.assertEqual(protected, {p: p.read_bytes() for p in protected})
+
+    def test_computer_grants_require_explicit_profiles_and_never_enable_a_planner(self):
+        original = self.worker_config.read_bytes()
+        for flag in ("--enable-computer-actions", "--enable-computer-capture", "--enable-price-search"):
+            status, error = self.run_update("--apply", flag)
+            self.assertNotEqual(status, 0)
+            self.assertIn("explicit private --computer-config", error)
+            self.assertEqual(self.worker_config.read_bytes(), original)
+        profile, value, protected = self.computer_fixture()
+        before = {p: p.read_bytes() for p in protected}
+        for fields, flag, expected in [
+            ({"python": value["python"], "scripts_root": value["scripts_root"]}, "--enable-computer-actions", "at least one"),
+            ({"python": value["python"], "scripts_root": value["scripts_root"], "linux_profile": value["linux_profile"]}, "--enable-computer-capture", "exact local capture target"),
+            ({"python": value["python"], "scripts_root": value["scripts_root"], "browser_profile": value["browser_profile"]}, "--enable-price-search", "BitLupa project"),
+        ]:
+            write(profile, updater.render_toml(fields))
+            status, error = self.run_update("--apply", "--computer-config", str(profile), flag)
+            self.assertNotEqual(status, 0)
+            self.assertIn(expected, error)
+            self.assertEqual(self.worker_config.read_bytes(), original)
+        write(profile, updater.render_toml(value))
+        status, report = self.run_update("--apply", "--computer-config", str(profile), "--enable-computer-actions", "--enable-computer-capture", "--enable-price-search")
+        self.assertEqual(status, 0, report)
+        updated = tomllib.loads(self.worker_config.read_text())
+        self.assertNotIn("computer.agent.v1", updated["capabilities"])
+        self.assertNotIn("computer_models_config", updated)
+        self.assertFalse(report["computer_planner_preserved"])
+        self.assertEqual(before, {p: p.read_bytes() for p in before})
+        self.assertFalse(tomllib.loads(Path(value["linux_profile"]).read_text())["allow_input"])
+        self.assertFalse(tomllib.loads(Path(value["linux_profile"]).read_text())["allow_capture"])
+
+    def test_existing_computer_fields_survive_without_new_grants_and_helpers_are_private(self):
+        profile, value, protected = self.computer_fixture()
+        original = dict(self.original)
+        original["computer"] = value
+        models = write(self.config_dir / "computer-models.toml", "# synthetic existing disabled model selection\n")
+        original["computer_models_config"] = str(models)
+        write(self.worker_config, updater.render_toml(original))
+        before = {p: p.read_bytes() for p in [*protected, models, profile]}
+        status, report = self.run_update("--apply")
+        self.assertEqual(status, 0, report)
+        updated = tomllib.loads(self.worker_config.read_text())
+        expected = dict(value)
+        installed = self.home / ".local/lib/zaturobot/computer"
+        expected["scripts_root"] = str(installed)
+        self.assertEqual(updated["computer"], expected)
+        self.assertEqual(updated["computer_models_config"], str(models))
+        self.assertFalse(report["computer_actions_granted"] or report["computer_capture_granted"] or report["price_search_granted"] or report["computer_planner_preserved"])
+        self.assertEqual(before, {p: p.read_bytes() for p in before})
+        installed.chmod(0o755)
+        status, repaired = self.run_update("--apply")
+        self.assertEqual(status, 0, repaired)
+        self.assertEqual(stat.S_IMODE(installed.stat().st_mode), 0o700)
+
+    def test_computer_config_aliases_secrets_relative_paths_and_capture_rebinding_are_rejected(self):
+        profile, value, _ = self.computer_fixture()
+        original = self.worker_config.read_bytes()
+        status, error = self.run_update("--apply", "--computer-config", "relative-computer.toml")
+        self.assertNotEqual(status, 0)
+        self.assertIn("absolute local path", error)
+        variants = [dict(value, api_key="synthetic-provider-key-never-copy"),
+                    {"computer": value}, dict(value, python="python3"), dict(value, browser_url="http://127.0.0.1:9222"),
+                    dict(value, capture_target={"window_id": True, "pid": 777, "app_id": "synthetic-editor"}),
+                    dict(value, capture_target={"window_id": 7, "pid": 777, "app_id": "synthetic-editor", "all_windows": True})]
+        for invalid in variants:
+            write(profile, updater.render_toml(invalid))
+            status, error = self.run_update("--apply", "--computer-config", str(profile), "--enable-computer-actions")
+            self.assertNotEqual(status, 0)
+            self.assertEqual(self.worker_config.read_bytes(), original)
+            self.assertNotIn("synthetic-provider-key-never-copy", error)
+        write(profile, updater.render_toml(value), 0o644)
+        status, error = self.run_update("--apply", "--computer-config", str(profile))
+        self.assertNotEqual(status, 0)
+        self.assertIn("permissions", error)
+        write(profile, updater.render_toml(value))
+        alias = self.base / "computer-alias.toml"
+        alias.symlink_to(profile)
+        status, error = self.run_update("--apply", "--computer-config", str(alias))
+        self.assertNotEqual(status, 0)
+        self.assertEqual(self.worker_config.read_bytes(), original)
+
+    def test_default_update_installs_only_reviewed_helpers_and_no_computer_backend(self):
+        status, report = self.run_update("--apply")
+        self.assertEqual(status, 0, report)
+        config = tomllib.loads(self.worker_config.read_text())
+        self.assertNotIn("computer", config)
+        self.assertNotIn("computer_models_config", config)
+        self.assertTrue(set(config["capabilities"]).isdisjoint({"computer.agent.v1", "computer.action.v1", "computer.private.v1", "price.search.v1"}))
+        self.assertEqual(report["computer_helpers"], list(updater.COMPUTER_HELPERS))
+        self.assertFalse((self.config_dir / "computer-models.toml").exists())
+        self.assertFalse((self.config_dir / "native-profiles").exists())
 
     def test_real_home_flow_stops_worker_before_backup_and_replacement(self):
         events = []

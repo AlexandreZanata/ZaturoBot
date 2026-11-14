@@ -178,6 +178,17 @@ impl AppWindow {
         self.instance.window()
     }
     strings!(
+        (
+            set_requested_capture_until,
+            get_requested_capture_until,
+            "requested-capture-until"
+        ),
+        (
+            set_requested_capture_task,
+            get_requested_capture_task,
+            "requested-capture-task"
+        ),
+        (set_capture_worker, get_capture_worker, "capture-worker"),
         (set_shared_note, get_shared_note, "shared-note"),
         (
             set_shared_selected_id,
@@ -244,6 +255,7 @@ impl AppWindow {
         )
     );
     booleans!(
+        (set_private_desktop, get_private_desktop, "private-desktop"),
         (
             set_private_confirmed,
             get_private_confirmed,
@@ -262,6 +274,7 @@ impl AppWindow {
         (set_preview_open, get_preview_open, "preview-open")
     );
     callbacks!(
+        (on_capture_computer, "capture-computer"),
         (on_shared_reply, "shared-reply"),
         (on_shared_refresh, "shared-refresh"),
         (on_shared_create, "shared-create"),
@@ -436,6 +449,9 @@ impl AppWindow {
         self.instance
             .set_property("chat-scroll-y", Value::Number(value.into()))
             .expect("embedded scroll property");
+    }
+    pub fn invoke_capture_computer(&self) {
+        let _ = self.instance.invoke("capture-computer", &[]);
     }
     pub fn invoke_refresh(&self) {
         let _ = self.instance.invoke("refresh", &[]);

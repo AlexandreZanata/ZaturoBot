@@ -77,3 +77,15 @@ screens take a separate age-encrypted RAM-only path, bound to the owner's endpoi
 expiring/consumed once with no image SQL/spool/LLM access. Private acceptance permits only
 fixed metadata and server-known summaries. See [native clients](NATIVE_CLIENTS.md) and
 [YoutubeBot](YOUTUBE_SERVICE.md) for operational boundaries and actual limitations.
+
+
+## Bounded semantic computer extension (0.6)
+
+`zaturo-computer` adapts fixed reviewed local Python/MCP/API helpers. Core owns bounded
+semantic actions and observations; db's schema9 owns exact parent/child step records;
+services enforce current leases, sequence limits, independent owner confirmation and
+revocation. The home worker's explicit Personal/Go planner retains the provider key and
+durable usage ledger; the work worker receives only permitted actions and bounded semantic data.
+No screenshot enters that path. Computer private views share the existing encrypted RAM
+relay, local fixed-window grant and native expiry/focus lifecycle. See
+[computer contracts](COMPUTER_USE.md), [social](SOCIAL_MANAGEMENT.md) and ADR-0020/0021.

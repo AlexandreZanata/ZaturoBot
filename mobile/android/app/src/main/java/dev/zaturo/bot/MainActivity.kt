@@ -38,6 +38,8 @@ import kotlin.math.max
 /** Native owner companion. Presentation never grants permissions to a worker. */
 class MainActivity : Activity() {
     private val background = Executors.newSingleThreadExecutor()
+    private var requestedCaptureTask: String? = null
+    private var requestedCaptureUntil=0L
     private val main = Handler(Looper.getMainLooper())
     private val busy = AtomicBoolean(false)
     private val timeline = FeedTimeline()
@@ -122,6 +124,7 @@ class MainActivity : Activity() {
     override fun onStop() {
         rememberHub()
         visible = false
+        requestedCaptureTask = null
         main.removeCallbacks(poll)
         phoneView.clear()
         tunnel.stop()
@@ -243,6 +246,7 @@ class MainActivity : Activity() {
     private fun navigate(page: String) {
         if(::phoneView.isInitialized) phoneView.clear()
         rememberHub(); generation++; scrollRevision++; forceEndQueued = false
+        if(page!="hub") requestedCaptureTask=null
         currentPage = page; container.removeAllViews(); renderNavigation()
     }
     private fun showHub() {
@@ -408,6 +412,9 @@ class MainActivity : Activity() {
         bubble.addView(ui.text(item.optString("text"), 15, color).apply {
             setTextIsSelectable(true); setLineSpacing(dp(2).toFloat(), 1f)
         }, LinearLayout.LayoutParams(-2, -2))
+        item.optJSONObject("capture")?.let {hint ->
+            if(hint.optString("source")=="desktop") bubble.addView(ui.button("Ver tela atual do computador",R.drawable.ic_shield){phoneView.start(hint.getString("worker"),"desktop","desktop")})
+        }
         if (!item.isNull("artifact_id")) bubble.addView(ui.text("Anexo disponível no computador", 11, muted).apply {
             setPadding(0, dp(8), 0, 0)
         }, LinearLayout.LayoutParams(-2, -2))
@@ -453,6 +460,13 @@ class MainActivity : Activity() {
                         if (previousRows != timeline.items.map { it.toString() } || previousMore != timeline.hasMore || revealNewest)
                             renderFeed(append, forceNewest = revealNewest)
                         setStatus("Hub sincronizado · conexão privada", true)
+                        if(android.os.SystemClock.elapsedRealtime()>requestedCaptureUntil) requestedCaptureTask=null
+                        val receipt=items.firstOrNull {it.optString("task_id")==requestedCaptureTask && it.optJSONObject("capture")?.optString("source")=="desktop"}
+                        if(receipt!=null && requestedCaptureTask!=null) {
+                            requestedCaptureTask=null
+                            val worker=receipt.getJSONObject("capture").getString("worker")
+                            phoneView.start(worker,"desktop","desktop")
+                        }
                     }
                 }
             } catch (_: Exception) {
@@ -487,8 +501,9 @@ class MainActivity : Activity() {
         setStatus("Enviando solicitação…")
         background.execute {
             try {
-                api().chat(request.message, request.worker, request.action, request.id)
+                val reply=api().chat(request.message, request.worker, request.action, request.id)
                 main.post {
+                    if(request.message.lowercase().contains("print") || request.message.lowercase().contains("captura")) {requestedCaptureTask=reply.optJSONObject("task")?.optString("id");requestedCaptureUntil=android.os.SystemClock.elapsedRealtime()+360000}
                     pending = null
                     submissionRunning = false
                     if (action == null) {
@@ -542,6 +557,11 @@ class MainActivity : Activity() {
         form.addView(serviceCard("Mensagens do celular", "Abra somente a caixa de mensagens do celular USB registrado. Não envia SMS nem desbloqueia a tela.",R.drawable.ic_phone,"Abrir mensagens") {
             AlertDialog.Builder(this).setTitle("Abrir mensagens no celular remoto?").setMessage("Esta ação abre o aplicativo de mensagens no celular owner-phone do computador selecionado. Nenhuma mensagem será enviada.")
                 .setNegativeButton("Cancelar",null).setPositiveButton("Abrir") {_,_->submit("Abra a caixa de mensagens do celular registrado owner-phone.","android_open_messages")}.show()
+        })
+        form.addView(serviceCard("Computador Linux", "Árvore de acessibilidade e navegador dedicado. Use /computador seguido da tarefa; entradas e publicações pedem confirmação.",R.drawable.ic_terminal,"Ver tela atual do computador") {
+            AlertDialog.Builder(this).setTitle("Captura privada do computador?").setMessage("Capturar somente a janela autorizada no perfil local do PC? A imagem é temporária e não entra no histórico nem na IA.").setNegativeButton("Cancelar",null).setPositiveButton("Ver tela") {_,_->
+                val worker=configuration?.optString("target_worker","work-pc") ?: "work-pc";showHub();phoneView.start(worker,"desktop","desktop")
+            }.show()
         })
         form.addView(serviceCard("Área compartilhada", "Tarefas e instruções que o outro Codex pode consultar quando você pedir.",R.drawable.ic_folder,"Abrir área compartilhada") {showShared()})
 

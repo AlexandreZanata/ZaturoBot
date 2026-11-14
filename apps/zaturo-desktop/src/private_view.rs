@@ -18,14 +18,25 @@ use zeroize::Zeroizing;
 struct Session {
     metadata: PrivateView,
     shown_until: Option<Instant>,
-    shown_wall_deadline: Option<i64>,
     waiting_deadline: Instant,
+}
+fn metadata_deadline(
+    metadata: &PrivateView,
+    measured: Instant,
+    wall_millis: i64,
+    maximum_millis: u64,
+) -> Instant {
+    let remaining = metadata
+        .remaining_millis
+        .unwrap_or_else(|| metadata.expires_at.saturating_sub(wall_millis).max(0) as u64);
+    measured + std::time::Duration::from_millis(remaining.min(maximum_millis))
 }
 enum Command {
     Start {
         version: u64,
         device: String,
         watch: u32,
+        worker: Option<String>,
     },
     Poll {
         version: u64,
@@ -73,41 +84,57 @@ impl PrivateViewer {
                         version,
                         device,
                         watch,
+                        worker,
                     } => {
+                        let measured = Instant::now();
                         let result = client.and_then(|client| {
                             let identity =
                                 settings.transfer_identity.as_ref().ok_or_else(|| {
                                     anyhow::anyhow!("private transfer identity is not configured")
                                 })?;
                             zaturo_transfer::crypto::public_identity(identity)?;
-                            runtime.block_on(client.create_private(
-                                &settings.target_worker,
+                            let metadata = runtime.block_on(client.create_private(
+                                worker.as_deref().unwrap_or(&settings.target_worker),
                                 &device,
                                 watch,
-                            ))
+                            ))?;
+                            let until = metadata_deadline(
+                                &metadata,
+                                measured,
+                                chrono::Utc::now().timestamp_millis(),
+                                (u64::from(watch) + 60) * 1000,
+                            );
+                            ensure!(Instant::now() < until, "private view expired");
+                            Ok((metadata, until))
                         });
                         match result {
-                            Ok(metadata) => {
-                                if current.load(Ordering::SeqCst) != version {
+                            Ok((metadata, until)) => {
+                                let id = metadata.id.clone();
+                                let installed = state.lock().ok().is_some_and(|mut state| {
+                                    if current.load(Ordering::SeqCst) != version {
+                                        return false;
+                                    }
+                                    *state = Some(Session {
+                                        metadata,
+                                        shown_until: None,
+                                        waiting_deadline: until,
+                                    });
+                                    true
+                                });
+                                if !installed {
                                     if let Ok(token) = settings
                                         .token()
                                         .and_then(|token| HubClient::new(&settings, &token))
                                     {
-                                        let _ =
-                                            runtime.block_on(token.cancel_private(&metadata.id));
+                                        let _ = runtime.block_on(token.cancel_private(&id));
                                     }
                                     continue;
                                 }
-                                if let Ok(mut state) = state.lock() {
-                                    *state = Some(Session {
-                                        metadata,
-                                        shown_until: None,
-                                        shown_wall_deadline: None,
-                                        waiting_deadline: Instant::now()
-                                            + std::time::Duration::from_secs(u64::from(watch) + 60),
-                                    });
-                                }
+                                let check = current.clone();
                                 let _ = ui.upgrade_in_event_loop(move |ui| {
+                                    if check.load(Ordering::SeqCst) != version {
+                                        return;
+                                    }
                                     ui.set_private_running(true);
                                     ui.set_private_status(
                                         "Pedido privado autorizado. Aguardando a captura cifrada."
@@ -116,7 +143,8 @@ impl PrivateViewer {
                                 });
                             }
                             Err(_) => {
-                                let _=ui.upgrade_in_event_loop(|ui|{ui.set_private_running(false);ui.set_private_status("Não foi possível autorizar. Verifique o telefone registrado, a permissão e a conexão.".into());});
+                                let check = current.clone();
+                                let _=ui.upgrade_in_event_loop(move |ui|{if check.load(Ordering::SeqCst)!=version{return;}ui.set_private_running(false);ui.set_private_status("Não foi possível autorizar. Verifique o dispositivo registrado, a permissão e a conexão.".into());});
                             }
                         }
                     }
@@ -135,11 +163,15 @@ impl PrivateViewer {
                         }
                         let outcome = (|| -> Result<ViewOutcome> {
                             let client = client?;
+                            let measured = Instant::now();
                             let metadata = runtime.block_on(client.private_status(&pending.id))?;
-                            ensure!(
-                                metadata.expires_at > chrono::Utc::now().timestamp_millis(),
-                                "private view expired"
+                            let until = metadata_deadline(
+                                &metadata,
+                                measured,
+                                chrono::Utc::now().timestamp_millis(),
+                                59_000,
                             );
+                            ensure!(Instant::now() < until, "private view expired");
                             if metadata.state == "waiting" {
                                 return Ok(ViewOutcome::Waiting);
                             }
@@ -166,31 +198,31 @@ impl PrivateViewer {
                             let plaintext = zaturo_transfer::crypto::decrypt_private_image(
                                 &encrypted, identity,
                             )?;
-                            Ok(ViewOutcome::Pixels(
-                                decode_png(&plaintext)?,
-                                metadata.expires_at,
-                            ))
+                            Ok(ViewOutcome::Pixels(decode_png(&plaintext)?, until))
                         })();
                         match outcome {
-                            Ok(ViewOutcome::Pixels(pixels, frame_expiry))
+                            Ok(ViewOutcome::Pixels(pixels, until))
                                 if current.load(Ordering::SeqCst) == version =>
                             {
-                                if let Ok(mut state) = state.lock()
-                                    && let Some(session) = state.as_mut()
-                                {
-                                    let now = chrono::Utc::now().timestamp_millis();
-                                    let deadline = frame_expiry.min(now + 59000);
-                                    session.metadata.expires_at = frame_expiry;
-                                    session.shown_until = Some(
-                                        Instant::now()
-                                            + std::time::Duration::from_millis(
-                                                deadline.saturating_sub(now).max(0) as u64,
-                                            ),
-                                    );
-                                    session.shown_wall_deadline = Some(deadline);
+                                let mut until = until;
+                                let installed = state.lock().ok().is_some_and(|mut state| {
+                                    let Some(session) = state.as_mut() else {
+                                        return false;
+                                    };
+                                    if current.load(Ordering::SeqCst) != version
+                                        || session.metadata.id != pending.id
+                                    {
+                                        return false;
+                                    }
+                                    until = until.min(session.waiting_deadline);
+                                    session.shown_until = Some(until);
+                                    true
+                                });
+                                if !installed {
+                                    continue;
                                 }
                                 let check = current.clone();
-                                let _=ui.upgrade_in_event_loop(move |ui|{if check.load(Ordering::SeqCst)!=version || ui.get_page()!="private" || !ui.window().is_visible() || chrono::Utc::now().timestamp_millis()>=frame_expiry {return;}let buffer=slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(&pixels.bytes,pixels.width,pixels.height);ui.set_private_image(slint::Image::from_rgba8(buffer));ui.set_private_image_visible(true);ui.set_private_status("Sessão privada · a imagem será apagada automaticamente em até 60 segundos.".into());});
+                                let _=ui.upgrade_in_event_loop(move |ui|{if check.load(Ordering::SeqCst)!=version || (ui.get_page()!="private" && !(ui.get_private_desktop() && ui.get_page()=="hub")) || !ui.window().is_visible() || Instant::now()>=until {return;}let buffer=slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(&pixels.bytes,pixels.width,pixels.height);ui.set_private_image(slint::Image::from_rgba8(buffer));ui.set_private_image_visible(true);ui.set_private_status("Sessão privada · a imagem será apagada automaticamente em até 60 segundos.".into());});
                             }
                             Ok(ViewOutcome::Waiting) => {}
                             Ok(ViewOutcome::NoFrame(message)) => {
@@ -203,7 +235,11 @@ impl PrivateViewer {
                                 {
                                     let _ = runtime.block_on(client.cancel_private(&pending.id));
                                 }
+                                let check = current.clone();
                                 let _ = ui.upgrade_in_event_loop(move |ui| {
+                                    if check.load(Ordering::SeqCst) != version {
+                                        return;
+                                    }
                                     ui.set_private_image(slint::Image::default());
                                     ui.set_private_image_visible(false);
                                     ui.set_private_running(false);
@@ -220,7 +256,8 @@ impl PrivateViewer {
                                 if let Ok(mut state) = state.lock() {
                                     state.take();
                                 }
-                                let _=ui.upgrade_in_event_loop(|ui|{ui.set_private_image(slint::Image::default());ui.set_private_image_visible(false);ui.set_private_running(false);ui.set_private_status("A sessão expirou, foi consumida ou não pôde ser verificada. Nenhuma imagem foi salva.".into());});
+                                let check = current.clone();
+                                let _=ui.upgrade_in_event_loop(move |ui|{if check.load(Ordering::SeqCst)!=version{return;}ui.set_private_image(slint::Image::default());ui.set_private_image_visible(false);ui.set_private_running(false);ui.set_private_status("A sessão expirou, foi consumida ou não pôde ser verificada. Nenhuma imagem foi salva.".into());});
                             }
                         }
                     }
@@ -248,6 +285,18 @@ impl PrivateViewer {
                 version,
                 device,
                 watch,
+                worker: None,
+            })
+            .is_ok()
+    }
+    pub fn start_computer(&self, worker: String) -> bool {
+        let version = self.version.fetch_add(1, Ordering::SeqCst) + 1;
+        self.sender
+            .try_send(Command::Start {
+                version,
+                device: "desktop".into(),
+                watch: 0,
+                worker: Some(worker),
             })
             .is_ok()
     }
@@ -260,9 +309,6 @@ impl PrivateViewer {
                 s.as_ref().map(|s| {
                     Instant::now() >= s.waiting_deadline
                         || s.shown_until.is_some_and(|until| Instant::now() >= until)
-                        || s.shown_wall_deadline
-                            .is_some_and(|until| until <= chrono::Utc::now().timestamp_millis())
-                        || s.metadata.expires_at <= chrono::Utc::now().timestamp_millis()
                 })
             })
             .unwrap_or(false);
@@ -337,5 +383,57 @@ impl Drop for PollGuard {
 enum ViewOutcome {
     Waiting,
     NoFrame(&'static str),
-    Pixels(PrivatePixels, i64),
+    Pixels(PrivatePixels, Instant),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    fn metadata(remaining_millis: Option<u64>, expires_at: i64) -> PrivateView {
+        PrivateView {
+            id: "synthetic-private-view".into(),
+            state: "ready".into(),
+            expires_at,
+            remaining_millis,
+            task_id: None,
+        }
+    }
+
+    #[test]
+    fn relative_ttl_ignores_wall_clock_skew_and_remains_bounded() {
+        let measured = Instant::now();
+        for wall in [i64::MIN, 0, i64::MAX] {
+            assert_eq!(
+                metadata_deadline(&metadata(Some(3500), -1), measured, wall, 59_000),
+                measured + Duration::from_millis(3500)
+            );
+        }
+        assert_eq!(
+            metadata_deadline(&metadata(Some(u64::MAX), -1), measured, 0, 59_000),
+            measured + Duration::from_millis(59_000)
+        );
+        assert_eq!(
+            metadata_deadline(&metadata(Some(0), i64::MAX), measured, 0, 59_000),
+            measured
+        );
+    }
+
+    #[test]
+    fn legacy_absolute_expiry_is_converted_once_and_never_extended() {
+        let measured = Instant::now();
+        assert_eq!(
+            metadata_deadline(&metadata(None, 13_500), measured, 10_000, 59_000),
+            measured + Duration::from_millis(3500)
+        );
+        assert_eq!(
+            metadata_deadline(&metadata(None, 1), measured, 10_000, 59_000),
+            measured
+        );
+        assert_eq!(
+            metadata_deadline(&metadata(None, i64::MAX), measured, i64::MIN, 59_000),
+            measured + Duration::from_millis(59_000)
+        );
+    }
 }

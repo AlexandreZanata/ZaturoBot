@@ -15,6 +15,8 @@ pub struct FeedItem {
     pub artifact_id: Option<String>,
     #[serde(default)]
     pub sensitive: bool,
+    #[serde(default)]
+    pub capture: Option<zaturo_core::CaptureHint>,
 }
 #[derive(Deserialize)]
 pub struct FeedPage {
@@ -190,20 +192,19 @@ impl HubClient {
         )
         .await
     }
-    pub async fn send(&self, request: &ChatRequest) -> Result<()> {
+    pub async fn send(&self, request: &ChatRequest) -> Result<serde_json::Value> {
         ensure!(
             !request.message.trim().is_empty() && request.message.len() <= 4096,
             "message must contain 1..4096 bytes"
         );
-        let _: serde_json::Value = Self::read(
+        Self::read(
             self.client
                 .post(format!("{}/v1/chat", self.origin))
                 .json(request)
                 .send()
                 .await?,
         )
-        .await?;
-        Ok(())
+        .await
     }
 }
 
@@ -212,6 +213,8 @@ pub struct PrivateView {
     pub id: String,
     pub state: String,
     pub expires_at: i64,
+    #[serde(default)]
+    pub remaining_millis: Option<u64>,
     pub task_id: Option<String>,
 }
 impl HubClient {
@@ -227,7 +230,7 @@ impl HubClient {
             watch_seconds <= 120,
             "private watch must be at most 120 seconds"
         );
-        Self::read(self.client.post(format!("{}/v1/private-views",self.origin)).json(&serde_json::json!({"worker_id":worker,"device_id":device,"watch_seconds":watch_seconds,"explicit_owner_confirmation":true})).send().await?).await
+        Self::read(self.client.post(format!("{}/v1/private-views",self.origin)).json(&serde_json::json!({"worker_id":worker,"device_id":device,"source":if device=="desktop"{"desktop"}else{"android"},"watch_seconds":watch_seconds,"explicit_owner_confirmation":true})).send().await?).await
     }
     pub async fn private_status(&self, id: &str) -> Result<PrivateView> {
         uuid::Uuid::parse_str(id)?;

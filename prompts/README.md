@@ -14,7 +14,12 @@ for policy boundary regressions. Keep expected structured output explicit, bound
 and store concise evidence summaries rather than private chain-of-thought. Follow
 [change-agent-prompt](../docs/recipes/change-agent-prompt.md).
 
-`assistant-chat` is the separate tool-free Personal/Console conversational prompt owned by
+`assistant-chat` is the separate tool-free Personal/Go conversational prompt under explicit local opt-in owned by
 `zaturo-orchestrator::conversation`. Its plain text final answer is capped at1500 UTF-8
 bytes; the schema records the string form, while the source enforces the byte limit.
 History is separately encoded ordinary data; no reasoning, screen or automatic file context.
+
+`computer-planner` uses at most eight structured Personal/Go calls under explicit local opt-in, one clipped
+semantic observation and compact verified receipts. Exact input/social draft approvals
+remain hub/local policy; model output cannot approve itself. Screenshots, credentials
+and private reasoning are excluded. See [computer use](../docs/COMPUTER_USE.md).

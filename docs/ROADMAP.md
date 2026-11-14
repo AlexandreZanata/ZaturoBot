@@ -102,7 +102,7 @@ integrate it with this hub. Real Google consent and channel actions remain user-
 ## Owner-authorized bounded assistant extension
 
 <!-- feature:assistant-chat status:implemented -->
-Typed zero-model commands and separate bounded DeepSeek Console personal conversation,
+Typed zero-model commands and explicit-opt-in bounded DeepSeek Go personal conversation,
 with limited ordinary context, durable spend/uncertainty and honest service readiness.
 Generation-only YoutubeBot work does not imply publication or general computer use.
 
@@ -118,13 +118,32 @@ Physical acceptance on the work PC must be recorded separately; code tests do no
 an absent phone, interactive login or destination deployment worked.
 
 
-## Autonomous Commerce — planning only
+## Owner-authorized 0.6 computer and social foundation
 
-The owner requested an isolated commercial-agency plan: verified offer curation, original
-content, per-project visual identity, permitted social operation and results in the Hub.
-The [13-document plan](planning/autonomous-commerce/README.md) audits both ZaturoBot and
-MeuAssistente. Its [implementation phases](planning/autonomous-commerce/09-IMPLEMENTATION-ROADMAP.md)
-start with an offline brand/evidence/draft/report slice, then an assisted commercial pilot,
-then a separately gated single-channel publisher. These proposal milestones do not change
-existing registry feature status or authorize production accounts, paid calls or messages.
-Concurrent uncommitted computer-use work is excluded from this branch baseline.
+<!-- feature:semantic-computer status:implemented -->
+Bounded home-worker DeepSeek planning, lease-bound remote semantic steps, explicit exact
+owner confirmations and current-parent executor grants. computer-use-linux and Playwright
+MCP remain independently installed/granted dependencies. Private current-window captures
+can appear temporarily in Hub after an explicitly requested completed task. Full desktop
+isolation, arbitrary OS/shell control and universal application support remain planned.
+
+<!-- feature:social-foundation status:implemented -->
+The Postiz connector supports reviewed initial platforms, exact inert drafts, separately
+approved create/schedule/draft, durable unknown-effect fences and actual status observation.
+Unsupported network schemas/comments remain unavailable; original YoutubeBot stays intact.
+
+<!-- feature:stored-price-search status:implemented -->
+A read-only BitLupa bridge formats actual exact-variant stored offers with provenance,
+payment/freshness and honest value limitations. No active BitLupa collector or X7base
+catalog is invented. Live crawling/recurring price monitoring remain planned.
+
+
+## Owner-authorized Personal Go routing update
+
+ADR-0021 supersedes the earlier Console-only selection for chat/computer planning.
+The existing model integration adds explicit allow_personal_go opt-in, retains Personal
+classification and one attempt, and checks subscription billing proof separately from
+allowance use. Go coding diagnostics keep two steps; Personal planning keeps its smaller
+configured budget and eight-step cap. Console402 remains historical evidence. One normal live chat completed with Go billing
+and zero reported balance charge; see the provider record. Keep Extra Usage disabled; no
+new credit, fallback model or expanded account/desktop grant follows from this routing change.

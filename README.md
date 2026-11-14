@@ -1,14 +1,27 @@
+![ZaturoBot — personal Linux assistant with a private hub and native Linux/Android apps](assets/brand/readme-banner.svg)
+
 # ZaturoBot
+
+[![Repository validation](https://github.com/AlexandreZanata/ZaturoBot/actions/workflows/check.yml/badge.svg)](https://github.com/AlexandreZanata/ZaturoBot/actions/workflows/check.yml)
+[![Linux desktop](https://img.shields.io/badge/Linux-Rust%20%2B%20Slint-E5B900?labelColor=0B0B0D)](apps/zaturo-desktop/README.md)
+[![Android companion](https://img.shields.io/badge/Android-Kotlin-E5B900?labelColor=0B0B0D)](mobile/android/README.md)
+[![Local MCP](https://img.shields.io/badge/MCP-local%20stdio-E5B900?labelColor=0B0B0D)](deploy/mcp/README.md)
 
 A personal Linux assistant with a private coordination hub, outbound workers, and native
 Linux/Android clients. Durable tasks, explicit permissions, bounded execution, and
 interruption recovery form the shared foundation. The hub stays lightweight; models,
 media processing, and authorized USB operations run on a worker.
 
-Version 0.5 adds bounded DeepSeek conversation in both native clients, generation-only
+Version0.6 adds bounded semantic Linux/browser tasks and a social-management foundation.
+Version0.6.1 routes explicitly authorized personal chat and computer planning through
+OpenCode Go, following OpenTatu's connection pattern with ZaturoBot's own identity.
+Only DeepSeek V4.1 Flash is allowed; accepted personal replies require reported Go
+allowance billing and zero additional charge. Keep provider Extra Usage disabled.
+It retains bounded DeepSeek conversation in both native clients, generation-only
 YoutubeBot commands, a shared task area with a compact local MCP, and an Android private
 phone viewer. Read [assistant and shared tasks](docs/ASSISTANT_AND_SHARED_TASKS.md) for
-the current contracts. The [0.4 engineering report](docs/NATIVE_SERVICE_REPORT.md) remains
+the current contracts. Read [computer use](docs/COMPUTER_USE.md) and
+[social management](docs/SOCIAL_MANAGEMENT.md) for0.6 setup and precise supported actions. The [0.4 engineering report](docs/NATIVE_SERVICE_REPORT.md) remains
 historical evidence; physical-device/account acceptance is recorded separately.
 
 ## Implemented capabilities
@@ -116,13 +129,13 @@ cargo xtask docs
 cargo xtask secrets
 ```
 
-The 0.5 local gate passed **182 Rust tests and 29 Python helper tests**, plus strict
+The 0.6.1 local gate passed **225 Rust tests and 89 Python helper tests**, plus strict
 formatting/Clippy, documentation/architecture/registry checks, publication guard, and
 rustdoc. Desktop release and Android debug APK builds provide build evidence; they do
 not replace real Google/video or physical Android acceptance. The six-page
 [system design PDF](output/pdf/zaturobot-system-design.pdf) was rendered and reviewed.
 
-Current results are in the [0.4 report](docs/NATIVE_SERVICE_REPORT.md). Earlier
+Historical native-service results are in the [0.4 report](docs/NATIVE_SERVICE_REPORT.md). Earlier
 [foundation](docs/ENGINEERING_REPORT.md) and [Phase 2](docs/PHASE2_REPORT.md) reports
 remain historical evidence. The 100-task local foundation benchmark observed 8.30 MiB
 idle hub RSS and 9.11 MiB peak RSS; it is not an Oracle capacity guarantee for 0.4.

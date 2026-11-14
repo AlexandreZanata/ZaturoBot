@@ -28,3 +28,6 @@ owner message and bounded command/handoff; only explicit assistant mode invokes 
 chat. Known commands skip inference. Recent conversation context excludes acknowledgements,
 service data and every sensitive frame. Unsupported worker capabilities produce an honest
 reply rather than a fabricated execution. Generation does not imply publication.
+
+
+`computer.rs` binds up to8 sequential child steps to a live planner parent. Input review uses the prior observed node/ref; social execution binds the same parent's exact prepared hash/preview. Current executor grants, explicit native approval and parent cancellation are independently enforced.

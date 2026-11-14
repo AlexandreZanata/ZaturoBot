@@ -184,10 +184,15 @@ fn worker(state: &AppState, headers: &HeaderMap) -> Result<String, ApiFailure> {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RequestView {
+    #[serde(default = "android_source")]
+    source: String,
     worker_id: String,
     device_id: String,
     watch_seconds: u64,
     explicit_owner_confirmation: bool,
+}
+fn android_source() -> String {
+    "android".into()
 }
 async fn create(
     State(state): State<AppState>,
@@ -195,7 +200,10 @@ async fn create(
     Json(request): Json<RequestView>,
 ) -> Result<Json<Metadata>, ApiFailure> {
     let viewer = viewer(&state, &headers)?;
-    if !request.explicit_owner_confirmation
+    if !matches!(request.source.as_str(), "android" | "desktop")
+        || (request.source == "desktop"
+            && (request.device_id != "desktop" || request.watch_seconds != 0))
+        || !request.explicit_owner_confirmation
         || request.watch_seconds > 120
         || (request.watch_seconds > 0 && request.watch_seconds < 5)
         || zaturo_core::validate_identifier(&request.device_id).is_err()
@@ -209,6 +217,21 @@ async fn create(
         .ok_or_else(denied)?;
     if !peers.iter().any(|p| p.id == request.worker_id) {
         return Err(denied());
+    }
+    if request.source == "desktop" {
+        let worker = request.worker_id.clone();
+        let supported = database(&state, move |e| {
+            Ok(e.workers(100, 0)?.into_iter().any(|w| {
+                w.id == worker && w.capabilities.iter().any(|c| c == "computer.private.v1")
+            }))
+        })
+        .await?;
+        if !supported {
+            return Err(ApiFailure(
+                StatusCode::FORBIDDEN,
+                "computer_private_not_configured",
+            ));
+        }
     }
     let recipient = if viewer.starts_with("app:") {
         let id = viewer.clone();
@@ -264,14 +287,21 @@ async fn create(
     task.max_attempts = 1;
     task.timeout_seconds = request.watch_seconds + 45;
     task.request =
-        "Visualização privada Android autorizada; nenhum conteúdo da tela será salvo no histórico."
-            .into();
-    task.service = Some(ServiceRequest::AndroidPrivateView {
-        device_id: grant.device_id.clone(),
-        session_id: id.clone(),
-        recipient: grant.recipient.clone(),
-        watch_seconds: request.watch_seconds,
-        owner_confirmed: true,
+        "Visualização privada autorizada; nenhum conteúdo da tela será salvo no histórico.".into();
+    task.service = Some(if request.source == "desktop" {
+        ServiceRequest::DesktopPrivateView {
+            session_id: id.clone(),
+            recipient: grant.recipient.clone(),
+            owner_confirmed: true,
+        }
+    } else {
+        ServiceRequest::AndroidPrivateView {
+            device_id: grant.device_id.clone(),
+            session_id: id.clone(),
+            recipient: grant.recipient.clone(),
+            watch_seconds: request.watch_seconds,
+            owner_confirmed: true,
+        }
     });
     let task = match database(&state, move |e| e.create(task, now)).await {
         Ok(task) => task,

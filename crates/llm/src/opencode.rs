@@ -1,6 +1,6 @@
 use crate::{
-    CallContext, Error, FutureResult, LlmClient, Message, ModelRequest, ModelResponse,
-    ModelsConfig, PrivacyClass,
+    BillingSource, CallContext, Error, FutureResult, LlmClient, Message, ModelBilling,
+    ModelRequest, ModelResponse, ModelsConfig,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -35,7 +35,7 @@ impl OpenCodeGoClient {
     pub fn new(config: &ModelsConfig, api_key: String) -> Result<Self, Error> {
         if config.provider != "opencode-go" {
             return Err(Error::InvalidConfig(
-                "Go constructor requires the coding route",
+                "Go constructor requires an explicitly configured Go route",
             ));
         }
         Self::at(config, api_key, GO_CHAT_ENDPOINT.into())
@@ -81,12 +81,7 @@ impl OpenCodeGoClient {
             ..
         } = &request.context;
         if request.model != self.config.default_model
-            || *privacy
-                != if self.config.provider == "opencode-console" {
-                    PrivacyClass::Personal
-                } else {
-                    PrivacyClass::PublicCoding
-                }
+            || *privacy != self.config.privacy()
             || !self.config.allow_global_processing
             || zaturo_core::validate_identifier(operation_id).is_err()
             || request.max_output_tokens > self.config.max_output_tokens
@@ -94,7 +89,7 @@ impl OpenCodeGoClient {
             || request.messages.len() > 8
         {
             return Err(Error::Denied(
-                "provider request is outside its configured coding route",
+                "provider request is outside its configured privacy route",
             ));
         }
         if request
@@ -124,7 +119,7 @@ impl LlmClient for OpenCodeGoClient {
                     messages: &request.messages,
                     max_tokens: request.max_output_tokens,
                     stream: false,
-                    thinking: if self.config.provider == "opencode-console" {
+                    thinking: if self.config.is_personal_route() {
                         Some(Thinking { r#type: "disabled" })
                     } else {
                         None
@@ -209,6 +204,12 @@ struct Usage {
     prompt_tokens: Option<u64>,
     completion_tokens: Option<u64>,
     cost: Option<f64>,
+    opencode: Option<OpenCodeUsage>,
+}
+#[derive(Deserialize)]
+struct OpenCodeUsage {
+    billing_source: Option<BillingSource>,
+    allowance: Option<f64>,
 }
 
 fn parse_response(body: &[u8], duration_ms: u64) -> Result<ModelResponse, Error> {
@@ -231,6 +232,17 @@ fn parse_response(body: &[u8], duration_ms: u64) -> Result<ModelResponse, Error>
     // Go allowance describes subscription quota consumption, not the request charge.
     // It must not be relabeled as a monetary cost or inferred when cost is absent.
     let cost = usage.cost;
+    let billing = usage
+        .opencode
+        .map(|metadata| {
+            let allowance_microusd = metadata.allowance.map(cost_microusd).transpose()?;
+            Ok::<_, Error>(metadata.billing_source.map(|source| ModelBilling {
+                source,
+                allowance_microusd,
+            }))
+        })
+        .transpose()?
+        .flatten();
     let usage = ModelUsage {
         input_tokens: usage.prompt_tokens.ok_or(Error::InvalidResponse)?,
         output_tokens: usage.completion_tokens.ok_or(Error::InvalidResponse)?,
@@ -243,6 +255,7 @@ fn parse_response(body: &[u8], duration_ms: u64) -> Result<ModelResponse, Error>
         model: response.model,
         content,
         usage,
+        billing,
         finish_reason: answer.finish_reason.ok_or(Error::InvalidResponse)?,
         duration_ms,
         model_calls: 1,

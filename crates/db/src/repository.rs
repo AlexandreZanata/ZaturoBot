@@ -21,7 +21,7 @@ impl HubStore {
         Ok(Self {
             connection: Mutex::new(connection(
                 path,
-                7,
+                9,
                 concat!(
                     include_str!("../migrations/0001_hub.sql"),
                     "\n",
@@ -29,7 +29,9 @@ impl HubStore {
                     "\n",
                     include_str!("../migrations/0005_hub_activity.sql"),
                     "\n",
-                    include_str!("../migrations/0007_hub_shared.sql")
+                    include_str!("../migrations/0007_hub_shared.sql"),
+                    "\n",
+                    include_str!("../migrations/0009_hub_computer.sql")
                 ),
             )?),
         })
