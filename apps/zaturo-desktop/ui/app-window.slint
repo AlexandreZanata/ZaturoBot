@@ -118,7 +118,7 @@ export component AppWindow inherits Window {
                     if root.page=="hub": Rectangle {height:48px;
                         HorizontalLayout {spacing:10px;
                             LineEdit {width:150px;text<=>root.selected-day;placeholder-text:"AAAA-MM-DD";accepted=>{root.filters-changed();}}
-                            ComboBox {width:150px;model:["Tudo","Conversas","Tarefas","Arquivos","Android","YouTube"];current-index<=>root.kind-index;selected=>{root.filters-changed();}}
+                            ComboBox {width:150px;model:["Tudo","Conversas","Tarefas","Arquivos","Android","Serviços"];current-index<=>root.kind-index;selected=>{root.filters-changed();}}
                             LineEdit {text<=>root.search-query;placeholder-text:"Pesquisar no histórico...";accepted=>{root.filters-changed();}}
                             OutlineButton {label:"Filtrar";clicked=>{root.filters-changed();}}
                         }

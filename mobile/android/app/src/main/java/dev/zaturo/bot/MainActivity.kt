@@ -47,6 +47,7 @@ class MainActivity : Activity() {
     private var loadedOffset=0
     private var generation=0L
     private val feedItems=mutableListOf<JSONObject>()
+    private val feedFilters=listOf("Tudo" to "","Conversas" to "chat","Tarefas" to "task","Arquivos" to "file","Android" to "android","Serviços" to "service")
     private class Pending(val message:String,val worker:String?,val action:String?,val id:String)
     private var pending: Pending?=null
     private val poll=object:Runnable {override fun run(){if(visible){if(currentPage=="hub"&&!busy.get())refresh(false);main.postDelayed(this,10000)}}}
@@ -80,7 +81,7 @@ class MainActivity : Activity() {
         currentPage="hub";container.removeAllViews();container.addView(text("Seu dia, em movimento.",23,WHITE,true));container.addView(text("Histórico salvo. Ações autorizadas.",12,MUTED))
         val filters=LinearLayout(this).apply {setPadding(0,dp(14),0,dp(8));gravity=Gravity.CENTER_VERTICAL}
         dayButton=button(selectedDay.toString()){DatePickerDialog(this,{_,y,m,d->selectedDay=LocalDate.of(y,m+1,d);dayButton.text=selectedDay.toString();generation++;refresh(false)},selectedDay.year,selectedDay.monthValue-1,selectedDay.dayOfMonth).show()};filters.addView(dayButton,LinearLayout.LayoutParams(0,dp(44),1f))
-        kind=Spinner(this).apply {adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,listOf("Tudo","Conversas","Tarefas","Arquivos","Android","YouTube"))};filters.addView(kind,LinearLayout.LayoutParams(0,dp(44),1f));container.addView(filters)
+        kind=Spinner(this).apply {adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,feedFilters.map {it.first})};filters.addView(kind,LinearLayout.LayoutParams(0,dp(44),1f));container.addView(filters)
         val queryRow=LinearLayout(this)
         search=edit("Pesquisar no histórico");queryRow.addView(search,LinearLayout.LayoutParams(0,dp(46),1f));queryRow.addView(button("Filtrar"){generation++;refresh(false)});container.addView(queryRow)
         val scroll=ScrollView(this).apply {isFillViewport=true};feed=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;setPadding(0,dp(14),0,dp(14))};scroll.addView(feed);container.addView(scroll,LinearLayout.LayoutParams(-1,0,1f));renderFeed(false)
@@ -112,7 +113,7 @@ class MainActivity : Activity() {
     }
     private fun refresh(append:Boolean){
         if(!visible||currentPage!="hub"||configuration==null||!busy.compareAndSet(false,true))return
-        val current=generation;val day=selectedDay;val query=search.text.toString();val selectedKind=listOf("","message","task","file","android","youtube")[kind.selectedItemPosition.coerceAtLeast(0)];val offset=if(append)loadedOffset else 0
+        val current=generation;val day=selectedDay;val query=search.text.toString();val selectedKind=feedFilters.getOrElse(kind.selectedItemPosition){feedFilters.first()}.second;val offset=if(append)loadedOffset else 0
         background.execute {
             try {val result=api().feed(day,selectedKind,query,offset);val items=result.getJSONArray("items");val safe=mutableListOf<JSONObject>();for(n in 0 until items.length()){val item=items.getJSONObject(n);if(!item.optBoolean("sensitive",false))safe.add(item)}
                 main.post {if(visible&&currentPage=="hub"&&current==generation){if(!append)feedItems.clear();feedItems.addAll(safe);loadedOffset=offset+items.length();renderFeed(result.optBoolean("has_more"));status.text="Hub sincronizado · conexão privada"}}

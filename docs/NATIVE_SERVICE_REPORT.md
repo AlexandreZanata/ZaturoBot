@@ -156,3 +156,23 @@ explicitly authorized real media run, Android APK import/foreground lifecycle on
 phone, and owner-selected USB/private-view checks. Full desktop input, continuous remote
 streaming, general vault, arbitrary account actions, and recurring scheduling remain
 planned. Update the [roadmap](ROADMAP.md) only for concrete verified behavior.
+
+## Physical Android follow-up: 2026-11-14
+
+The owner subsequently authorized installing/testing the companion on the USB-connected
+Android 16/API 36 phone. The signed debug APK was installed without clearing data. Its
+dedicated enrollment used app-private staging, the production importer and Android
+Keystore; the plaintext staging file and temporary test entry point were removed before
+restoring the normal APK. A fresh normal-app start synchronized the actual hub through
+the phone's own pinned SSH connection. No USB reverse proxy, new Android permissions,
+SMS reads, protected screenshots or device security-setting changes were required.
+
+Physical testing exposed legacy UI filter names `message`/`youtube`; the hub's canonical
+kinds are `chat`/`service`. Both native clients now use the correct values, and the
+inclusive service filter is labeled “Serviços”. The phone exercised both corrected
+filters and submitted a diagnostic through its normal button. That task completed on
+the existing work PC and its notice appeared in the phone's persistent feed. Desktop
+configuration/identity files stayed unchanged while its equivalent fix was installed.
+Returning the phone app from the background reconnected to the hub successfully.
+The full Rust/Python repository gate and the normal Android build/tests/lint passed.
+This follow-up does not claim physical ADB sensitive-view or real Google/video acceptance.

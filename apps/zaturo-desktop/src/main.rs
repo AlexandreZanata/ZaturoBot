@@ -58,11 +58,11 @@ fn filters(ui: &AppWindow, offset: u32) -> Filters {
         day: ui.get_selected_day().into(),
         query: ui.get_search_query().into(),
         kind: match ui.get_kind_index() {
-            1 => "message",
+            1 => "chat",
             2 => "task",
             3 => "file",
             4 => "android",
-            5 => "youtube",
+            5 => "service",
             _ => "",
         }
         .into(),
@@ -101,11 +101,11 @@ fn row(item: FeedItem) -> FeedRow {
         "Sistema"
     };
     let category = match item.kind.as_str() {
-        "message" => "Conversa",
+        "chat" => "Conversa",
         "task" => "Tarefa",
         "file" => "Arquivo",
         "android" => "Android",
-        "youtube" => "YouTube",
+        "service" => "Serviço",
         _ => "Atividade",
     };
     FeedRow {

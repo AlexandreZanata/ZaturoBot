@@ -5,6 +5,8 @@ wolf SVG converted into Android vector/adaptive icons and the black/yellow brand
 The hub shows today's activity by default, date/type/search filters and saved messages.
 Explicit diagnostic, YouTube-profile and Android-device requests use the existing
 worker task boundary; arbitrary chat text is recorded without claiming execution.
+The conversation filter sends the hub's `chat` kind; **Serviços** sends `service`,
+covering YoutubeBot and Android service activity. Labels and wire values share one catalog.
 
 ## Build
 
@@ -64,10 +66,16 @@ bundle through `ZATURO_ANDROID_SSH_TEST_BUNDLE`; no secret appears in argv/outpu
 checks hub health and rejects a wrong host pin before authentication. It does not read
 SMS, change accounts or operate an actual device.
 
-The APK, unit tests and live JVM transport were built/tested locally. Real Android
-hardware, Keystore persistence, foreground/background reconnection and UI layout still
-require an owner-selected physical-device acceptance run. Existing work-PC installation
-is preserved and updated additively; do not re-enroll or remove its journal to install
+An owner-authorized physical USB acceptance on 2026-11-14 used Android 16/API 36. The
+dedicated connection was imported using app-private staging and verified through the
+production Android Keystore code. The normal APK was restored with its data preserved;
+the temporary import file and test instrumentation were removed. The real phone
+synchronized its feed through its own pinned SSH transport, exercised conversation and
+service filters, and submitted a diagnostic that completed on `work-pc` with a visible
+history notice. Returning from the background reconnected successfully. No personal
+phone messages or protected screenshots were accessed.
+This is evidence for that opted-in device, not every Android version/vendor. Existing
+work-PC installation is preserved; do not re-enroll or remove its journal to install
 the app. Android Lint passes with non-fatal warnings for the supplied detailed vector,
 initial Portuguese inline copy, conservative SDK target and unused third-party helpers;
 none enables permissive TLS or suppresses errors.
