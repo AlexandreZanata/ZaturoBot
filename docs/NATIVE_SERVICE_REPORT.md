@@ -78,6 +78,8 @@ contain **149 passing Rust tests** and **21 passing Python helper tests**, with 
 failures. Formatting, strict Clippy, architecture/documentation/registry contracts,
 secret/publication guard, and rustdoc passed as part of the same gate. The Rust total
 is the sum of the actual `test result` records; the Python helper count is separate.
+The first fresh GitHub runner exposed missing Fontconfig development metadata for Slint;
+the workflow now installs `pkg-config` and `libfontconfig1-dev` before the unchanged gate.
 
 Coverage includes scoped client authentication and day-filtered/idempotent activity,
 terminal notice deduplication, typed service input/output, durable service uncertainty,

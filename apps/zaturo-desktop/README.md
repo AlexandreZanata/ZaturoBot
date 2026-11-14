@@ -7,6 +7,18 @@ native display, icon and focus/visibility handling. No browser/webview is embedd
 
 ## Build and connect
 
+On Ubuntu/Debian, install the native compiler/linker and Fontconfig development metadata
+before the pinned Rust build. The Slint font-discovery dependency uses `pkg-config` even
+when rendering uses the software backend:
+
+```bash
+sudo apt-get install build-essential pkg-config libfontconfig1-dev
+```
+
+An actual window also needs a running X11/Wayland session and its normal XKB/font runtime
+libraries. CI installs the same Fontconfig build prerequisite and runs noninteractive
+tests; a successful headless build is not display/hardware acceptance.
+
 ```bash
 cargo build --release -p zaturo-desktop --locked
 target/release/zaturo-desktop
