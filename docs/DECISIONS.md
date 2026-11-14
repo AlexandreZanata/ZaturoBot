@@ -187,3 +187,20 @@ age identity protected by Keystore, register only its public key under an explic
 scope and decrypt with kage. No new plaintext endpoint, phone permission or image SQL/file
 is introduced. Explicit fixed messaging-app navigation records only verified local recipes.
 Runtime verification and remote-PC/device limitations belong to the acceptance evidence.
+
+
+## ADR-0020: Independent commerce feature slice — proposed, planning only
+
+The owner requested a separate work branch for an autonomous curation agency with a visual
+identity and Hub reporting; the attached mission limits this execution to audit/planning.
+[Autonomous Commerce](planning/autonomous-commerce/README.md) proposes reuse of Engine,
+existing layers, worker journals, model ports, native feed and generation-only YoutubeBot.
+Keep MeuAssistente as a separately authenticated communication service with its own
+conversation authority; never share SQLite or duplicate task/permission truth.
+
+The first implementation proposal is offline verified facts, a versioned BrandKit,
+original drafts and a deduplicated Hub summary. Production publishing, a commercial model
+purpose, monetary budgets, consent and an eligible channel require reviewed contracts and
+explicit scoped grants. Current synthetic-only WhatsApp, no-Meta-API and provider/budget
+restrictions remain intact. No crate, migration, runtime registration or permission is
+added by accepting this planning artifact. This ADR remains proposed for implementation.

@@ -116,3 +116,15 @@ Dedicated mobile age recipients and temporary RAM decryption/display reuse the p
 relay. Explicit serial-bound messaging-app navigation records local metadata recipes.
 Physical acceptance on the work PC must be recorded separately; code tests do not prove
 an absent phone, interactive login or destination deployment worked.
+
+
+## Autonomous Commerce — planning only
+
+The owner requested an isolated commercial-agency plan: verified offer curation, original
+content, per-project visual identity, permitted social operation and results in the Hub.
+The [13-document plan](planning/autonomous-commerce/README.md) audits both ZaturoBot and
+MeuAssistente. Its [implementation phases](planning/autonomous-commerce/09-IMPLEMENTATION-ROADMAP.md)
+start with an offline brand/evidence/draft/report slice, then an assisted commercial pilot,
+then a separately gated single-channel publisher. These proposal milestones do not change
+existing registry feature status or authorize production accounts, paid calls or messages.
+Concurrent uncommitted computer-use work is excluded from this branch baseline.

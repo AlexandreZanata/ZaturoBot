@@ -55,3 +55,13 @@ Read the [prompt contract](../prompts/README.md) and
 Reusable interfaces are in the owning crate, and crate `AGENTS.md` files identify
 local files and tests. [Recipes](recipes/README.md) explain change paths. Add an item
 here whenever a new reusable component or workspace crate is introduced.
+
+
+## Proposed commerce module
+
+[Autonomous Commerce](planning/autonomous-commerce/README.md) plans an independently
+enabled agency/curation feature slice using existing layers and worker adapters. It is
+not an implemented workspace component or runtime registration. Brand identity, verified
+offers, editorial scheduling, channel publication and commerce metrics remain proposed;
+see the [audit](planning/autonomous-commerce/01-REPOSITORY-AUDIT.md) for exact reusable
+components and gaps. No empty crate is added by this planning pass.

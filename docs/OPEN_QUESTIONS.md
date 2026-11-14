@@ -37,3 +37,22 @@ on the destination OS, migration conflict resolution if destination data already
 and physical acceptance of the new mobile private-screen viewer. A full semantic SMS
 event adapter remains absent.
 No owner account action or real code content is assumed from a fake-device build test.
+
+
+## Autonomous Commerce activation questions
+
+These [planning questions](planning/autonomous-commerce/12-RISK-REGISTER.md) do not block
+future fixture-only development; they are not newly accepted production scopes.
+
+- C01 — Select one niche, audience, public brand identity and approved asset rights.
+- C02 — Record one eligible affiliate account, authorized data source, exact channel and
+  permitted link form; clarify inaccessible/conflicting marketplace terms before posting.
+- C03 — Approve a commerce-specific model purpose/provider/data policy and fixed-point
+  request/day/month/cumulative budgets; preserve existing ledgers and model restrictions.
+- C04 — Choose the initial autonomy level, account/category/window/cadence, grant expiry,
+  emergency stop and uncertain-effect resolution procedure.
+- C05 — Define audience legal basis, consent/withdrawal, retention/deletion and whether any
+  separately eligible communication route is wanted; WhatsApp remains synthetic-only.
+
+The [Claude handoff](planning/autonomous-commerce/13-CLAUDE-HANDOFF.md) records isolated
+checkouts, baseline versions and actual validation. No answer is inferred from silence.

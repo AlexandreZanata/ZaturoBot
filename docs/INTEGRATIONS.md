@@ -59,3 +59,14 @@ original generator/extension/upload implementation preserved in its own reposito
 See [YoutubeBot service](YOUTUBE_SERVICE.md). Android USB discovery and controlled private
 capture are implemented separately; see [Android](ANDROID_INTEGRATION.md). Neither is
 an unrestricted model tool. Remaining integrations above retain their planned status.
+
+
+## Proposed commercial agency integration
+
+The [Autonomous Commerce contracts](planning/autonomous-commerce/04-INTEGRATION-CONTRACTS.md)
+propose authenticated, versioned, capability-scoped facts, drafts, operation receipts and
+Hub reports between ZaturoBot and MeuAssistente. They are not live endpoints. Preserve
+independent databases, local conversation ownership, existing synthetic-only WhatsApp and
+model-purpose boundaries. Publication and paid commerce inference remain gated by the
+[policy matrix](planning/autonomous-commerce/06-AUTONOMY-AND-POLICY-MATRIX.md) and current
+[official-source evidence](planning/autonomous-commerce/07-PLATFORM-COMPLIANCE.md).

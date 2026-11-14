@@ -40,3 +40,9 @@ Android documents distinguish [USB foundations](ANDROID_INTEGRATION.md),
 [device security](ANDROID_DEVICE_SECURITY.md), [sensitive screens](ANDROID_SENSITIVE_SCREENS.md),
 [remote-control limits](ANDROID_REMOTE_CONTROL.md), and
 [future app-testing acceptance](ANDROID_APP_TESTING.md).
+
+
+The [Autonomous Commerce planning area](planning/autonomous-commerce/README.md) contains
+the requested two-repository audit, agency/brand architecture, official policy evidence,
+phased acceptance plan and Claude handoff. It is a proposal only; no commerce runtime,
+account connection, publication permission or new model purpose is enabled.
