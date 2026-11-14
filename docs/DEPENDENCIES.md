@@ -46,3 +46,8 @@ UI syntax checks and event lifecycle without weakening first-party unsafe-code p
 native Kotlin/Android APIs, Keystore AES-GCM and pinned SSHJ with canonical SSH host-key
 verification; Gradle/Maven manifests pin its build dependencies. The optional design-PDF
 generator uses reportlab/Pillow outside the running hub/worker. Provider policy is unchanged.
+
+Android presentation also bundles a small pinned subset of Google's Material Symbols
+Rounded as Android vector resources under Apache-2.0. Upstream paths, revision, hashes,
+license and notice ship with the app; see [icon provenance](../mobile/android/docs/ICONS.md).
+No Material Components runtime dependency or external icon/font fetch is required.

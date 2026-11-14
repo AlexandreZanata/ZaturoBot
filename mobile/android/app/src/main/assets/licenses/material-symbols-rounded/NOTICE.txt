@@ -1,0 +1,15 @@
+Material Symbols Rounded
+Source: Google, https://github.com/google/material-design-icons
+License: Apache License, Version 2.0 (full upstream text in LICENSE.txt).
+
+ZaturoBot includes a small subset as local Android VectorDrawable resources.
+Modifications: SVG containers were converted to Android VectorDrawable XML;
+the original path data is unchanged, the SVG negative-Y origin is represented
+by a +960 Y translation, dimensions are 24dp, and the single-color fill defaults
+to white so native views can apply state-specific tint. Resource names were
+adapted to this application. These icons are separate from the owner's ZaturoBot
+brand mark and are not a Google or YouTube brand logo.
+
+The pinned source revision, per-icon URLs and SHA-256 hashes are recorded in
+provenance.json. These assets do not require an icon font, network request,
+Google service, or Material Components runtime dependency.

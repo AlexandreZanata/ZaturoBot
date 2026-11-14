@@ -5,3 +5,5 @@ pub mod image;
 
 pub mod private_view;
 pub mod ui;
+
+pub mod timeline;

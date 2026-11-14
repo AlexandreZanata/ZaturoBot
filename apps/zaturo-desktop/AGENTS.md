@@ -20,3 +20,16 @@ Clear at the earlier server/local deadline and on focus loss/hide/tab-close. Can
 requests best-effort and retain relay expiry as the disconnected fallback. The manual
 `examples/private_view_smoke.rs` uses only a generated identity and synthetic pixels.
 Do not promise complete erasure of OS/renderer copies; owned buffers zeroize.
+
+
+`timeline.rs` is bounded presentation cache state, not authoritative history. Keep raw
+server offsets separate from privacy-filtered row count, deduplicate by ID, preserve
+older overlapping pages and avoid implying continuity across a missing gap. Render in
+chronological order. Ordinary polling must not move a reader above the bottom or apply
+unsubmitted filter edits. Explicit Hub entry and acknowledged sends carry tail intent
+through asynchronous layout; older prepends preserve the viewport's content anchor.
+`ui.rs` embeds brand/official icon bytes and owns revision-guarded layout settlement.
+Do not rebind inherited ScrollView `content-y` directly to the window state: keep the
+explicit native-position bridge and verify both actual mouse interaction and pixels.
+The `chat_scroll_smoke` example uses only synthetic rows in an isolated Xvfb display.
+Ship the icon subset's Apache-2.0 license and notice with standalone binaries.

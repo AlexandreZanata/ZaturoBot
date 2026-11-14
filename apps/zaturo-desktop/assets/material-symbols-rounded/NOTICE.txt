@@ -1,0 +1,14 @@
+Material Symbols Rounded — local attribution notice
+Source: Google, https://github.com/google/material-design-icons
+License: Apache License, Version 2.0 (full upstream text in LICENSE.txt).
+
+ZaturoBot includes a small subset as local SVG resources for its native Linux client.
+The upstream SVG files are unmodified: original fills, viewBox and path geometry are
+preserved. Application file names match the corresponding Android resource identifiers.
+Slint controls rendered size and state-specific color through its colorize property.
+These generic interface symbols are separate from the owner's ZaturoBot brand mark;
+the smart_display symbol is not a Google or YouTube brand logo or an affiliation claim.
+
+The exact upstream revision, per-icon URLs and SHA-256 hashes are in provenance.json.
+SHA256SUMS verifies the original SVG files and full license. These assets require no
+icon font, runtime network access or additional Material library.

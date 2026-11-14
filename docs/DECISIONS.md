@@ -142,3 +142,25 @@ raw PNG in memory using standard age, and the hub holds bounded ciphertext at mo
 60 seconds for one retrieval. App close/cancel revokes it. The desktop decrypts in memory;
 Android mobile private-image rendering remains absent. Visual change is not semantic SMS
 arrival detection, and Android lock/secure-window protections remain enforced.
+
+## ADR-0018: Shared native chat presentation and explicit scroll intent - accepted
+
+The owner requested compact mobile controls, bottom navigation, official Material icons,
+flat outlined buttons, distinct right-gold/left-dark bubbles, and the same visual concept
+on Linux with appropriate sidebar navigation. Reuse the native Kotlin/Slint clients and
+the pinned local icon assets; do not add another UI runtime or copy a messenger's code.
+
+A bounded client timeline adapts newest-first API pages to chronological display. Hub
+opening always requests the bottom of its selected view. An accepted own send resets to
+today, all kinds and empty search, then jumps to the actual measured bottom after a
+fresh page even if rows are unchanged. Explicit bottom intent is distinct from incoming
+refresh and older-page prepend: reading anchors, composer focus and RAM drafts survive
+those passive updates. Raw page counts, stable-ID deduplication, sensitive filtering,
+and a 200-row cap keep pagination correct and bounded.
+
+The canonical [native-client contract](NATIVE_CLIENTS.md) records these transitions and
+its official Telegram source reference. End/unread/anchor distinctions are behavioral
+reference material only; the owner's always-end-on-open preference is authoritative.
+No full Telegram/WhatsApp parity or unsupported messaging features are claimed.
+Tab draft/search retention remains process-memory-only. API, model policy, credentials,
+worker grants, screenshot protection and the private-view lifecycle are unchanged.

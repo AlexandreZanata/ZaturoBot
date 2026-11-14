@@ -1,7 +1,7 @@
 use anyhow::{Result, ensure};
 use chrono::{DateTime, Local};
 use clap::Parser;
-use slint::{Model, ModelRc, VecModel};
+use slint::{ModelRc, VecModel};
 use std::{
     path::PathBuf,
     sync::{
@@ -26,6 +26,12 @@ struct Cli {
     #[arg(long,value_parser=["hub","services","workers","files","private","settings"])]
     page: Option<String>,
 }
+#[derive(Clone, Copy, Default)]
+struct RefreshMode {
+    append: bool,
+    reset: bool,
+    force_tail: bool,
+}
 #[derive(Clone)]
 struct Filters {
     day: String,
@@ -33,11 +39,16 @@ struct Filters {
     query: String,
     offset: u32,
 }
+impl Filters {
+    fn cache_key(&self) -> String {
+        format!("{}\u{1f}{}\u{1f}{}", self.day, self.kind, self.query.trim())
+    }
+}
 enum Command {
     Refresh {
         generation: u64,
         filters: Filters,
-        append: bool,
+        mode: RefreshMode,
     },
     Send {
         generation: u64,
@@ -70,10 +81,17 @@ fn filters(ui: &AppWindow, offset: u32) -> Filters {
     }
 }
 fn enqueue(sender: &SyncSender<Command>, command: Command, ui: &AppWindow) {
+    let writing = matches!(&command, Command::Send { .. });
     if sender.try_send(command).is_err() {
+        if writing {
+            ui.set_sending(false);
+        }
         ui.set_busy(false);
         ui.set_status_message("Aguarde a solicitação atual terminar e atualize novamente.".into());
     } else {
+        if writing {
+            ui.set_sending(true);
+        }
         ui.set_busy(true);
     }
 }
@@ -91,7 +109,7 @@ fn show_state(
 }
 fn row(item: FeedItem) -> FeedRow {
     let time = DateTime::from_timestamp_millis(item.created_at)
-        .map(|t| t.with_timezone(&Local).format("%d/%m · %H:%M").to_string())
+        .map(|t| t.with_timezone(&Local).format("%H:%M").to_string())
         .unwrap_or_default();
     let role = if item.role == "owner" || item.role == "user" {
         "Você"
@@ -111,7 +129,12 @@ fn row(item: FeedItem) -> FeedRow {
     FeedRow {
         id: item.id.into(),
         time: time.into(),
-        label: format!("{role} · {category}").into(),
+        label: if item.kind == "chat" {
+            role.to_owned()
+        } else {
+            format!("{role} · {category}")
+        }
+        .into(),
         text: item.text.into(),
         role: item.role.into(),
         task: item.task_id.unwrap_or_default().into(),
@@ -149,11 +172,22 @@ fn service_summary(value: serde_json::Value) -> String {
             let status = service
                 .get("status")
                 .and_then(|v| v.as_str())
-                .unwrap_or("registered");
+                .unwrap_or_else(|| {
+                    if service
+                        .get("workers")
+                        .and_then(|v| v.as_array())
+                        .is_some_and(|v| !v.is_empty())
+                    {
+                        "registered"
+                    } else {
+                        "not_configured"
+                    }
+                });
             let state = match status {
                 "available" | "ready" | "enabled" | "implemented" => "disponível",
                 "not_configured" | "disabled" => "não configurado",
                 "planned" => "planejado",
+                "registered" => "registrado no hub",
                 _ => status,
             };
             format!("{name} · {state}")
@@ -168,7 +202,7 @@ fn refresh(
     generation: Arc<AtomicU64>,
     expected: u64,
     filter: Filters,
-    append: bool,
+    mode: RefreshMode,
 ) -> Result<()> {
     let token = config.token()?;
     let client = HubClient::new(config, &token)?;
@@ -191,18 +225,27 @@ fn refresh(
             services.ok().map(service_summary),
         ))
     })?;
-    let rows = page.items.into_iter().map(row).collect::<Vec<_>>();
     let worker_rows = workers.into_iter().map(worker_row).collect::<Vec<_>>();
+    let filter_key = filter.cache_key();
     show_state(ui, generation, expected, move |ui| {
-        let mut combined = if append {
-            ui.get_events().iter().collect::<Vec<_>>()
-        } else {
-            Vec::new()
-        };
-        combined.extend(rows);
-        ui.set_events(ModelRc::new(VecModel::from(combined)));
+        let tail = mode.force_tail || (!mode.append && ui.get_following_tail());
+        let filter_changed = ui.select_feed_filter(filter_key);
+        if let Some(items) = ui.merge_page(page, mode.append, mode.reset || filter_changed) {
+            ui.prepare_scroll(if tail {
+                1
+            } else if mode.append {
+                2
+            } else {
+                3
+            });
+            ui.set_events(ModelRc::new(VecModel::from(
+                items.into_iter().map(row).collect::<Vec<_>>(),
+            )));
+        } else if tail {
+            // Explicit navigation/send intents survive unchanged responses and delayed layout.
+            ui.scroll_to_bottom();
+        }
         ui.set_workers(ModelRc::new(VecModel::from(worker_rows)));
-        ui.set_has_more(page.has_more);
         ui.set_online(true);
         ui.set_connection_state("Hub conectado".into());
         ui.set_busy(false);
@@ -266,7 +309,7 @@ fn main() -> Result<()> {
                 Command::Refresh {
                     generation,
                     filters,
-                    append,
+                    mode,
                 } => (
                     generation,
                     refresh(
@@ -276,7 +319,7 @@ fn main() -> Result<()> {
                         thread_generation.clone(),
                         generation,
                         filters,
-                        append,
+                        mode,
                     ),
                 ),
                 Command::Send {
@@ -288,19 +331,33 @@ fn main() -> Result<()> {
                         let token = current.token()?;
                         let client = HubClient::new(&current, &token)?;
                         runtime.block_on(client.send(&request))?;
-                        if request.action.is_none() {
-                            let accepted = request.message.clone();
-                            show_state(
-                                weak.clone(),
-                                thread_generation.clone(),
-                                generation,
-                                move |ui| {
-                                    if ui.get_composer() == accepted {
-                                        ui.set_composer("".into());
-                                    }
-                                },
-                            );
-                        }
+                        let mut filters = filters;
+                        filters.day = Local::now().format("%Y-%m-%d").to_string();
+                        filters.kind.clear();
+                        filters.query.clear();
+                        filters.offset = 0;
+                        let day = filters.day.clone();
+                        let accepted = request.action.is_none().then(|| request.message.clone());
+                        show_state(
+                            weak.clone(),
+                            thread_generation.clone(),
+                            generation,
+                            move |ui| {
+                                if accepted
+                                    .as_ref()
+                                    .is_some_and(|message| ui.get_composer() == message.as_str())
+                                {
+                                    ui.set_composer("".into());
+                                }
+                                ui.set_selected_day(day.into());
+                                ui.set_kind_index(0);
+                                ui.set_search_query("".into());
+                                ui.clear_feed();
+                                ui.set_sending(false);
+                                ui.set_page("hub".into());
+                                ui.scroll_to_bottom();
+                            },
+                        );
                         refresh(
                             &runtime,
                             &current,
@@ -308,7 +365,11 @@ fn main() -> Result<()> {
                             thread_generation.clone(),
                             generation,
                             filters,
-                            false,
+                            RefreshMode {
+                                reset: true,
+                                force_tail: true,
+                                ..RefreshMode::default()
+                            },
                         )
                     })();
                     (generation, outcome)
@@ -335,7 +396,11 @@ fn main() -> Result<()> {
                             thread_generation.clone(),
                             generation,
                             filters,
-                            false,
+                            RefreshMode {
+                                reset: true,
+                                force_tail: true,
+                                ..RefreshMode::default()
+                            },
                         )
                     })();
                     (generation, outcome)
@@ -344,6 +409,7 @@ fn main() -> Result<()> {
             if result.is_err() {
                 show_state(weak.clone(), thread_generation.clone(), expected, |ui| {
                     ui.set_busy(false);
+                    ui.set_sending(false);
                     ui.set_online(false);
                     ui.set_connection_state("Hub indisponível".into());
                     ui.set_status_message("Não foi possível concluir. Verifique conexão, credencial e permissões; o histórico existente foi preservado.".into());
@@ -357,13 +423,23 @@ fn main() -> Result<()> {
         let counter = generation.clone();
         let handler = move || {
             if let Some(ui) = weak.upgrade() {
+                if ui.get_sending() {
+                    ui.set_status_message(
+                        "Aguarde a confirmação do envio antes de alterar os filtros.".into(),
+                    );
+                    return;
+                }
                 let expected = counter.fetch_add(1, Ordering::SeqCst) + 1;
                 enqueue(
                     &tx,
                     Command::Refresh {
                         generation: expected,
                         filters: filters(&ui, 0),
-                        append: false,
+                        mode: RefreshMode {
+                            reset: callback == 1,
+                            force_tail: callback == 1,
+                            ..RefreshMode::default()
+                        },
                     },
                     &ui,
                 );
@@ -379,15 +455,53 @@ fn main() -> Result<()> {
         let tx = sender.clone();
         let weak = ui.as_weak();
         let counter = generation.clone();
-        ui.on_load_more(move || {
+        ui.on_hub_opened(move || {
             if let Some(ui) = weak.upgrade() {
+                ui.scroll_to_bottom();
+                if ui.get_busy() || ui.get_sending() {
+                    return;
+                }
                 let expected = counter.fetch_add(1, Ordering::SeqCst) + 1;
                 enqueue(
                     &tx,
                     Command::Refresh {
                         generation: expected,
-                        filters: filters(&ui, ui.get_events().row_count() as u32),
-                        append: true,
+                        filters: filters(&ui, 0),
+                        mode: RefreshMode {
+                            force_tail: true,
+                            ..RefreshMode::default()
+                        },
+                    },
+                    &ui,
+                );
+            }
+        });
+    }
+    {
+        let tx = sender.clone();
+        let weak = ui.as_weak();
+        let counter = generation.clone();
+        ui.on_load_more(move || {
+            if let Some(ui) = weak.upgrade() {
+                if ui.get_busy() || !ui.get_has_more() {
+                    return;
+                }
+                if !ui.feed_filter_matches(&filters(&ui, 0).cache_key()) {
+                    ui.set_status_message(
+                        "Aplique os filtros antes de carregar mensagens anteriores.".into(),
+                    );
+                    return;
+                }
+                let expected = counter.fetch_add(1, Ordering::SeqCst) + 1;
+                enqueue(
+                    &tx,
+                    Command::Refresh {
+                        generation: expected,
+                        filters: filters(&ui, ui.feed_next_offset()),
+                        mode: RefreshMode {
+                            append: true,
+                            ..RefreshMode::default()
+                        },
                     },
                     &ui,
                 );
@@ -400,6 +514,12 @@ fn main() -> Result<()> {
         let counter = generation.clone();
         ui.on_save_connection(move || {
             if let Some(ui) = weak.upgrade() {
+                if ui.get_sending() {
+                    ui.set_status_message(
+                        "Aguarde a confirmação do envio antes de alterar a conexão.".into(),
+                    );
+                    return;
+                }
                 let expected = counter.fetch_add(1, Ordering::SeqCst) + 1;
                 let command = Command::Save {
                     generation: expected,
@@ -419,6 +539,9 @@ fn main() -> Result<()> {
         let counter = generation.clone();
         ui.on_send_message(move || {
             if let Some(ui) = weak.upgrade() {
+                if ui.get_sending() {
+                    return;
+                }
                 let message = ui.get_composer().to_string();
                 if message.trim().is_empty() {
                     return;
@@ -444,6 +567,9 @@ fn main() -> Result<()> {
         let counter = generation.clone();
         ui.on_diagnostic(move || {
             if let Some(ui) = weak.upgrade() {
+                if ui.get_sending() {
+                    return;
+                }
                 let expected = counter.fetch_add(1, Ordering::SeqCst) + 1;
                 enqueue(
                     &tx,
@@ -469,6 +595,9 @@ fn main() -> Result<()> {
         let counter = generation.clone();
         ui.on_service_action(move |action| {
             if let Some(ui) = weak.upgrade() {
+                if ui.get_sending() {
+                    return;
+                }
                 if !matches!(action.as_str(), "youtube_profiles" | "android_devices") {
                     return;
                 }
@@ -514,6 +643,10 @@ fn main() -> Result<()> {
                     && !ui.window().is_minimized()
                     && ui.get_online()
                     && !ui.get_busy()
+                    && !ui.get_sending()
+                    && ui.get_page() == "hub"
+                    && ui.get_at_bottom()
+                    && ui.feed_filter_matches(&filters(&ui, 0).cache_key())
                 {
                     let expected = counter.load(Ordering::SeqCst);
                     enqueue(
@@ -521,7 +654,7 @@ fn main() -> Result<()> {
                         Command::Refresh {
                             generation: expected,
                             filters: filters(&ui, 0),
-                            append: false,
+                            mode: RefreshMode::default(),
                         },
                         &ui,
                     );

@@ -733,6 +733,14 @@ def install(options):
             0o600,
         ),
     }
+    icon_notices = source / "apps/zaturo-desktop/assets/material-symbols-rounded"
+    if icon_notices.exists():
+        notice_destination = home / ".local/share/zaturobot/licenses/material-symbols-rounded"
+        for name in ("LICENSE.txt", "NOTICE.txt", "provenance.json"):
+            writes[notice_destination / name] = (
+                regular(icon_notices / name, limit=128 * 1024),
+                0o600,
+            )
     # Existing reviewed worker unit remains authoritative, including local resource settings.
     if unit.exists():
         original_unit = regular(unit, limit=64 * 1024).decode()

@@ -64,3 +64,35 @@ Android JVM tests check origin/enrollment and canonical SSH-wire fingerprints; a
 opt-in smoke uses a new restricted key against hub healthz and rejects a wrong host pin.
 APK compilation/Lint are not physical Android acceptance. Google/realUSB/paidgeneration
 are never CI requirements. See [native clients](NATIVE_CLIENTS.md) and adapter tests.
+
+
+## Native timeline and presentation acceptance
+
+The [shared native contract](NATIVE_CLIENTS.md) governs Android and Linux. Exercise
+behavioral transitions rather than tests that merely duplicate a label/value table:
+newest-first pages become chronological rows; stable IDs deduplicate; sensitive rows
+stay excluded; raw page counts advance offsets even when visible counts differ; and
+older-page merges remain bounded to 200 ordinary rows.
+
+Cover Hub open, reopening after older-history reading, incoming updates near and away
+from the bottom, and accepted own sends from an old day/type/search. Acceptance of a
+send must return to today/all kinds/empty search, fetch the fresh page, and retain an
+explicit bottom request even when the returned rows are unchanged. A passive refresh
+must not consume that intent prematurely or steal composer focus. Prepending older rows
+must retain the visible reading anchor. Drafts remain in RAM across tab changes, and
+sensitive data must never enter the ordinary timeline or draft fixtures.
+
+Pure timeline tests do not prove a viewport reached its final bottom. Separate native
+UI checks must wait for actual layout/measurement, inspect the last visible ordinary
+row after open/send, and verify anchor/focus behavior during older-page and unchanged
+refresh cases. Use isolated Xvfb and a fresh private Android emulator with synthetic
+content. Check outlined/no-shadow controls, 48dp mobile action targets, official icon
+tints, right-gold/left-dark bubbles, keyboard insets, and desktop sidebar sizing at the
+available window dimensions. Those tests do not operate the owner's normal desktop or
+use a real SMS screen.
+
+An explicitly authorized physical Android run can validate the particular APK, device,
+Keystore connection and actual layout. Record it only after observed success; an emulator,
+APK build, unit-test pass or older physical run does not establish acceptance of a newer
+UI revision. Existing API/authentication, model and ephemeral private-view tests remain
+required because presentation changes must preserve those boundaries.

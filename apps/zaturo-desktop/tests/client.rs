@@ -20,7 +20,7 @@ async fn actual_http_bounds_filters_and_hides_sensitive_items() {
                 .contains(&format!("authorization: bearer {TOKEN}"))
         );
         assert!(headers.contains("q=x%26offset%3D99"));
-        let body=serde_json::json!({"items":[{"id":"one","created_at":1000,"kind":"message","role":"owner","text":"a permitted request","task_id":null,"artifact_id":null,"sensitive":false},{"id":"two","created_at":1000,"kind":"android","role":"system","text":"synthetic sensitive-screen fixture","task_id":null,"artifact_id":null,"sensitive":true}],"has_more":false}).to_string();
+        let body=serde_json::json!({"items":[{"id":"one","created_at":1000,"kind":"chat","role":"owner","text":"a permitted request","task_id":null,"artifact_id":null,"sensitive":false},{"id":"two","created_at":1000,"kind":"android","role":"system","text":"synthetic sensitive-screen fixture","task_id":null,"artifact_id":null,"sensitive":true}],"has_more":false}).to_string();
         let response = format!(
             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
             body.len()
@@ -32,9 +32,10 @@ async fn actual_http_bounds_filters_and_hides_sensitive_items() {
     config.hub_url = format!("http://{address}");
     let client = HubClient::new(&config, TOKEN).unwrap();
     let page = client
-        .feed("2026-11-13", -240, "message", "x&offset=99", 0)
+        .feed("2026-11-13", -240, "chat", "x&offset=99", 0)
         .await
         .unwrap();
+    assert_eq!(page.received_count, 2);
     assert_eq!(page.items.len(), 1);
     assert_eq!(page.items[0].id, "one");
     server.await.unwrap();

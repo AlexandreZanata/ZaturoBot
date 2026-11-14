@@ -83,6 +83,9 @@ These concrete slices are authorized even though the complete later phases remai
 <!-- feature:native-clients status:implemented -->
 Initial native Linux and Android clients share owner/application-authenticated chat/feed;
 Android uses its own pinned restricted SSH key and Keystore-encrypted enrollment.
+The polished native presentation includes locally bundled Material icons, distinct chat
+bubbles and verified latest-message positioning on Hub entry and confirmed sends;
+passive history reading retains its anchor. Android presentation version: 0.4.1.
 
 <!-- feature:android-usb status:implemented -->
 Serial-bound USB state, controlled owner screenshot/finite visual-change watch and

@@ -8,6 +8,42 @@ worker task boundary; arbitrary chat text is recorded without claiming execution
 The conversation filter sends the hub's `chat` kind; **Serviços** sends `service`,
 covering YoutubeBot and Android service activity. Labels and wire values share one catalog.
 
+## Mobile presentation
+
+Version 0.4.1 uses an aligned brand header, compact day/type controls, an expandable
+history search and a bottom bar for Hub, Serviços, Reconectar and Ajustes. The composer
+and conversation occupy the main space; diagnostic execution lives on the Services page.
+Buttons use subtle outlines, native press feedback and no elevation. Official Material
+Symbols Rounded icons are bundled as vectors with [license/provenance](docs/ICONS.md).
+
+The API remains newest-first; the bounded timeline renders oldest-first with new replies
+at the bottom. Owner bubbles align right in brand gold, assistant/system bubbles left
+on a dark surface. Opening or reopening Hub goes to the end of the currently selected
+view. An accepted own send returns to today's local date, **Tudo**, and empty search,
+then follows the fresh page to its actual measured bottom even if its data is unchanged.
+This explicit navigation does not take focus from the composer or open the keyboard.
+
+Incoming updates preserve the reading anchor when the owner is browsing older history.
+Older pages prepend above that anchor; deduplication and sensitive-item filtering do not
+change raw server page counts used for the next offset. At most 200 ordinary rows are
+retained. Unchanged background polling avoids rebuilding messages or moving focus.
+Drafts and the current search stay in process memory across tabs; an accepted send
+intentionally resets the search as described above. Automatic text state saving remains
+disabled. System/keyboard insets keep controls reachable; the bottom bar temporarily
+yields space to the keyboard. The physical app retains `FLAG_SECURE`.
+
+The 0.4.1 UI was visually checked in a separate network-disabled synthetic preview,
+including keyboard, services/settings and 1.3 font scaling. Owner-authorized Android
+16/API 36 acceptance then verified Hub re-entry at the latest message, passive older
+reading across polling, one normal chat send from an older position, and composer/caret
+stability with the keyboard. The existing app identity and encrypted enrollment survived
+the update. No protected phone screenshots or additional Android permissions were used.
+
+The same [chat-navigation contract](../../docs/NATIVE_CLIENTS.md) applies to the Linux
+client, with desktop sidebar navigation and the same official icon/bubble vocabulary.
+The implementation preserves existing API, authentication, model and private-view limits;
+it does not add full messenger features or import another application's implementation.
+
 ## Build
 
 Install JDK 17+ and Android SDK platform/build-tools 36, then set an ignored

@@ -1,0 +1,188 @@
+{
+  "schema": 1,
+  "upstream_repository": "https://github.com/google/material-design-icons",
+  "upstream_revision": "10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7",
+  "license_spdx": "Apache-2.0",
+  "license_url": "https://raw.githubusercontent.com/google/material-design-icons/10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7/LICENSE",
+  "license_sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+  "guide": "https://developers.google.com/fonts/docs/material_symbols",
+  "adaptation": "None. Original upstream SVG bytes, fills, viewBox and path data are preserved. Slint owns display size and colorize tint.",
+  "icons": [
+    {
+      "resource": "ic_chat",
+      "symbol": "chat_bubble",
+      "style": "Material Symbols Rounded",
+      "size_dp": 24,
+      "upstream_path": "symbols/web/chat_bubble/materialsymbolsrounded/chat_bubble_24px.svg",
+      "upstream_url": "https://raw.githubusercontent.com/google/material-design-icons/10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7/symbols/web/chat_bubble/materialsymbolsrounded/chat_bubble_24px.svg",
+      "upstream_svg_sha256": "5323668b977357f7b5379fd1e8b073375b0a5d12c6351e10694308d4c2d5c9d7",
+      "file": "ic_chat.svg",
+      "svg_sha256": "5323668b977357f7b5379fd1e8b073375b0a5d12c6351e10694308d4c2d5c9d7"
+    },
+    {
+      "resource": "ic_services",
+      "symbol": "grid_view",
+      "style": "Material Symbols Rounded",
+      "size_dp": 24,
+      "upstream_path": "symbols/web/grid_view/materialsymbolsrounded/grid_view_24px.svg",
+      "upstream_url": "https://raw.githubusercontent.com/google/material-design-icons/10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7/symbols/web/grid_view/materialsymbolsrounded/grid_view_24px.svg",
+      "upstream_svg_sha256": "8c3937acee82f64fc66f6221d9103d0e5d69a71f5979fedb8c5e5d74a0727dc9",
+      "file": "ic_services.svg",
+      "svg_sha256": "8c3937acee82f64fc66f6221d9103d0e5d69a71f5979fedb8c5e5d74a0727dc9"
+    },
+    {
+      "resource": "ic_sync",
+      "symbol": "sync",
+      "style": "Material Symbols Rounded",
+      "size_dp": 24,
+      "upstream_path": "symbols/web/sync/materialsymbolsrounded/sync_24px.svg",
+      "upstream_url": "https://raw.githubusercontent.com/google/material-design-icons/10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7/symbols/web/sync/materialsymbolsrounded/sync_24px.svg",
+      "upstream_svg_sha256": "4e76b510662a3d4317205bfac9cb8be32178dc7ee7d89447144bf9a1d38ca7a1",
+      "file": "ic_sync.svg",
+      "svg_sha256": "4e76b510662a3d4317205bfac9cb8be32178dc7ee7d89447144bf9a1d38ca7a1"
+    },
+    {
+      "resource": "ic_settings",
+      "symbol": "settings",
+      "style": "Material Symbols Rounded",
+      "size_dp": 24,
+      "upstream_path": "symbols/web/settings/materialsymbolsrounded/settings_24px.svg",
+      "upstream_url": "https://raw.githubusercontent.com/google/material-design-icons/10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7/symbols/web/settings/materialsymbolsrounded/settings_24px.svg",
+      "upstream_svg_sha256": "6cd47de90647ece6b00922f497f8c4ea9c1649548cf15828d1df9d78d5bdf30d",
+      "file": "ic_settings.svg",
+      "svg_sha256": "6cd47de90647ece6b00922f497f8c4ea9c1649548cf15828d1df9d78d5bdf30d"
+    },
+    {
+      "resource": "ic_send",
+      "symbol": "send",
+      "style": "Material Symbols Rounded",
+      "size_dp": 24,
+      "upstream_path": "symbols/web/send/materialsymbolsrounded/send_24px.svg",
+      "upstream_url": "https://raw.githubusercontent.com/google/material-design-icons/10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7/symbols/web/send/materialsymbolsrounded/send_24px.svg",
+      "upstream_svg_sha256": "e31d6774dc5caee174d057253e10993cce89127dd33343e9cc1b0dbb478e8e9b",
+      "file": "ic_send.svg",
+      "svg_sha256": "e31d6774dc5caee174d057253e10993cce89127dd33343e9cc1b0dbb478e8e9b"
+    },
+    {
+      "resource": "ic_filter",
+      "symbol": "tune",
+      "style": "Material Symbols Rounded",
+      "size_dp": 24,
+      "upstream_path": "symbols/web/tune/materialsymbolsrounded/tune_24px.svg",
+      "upstream_url": "https://raw.githubusercontent.com/google/material-design-icons/10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7/symbols/web/tune/materialsymbolsrounded/tune_24px.svg",
+      "upstream_svg_sha256": "2e153083c6847581bb13980e84f2ca1e05048407b68dc9b96c409b1678e8eacb",
+      "file": "ic_filter.svg",
+      "svg_sha256": "2e153083c6847581bb13980e84f2ca1e05048407b68dc9b96c409b1678e8eacb"
+    },
+    {
+      "resource": "ic_search",
+      "symbol": "search",
+      "style": "Material Symbols Rounded",
+      "size_dp": 24,
+      "upstream_path": "symbols/web/search/materialsymbolsrounded/search_24px.svg",
+      "upstream_url": "https://raw.githubusercontent.com/google/material-design-icons/10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7/symbols/web/search/materialsymbolsrounded/search_24px.svg",
+      "upstream_svg_sha256": "8d12ac6ba27a23ccf0e57794c28481ce9c978efcb2f80ba6d2979ccdf238c993",
+      "file": "ic_search.svg",
+      "svg_sha256": "8d12ac6ba27a23ccf0e57794c28481ce9c978efcb2f80ba6d2979ccdf238c993"
+    },
+    {
+      "resource": "ic_calendar",
+      "symbol": "calendar_today",
+      "style": "Material Symbols Rounded",
+      "size_dp": 24,
+      "upstream_path": "symbols/web/calendar_today/materialsymbolsrounded/calendar_today_24px.svg",
+      "upstream_url": "https://raw.githubusercontent.com/google/material-design-icons/10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7/symbols/web/calendar_today/materialsymbolsrounded/calendar_today_24px.svg",
+      "upstream_svg_sha256": "6728afdf8b07b6294e713097149ee0591dafd5dcb536084b907d90ad8e96e157",
+      "file": "ic_calendar.svg",
+      "svg_sha256": "6728afdf8b07b6294e713097149ee0591dafd5dcb536084b907d90ad8e96e157"
+    },
+    {
+      "resource": "ic_terminal",
+      "symbol": "terminal",
+      "style": "Material Symbols Rounded",
+      "size_dp": 24,
+      "upstream_path": "symbols/web/terminal/materialsymbolsrounded/terminal_24px.svg",
+      "upstream_url": "https://raw.githubusercontent.com/google/material-design-icons/10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7/symbols/web/terminal/materialsymbolsrounded/terminal_24px.svg",
+      "upstream_svg_sha256": "ba924a0c39561794685040e624daa32ac86a130323eeec67093611518cf03560",
+      "file": "ic_terminal.svg",
+      "svg_sha256": "ba924a0c39561794685040e624daa32ac86a130323eeec67093611518cf03560"
+    },
+    {
+      "resource": "ic_youtube",
+      "symbol": "smart_display",
+      "style": "Material Symbols Rounded",
+      "size_dp": 24,
+      "upstream_path": "symbols/web/smart_display/materialsymbolsrounded/smart_display_24px.svg",
+      "upstream_url": "https://raw.githubusercontent.com/google/material-design-icons/10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7/symbols/web/smart_display/materialsymbolsrounded/smart_display_24px.svg",
+      "upstream_svg_sha256": "67842cb205e9f4d4aae3a626f1af282f3c33b6ea6a3a2587a77b029ea55e6e5c",
+      "file": "ic_youtube.svg",
+      "svg_sha256": "67842cb205e9f4d4aae3a626f1af282f3c33b6ea6a3a2587a77b029ea55e6e5c"
+    },
+    {
+      "resource": "ic_phone",
+      "symbol": "smartphone",
+      "style": "Material Symbols Rounded",
+      "size_dp": 24,
+      "upstream_path": "symbols/web/smartphone/materialsymbolsrounded/smartphone_24px.svg",
+      "upstream_url": "https://raw.githubusercontent.com/google/material-design-icons/10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7/symbols/web/smartphone/materialsymbolsrounded/smartphone_24px.svg",
+      "upstream_svg_sha256": "adce120934460969df08130c181f6f23012fe9577839032ffdefb1ad2f2519ee",
+      "file": "ic_phone.svg",
+      "svg_sha256": "adce120934460969df08130c181f6f23012fe9577839032ffdefb1ad2f2519ee"
+    },
+    {
+      "resource": "ic_shield",
+      "symbol": "shield_lock",
+      "style": "Material Symbols Rounded",
+      "size_dp": 24,
+      "upstream_path": "symbols/web/shield_lock/materialsymbolsrounded/shield_lock_24px.svg",
+      "upstream_url": "https://raw.githubusercontent.com/google/material-design-icons/10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7/symbols/web/shield_lock/materialsymbolsrounded/shield_lock_24px.svg",
+      "upstream_svg_sha256": "79faef3b37d489c14792723af4c8c68bb412df08621cdc02247925d7f45fd6d0",
+      "file": "ic_shield.svg",
+      "svg_sha256": "79faef3b37d489c14792723af4c8c68bb412df08621cdc02247925d7f45fd6d0"
+    },
+    {
+      "resource": "ic_folder",
+      "symbol": "folder_open",
+      "style": "Material Symbols Rounded",
+      "size_dp": 24,
+      "upstream_path": "symbols/web/folder_open/materialsymbolsrounded/folder_open_24px.svg",
+      "upstream_url": "https://raw.githubusercontent.com/google/material-design-icons/10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7/symbols/web/folder_open/materialsymbolsrounded/folder_open_24px.svg",
+      "upstream_svg_sha256": "0c71f5c57aacdde741f36551aea966125ade2ee4b81d15f2396b1d85e0418f00",
+      "file": "ic_folder.svg",
+      "svg_sha256": "0c71f5c57aacdde741f36551aea966125ade2ee4b81d15f2396b1d85e0418f00"
+    },
+    {
+      "resource": "ic_check",
+      "symbol": "check_circle",
+      "style": "Material Symbols Rounded",
+      "size_dp": 24,
+      "upstream_path": "symbols/web/check_circle/materialsymbolsrounded/check_circle_24px.svg",
+      "upstream_url": "https://raw.githubusercontent.com/google/material-design-icons/10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7/symbols/web/check_circle/materialsymbolsrounded/check_circle_24px.svg",
+      "upstream_svg_sha256": "5c90d9aaa77eacf87ed8a5cedb6f9a1b7eba6ef41e6fbf7c9a1eb221ad59d2c9",
+      "file": "ic_check.svg",
+      "svg_sha256": "5c90d9aaa77eacf87ed8a5cedb6f9a1b7eba6ef41e6fbf7c9a1eb221ad59d2c9"
+    },
+    {
+      "resource": "ic_close",
+      "symbol": "close",
+      "style": "Material Symbols Rounded",
+      "size_dp": 24,
+      "upstream_path": "symbols/web/close/materialsymbolsrounded/close_24px.svg",
+      "upstream_url": "https://raw.githubusercontent.com/google/material-design-icons/10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7/symbols/web/close/materialsymbolsrounded/close_24px.svg",
+      "upstream_svg_sha256": "fabc7e16160e93ed11d6d72b87f5c67092d04abfcc1fc2410fab1abe075cd8fc",
+      "file": "ic_close.svg",
+      "svg_sha256": "fabc7e16160e93ed11d6d72b87f5c67092d04abfcc1fc2410fab1abe075cd8fc"
+    },
+    {
+      "resource": "ic_key",
+      "symbol": "key",
+      "style": "Material Symbols Rounded",
+      "size_dp": 24,
+      "upstream_path": "symbols/web/key/materialsymbolsrounded/key_24px.svg",
+      "upstream_url": "https://raw.githubusercontent.com/google/material-design-icons/10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7/symbols/web/key/materialsymbolsrounded/key_24px.svg",
+      "upstream_svg_sha256": "c3e65b94904b66ace89ab50a249a9e33deaf0d4a54009ae6fbf642aee6fe772e",
+      "file": "ic_key.svg",
+      "svg_sha256": "c3e65b94904b66ace89ab50a249a9e33deaf0d4a54009ae6fbf642aee6fe772e"
+    }
+  ]
+}

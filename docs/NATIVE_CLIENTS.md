@@ -14,6 +14,48 @@ produce stable deduplicated notices. All past terminal tasks seed notices on upg
 Historical data remains in SQLite when another day is selected; the main view defaults
 to the current local day. Closing a client does not cancel an ordinary durable task.
 
+## Shared native presentation and chat navigation
+
+The Android 0.4.1 presentation uses compact bottom navigation; the Linux client adapts
+the same destinations to a desktop sidebar and wider layout. Both use flat, subtly
+outlined buttons without shadows, right-aligned gold owner bubbles, left-aligned dark
+assistant/system bubbles, and locally bundled official Material Symbols Rounded icons.
+[Android icon provenance](../mobile/android/docs/ICONS.md) and
+[desktop SVG provenance](../apps/zaturo-desktop/assets/material-symbols-rounded/README.md)
+record the pinned primary assets and their license. This visual vocabulary does not add
+messenger accounts, calls, arbitrary attachment execution, or any new automation grant.
+
+The common navigation contract is explicit:
+
+- Opening or reopening Hub shows the bottom of the currently selected day/type/search
+  view. A new visit does not restore an unread-message position over this owner preference.
+- An accepted own send switches to today's local date, **Tudo**, and empty search so an
+  old day or restrictive filter cannot hide the accepted message. It requests a fresh
+  first page and a bottom jump after the actual content/viewport measurement, including
+  when the refreshed rows compare equal. A failed or unconfirmed request is not an
+  accepted send and keeps its existing idempotency/reconciliation boundary.
+- Automatic positioning never requests composer focus or summons the keyboard. Incoming
+  data while the owner reads older history retains the reading anchor; unchanged polling
+  does not rebuild message widgets or move focus. Following new incoming rows is limited
+  to a view already following its bottom or a pending explicit navigation/send intent.
+- Older pages prepend chronologically while retaining the visible anchor. The client
+  deduplicates stable IDs, filters sensitive items, and retains at most 200 ordinary
+  rows. Pagination offsets advance by raw server page counts, including any filtered or
+  duplicate rows, rather than by the visible-row count.
+- Draft and current search text stay in RAM across tabs. An accepted send intentionally
+  clears the search as part of its view reset. Neither tab changes nor this presentation
+  work export plaintext drafts to Android saved state or a new desktop draft file.
+
+Telegram Desktop's official
+[history widget source](https://github.com/telegramdesktop/tdesktop/blob/dev/Telegram/SourceFiles/history/history_widget.cpp)
+is a behavioral reference: it distinguishes positioning at the end, positioning at
+unread content, and restoring a saved scroll anchor. That observation guides separate
+navigation intents here; ZaturoBot's owner explicitly chooses the end on every Hub open.
+No Telegram code was copied and no complete behavior or feature parity is claimed.
+
+These changes preserve authentication, supported actions, encrypted connection storage,
+ordinary/sensitive-feed boundaries, the model route, and the private-view lifecycle.
+
 Free text is stored honestly as a request. Explicit diagnostic, YouTube-profile and USB
 inventory actions create typed tasks. Arbitrary text is not treated as permission to
 execute a shell or an unsupported operation. The existing public-coding model route stays

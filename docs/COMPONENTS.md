@@ -25,7 +25,9 @@ stable discovery keys; [architecture.toml](../architecture.toml) is the dependen
 - `zaturo-youtube` — `crates/youtube`: fixed JSON CLI adapter to the existing Python
   YoutubeBot, explicit scheduling grants, result curation and uncertain-job reconciliation.
 - `zaturo-desktop` — `apps/zaturo-desktop`: Linux Rust/Slint owner hub, daily activity,
-  bounded chat/service actions and an ephemeral memory-only private-screen panel.
+  bounded chronological chat with explicit viewport intent, native Material controls,
+  service actions and an ephemeral memory-only private-screen panel. Android's Kotlin
+  client shares the presentation/navigation contract in `docs/NATIVE_CLIENTS.md`.
 - `zaturo-hub` — `apps/zaturo-hub`: HTTP/WebSocket composition, pre-HTTP bounded TCP listener,
   notification-driven dispatch with durable fallback, and owner CLI.
 - `zaturo-worker` — `apps/zaturo-worker`: outbound connection, journal reconciliation,

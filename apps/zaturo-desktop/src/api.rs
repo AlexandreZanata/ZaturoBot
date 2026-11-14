@@ -4,7 +4,7 @@ use reqwest::{Client, Response, header};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::time::Duration;
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, PartialEq, Eq)]
 pub struct FeedItem {
     pub id: String,
     pub created_at: i64,
@@ -18,6 +18,8 @@ pub struct FeedItem {
 }
 #[derive(Deserialize)]
 pub struct FeedPage {
+    #[serde(skip)]
+    pub received_count: u32,
     pub items: Vec<FeedItem>,
     pub has_more: bool,
 }
@@ -114,6 +116,7 @@ impl HubClient {
         )
         .await?;
         ensure!(page.items.len() <= 20, "hub page exceeded limit");
+        page.received_count = page.items.len() as u32;
         page.items.retain(|item| !item.sensitive);
         Ok(page)
     }
