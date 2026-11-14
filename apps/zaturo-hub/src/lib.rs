@@ -1,9 +1,12 @@
 //! Hub composition and bounded transport. Domain decisions live in services.
+mod activity;
+mod clients;
 pub mod config;
 mod devices;
 mod files;
 mod http;
 pub mod listener;
+mod private_views;
 mod websocket;
 
 use anyhow::{Result, ensure};
@@ -24,9 +27,12 @@ pub struct AppState {
     pub device: Credential,
     pub config: config::HubConfig,
     pub devices: Option<Arc<devices::DeviceRegistry>>,
+    pub apps: Option<Arc<clients::AppRegistry>>,
+    pub private_views: private_views::PrivateViews,
     pub blobs: Option<zaturo_transfer::blob::BlobStore>,
     pub file_lock: Arc<tokio::sync::Mutex<()>>,
     pub file_requests: Arc<Semaphore>,
+    pub private_requests: Arc<Semaphore>,
     pub connections: Arc<Semaphore>,
     pub requests: Arc<Semaphore>,
     pub connected: Arc<Mutex<HashSet<String>>>,
@@ -51,18 +57,28 @@ impl AppState {
             .map(|p| devices::DeviceRegistry::load(p, config.max_workers))
             .transpose()?
             .map(Arc::new);
+        let apps = config
+            .apps_file
+            .as_ref()
+            .map(|p| clients::AppRegistry::load(p))
+            .transpose()?
+            .map(Arc::new);
         let blobs = config
             .transfer_root
             .as_ref()
             .map(|p| zaturo_transfer::blob::BlobStore::open(p))
             .transpose()?;
         let engine = Arc::new(Engine::open(&config.database, config.limits())?);
+        engine.seed_activity()?;
         Ok(Self {
             engine,
+            apps,
+            private_views: Default::default(),
             devices,
             blobs,
             file_lock: Arc::new(tokio::sync::Mutex::new(())),
             file_requests: Arc::new(Semaphore::new(2)),
+            private_requests: Arc::new(Semaphore::new(1)),
             owner,
             device,
             connections: Arc::new(Semaphore::new(config.max_connections)),
@@ -71,6 +87,16 @@ impl AppState {
             changes: Arc::new(Notify::new()),
             config,
         })
+    }
+    pub fn viewer_device(&self, token: &str) -> Option<String> {
+        if self.owner.verifies(token) {
+            Some(self.config.worker_id.clone())
+        } else {
+            self.apps.as_ref().and_then(|r| r.viewer(token))
+        }
+    }
+    pub fn authorize_app(&self, token: &str, write: bool) -> bool {
+        self.owner.verifies(token) || self.apps.as_ref().is_some_and(|a| a.permits(token, write))
     }
     pub fn authenticate_device(&self, token: &str) -> Option<String> {
         match &self.devices {
@@ -98,6 +124,14 @@ pub fn now_ms() -> i64 {
 pub async fn serve(state: AppState) -> Result<()> {
     let listener = tokio::net::TcpListener::bind(state.config.bind).await?;
     tracing::info!(address = %listener.local_addr()?, "hub_started");
+    let views = state.private_views.clone();
+    let view_cleanup = tokio::spawn(async move {
+        let mut tick = tokio::time::interval(std::time::Duration::from_secs(1));
+        loop {
+            tick.tick().await;
+            views.purge(now_ms());
+        }
+    });
     let cleanup_state = state.clone();
     let cleanup = tokio::spawn(async move {
         let mut tick = tokio::time::interval(std::time::Duration::from_secs(60));
@@ -131,6 +165,7 @@ pub async fn serve(state: AppState) -> Result<()> {
         .await;
     recovery.abort();
     cleanup.abort();
+    view_cleanup.abort();
     result?;
     Ok(())
 }

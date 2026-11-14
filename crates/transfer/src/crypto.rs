@@ -154,3 +154,43 @@ pub fn decrypt(
     fs::remove_file(scratch)?;
     Ok(())
 }
+
+/// Sensitive PNG transport: standard age in memory, deliberately no file envelope or disk path.
+pub fn encrypt_private_image(png: &[u8], recipient: &str) -> Result<Vec<u8>> {
+    ensure!(
+        png.len() <= 8 * 1024 * 1024 && png.starts_with(b"\x89PNG\r\n\x1a\n"),
+        "invalid private PNG"
+    );
+    let key = recipient
+        .parse::<age::x25519::Recipient>()
+        .map_err(|_| anyhow::anyhow!("invalid private recipient"))?;
+    let encryptor = age::Encryptor::with_recipients(std::iter::once(&key as &dyn age::Recipient))?;
+    let mut out = Vec::new();
+    {
+        let mut writer = encryptor.wrap_output(&mut out)?;
+        writer.write_all(png)?;
+        writer.finish()?;
+    }
+    Ok(out)
+}
+pub fn decrypt_private_image(
+    ciphertext: &[u8],
+    identity: &Path,
+) -> Result<zeroize::Zeroizing<Vec<u8>>> {
+    ensure!(
+        ciphertext.len() <= 8 * 1024 * 1024 + 65536,
+        "private image exceeds limit"
+    );
+    let key = load_identity(identity)?;
+    let decryptor = age::Decryptor::new(ciphertext)?;
+    let mut reader = decryptor.decrypt(std::iter::once(&key as &dyn age::Identity))?;
+    let mut plain = zeroize::Zeroizing::new(Vec::new());
+    Read::by_ref(&mut reader)
+        .take(8 * 1024 * 1024 + 1)
+        .read_to_end(&mut plain)?;
+    ensure!(
+        plain.len() <= 8 * 1024 * 1024 && plain.starts_with(b"\x89PNG\r\n\x1a\n"),
+        "invalid private PNG"
+    );
+    Ok(plain)
+}

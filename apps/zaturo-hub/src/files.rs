@@ -21,6 +21,7 @@ struct Device(String);
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/v1/device/me", get(me))
+        .route("/v1/device/activity", post(service_activity))
         .route("/v1/device/peers", get(peers))
         .route("/v1/device/limits", get(limits))
         .route("/v1/device/tasks", post(task_create))
@@ -306,6 +307,19 @@ async fn task_show(
                 return Err(zaturo_services::Error::NotFound);
             }
             Ok(t)
+        })
+        .await?,
+    ))
+}
+
+async fn service_activity(
+    State(state): State<AppState>,
+    Extension(Device(device)): Extension<Device>,
+    Json(update): Json<zaturo_core::ServiceActivity>,
+) -> Result<Json<zaturo_core::FeedItem>, ApiFailure> {
+    Ok(Json(
+        database(&state, move |e| {
+            e.service_activity(&device, update, now_ms())
         })
         .await?,
     ))

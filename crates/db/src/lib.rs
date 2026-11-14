@@ -1,5 +1,8 @@
 //! SQLite repositories. State-machine decisions belong to services.
 
+mod activity;
+mod service_journal;
+pub use service_journal::{PendingServiceJob, ServiceIntent};
 mod journal;
 mod model_budget;
 mod repository;
@@ -42,17 +45,25 @@ fn connection(
     let version: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
     if version == 0 {
         connection.execute_batch(&format!("BEGIN IMMEDIATE;\n{migration}\nCOMMIT;"))?;
-    } else if expected_version == 4 && version == 1 {
-        connection.execute_batch(concat!(
-            "BEGIN IMMEDIATE;\n",
-            include_str!("../migrations/0004_hub_transfers.sql"),
-            "\nCOMMIT;"
+    } else if expected_version == 5 && matches!(version, 1 | 4) {
+        let base = if version == 1 {
+            include_str!("../migrations/0004_hub_transfers.sql")
+        } else {
+            ""
+        };
+        connection.execute_batch(&format!(
+            "BEGIN IMMEDIATE;\n{base}\n{}\nCOMMIT;",
+            include_str!("../migrations/0005_hub_activity.sql")
         ))?;
-    } else if expected_version == 3 && version == 2 {
-        connection.execute_batch(concat!(
-            "BEGIN IMMEDIATE;\n",
-            include_str!("../migrations/0003_worker_model_budget.sql"),
-            "\nCOMMIT;"
+    } else if expected_version == 6 && matches!(version, 2 | 3) {
+        let base = if version == 2 {
+            include_str!("../migrations/0003_worker_model_budget.sql")
+        } else {
+            ""
+        };
+        connection.execute_batch(&format!(
+            "BEGIN IMMEDIATE;\n{base}\n{}\nCOMMIT;",
+            include_str!("../migrations/0006_worker_services.sql")
         ))?;
     } else if version != expected_version {
         return Err(Error::SchemaVersion);

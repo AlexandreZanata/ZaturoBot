@@ -13,7 +13,8 @@ documentation = "docs/INTEGRATIONS.md"
 
 [[integrations]]
 id = "video"
-status = "planned"
+status = "implemented"
+source = "crates/youtube/src/lib.rs"
 documentation = "docs/INTEGRATIONS.md"
 
 [[integrations]]
@@ -101,3 +102,37 @@ examples = ["config/models.example.toml"]
 [[migrations]]
 path = "crates/db/migrations/0004_hub_transfers.sql"
 documentation = "docs/MIGRATIONS.md"
+
+[[integrations]]
+id = "android"
+status = "implemented"
+source = "crates/android/src/lib.rs"
+documentation = "docs/ANDROID_INTEGRATION.md"
+
+[[features]]
+id = "native-clients"
+phase = 7
+status = "implemented"
+
+[[features]]
+id = "android-usb"
+phase = 3
+status = "implemented"
+
+[[features]]
+id = "youtube-service"
+phase = 5
+status = "implemented"
+
+[[migrations]]
+path = "crates/db/migrations/0005_hub_activity.sql"
+documentation = "docs/MIGRATIONS.md"
+
+[[migrations]]
+path = "crates/db/migrations/0006_worker_services.sql"
+documentation = "docs/MIGRATIONS.md"
+
+[[configurations]]
+name = "DesktopConfig"
+source = "apps/zaturo-desktop/src/config.rs"
+examples = ["apps/zaturo-desktop/config.example.toml"]

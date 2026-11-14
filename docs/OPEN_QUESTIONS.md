@@ -28,3 +28,11 @@ and reversible. Security-critical activation waits for explicit evidence and aut
 
 Record a resolved decision in [decisions](DECISIONS.md), update the canonical contract,
 and remove or mark the question resolved with its decision reference.
+
+
+Resolved for the authorized slice: nativeLinuxRust/Slint, AndroidKotlin, distinct app tokens,
+endpoint-encrypted ephemeral desktop phone views, and reuse of YoutubeBot's existing core.
+Still pending: physical registered-phone acceptance/unlock behavior, actual Google consent
+on the destination OS, migration conflict resolution if destination data already exists,
+and any later Android mobile private-screen decoder/full semantic SMS event adapter.
+No owner account action or real code content is assumed from a fake-device build test.

@@ -12,3 +12,8 @@ the authenticated device, independent of claimed IDs. `files.rs` composes bounde
 spool operations with services; keep the owned critical-section guard alive inside
 blocking work even if its HTTP future is cancelled. Device credentials cannot use
 owner APIs or submit paid tasks. See [files](../../docs/FILE_TRANSFERS.md).
+
+`clients.rs` binds independent application digests/scopes and optional viewer endpoints.
+`activity.rs` composes persisted ordinary chat/feed. `private_views.rs` is separate bounded
+RAM-only recipient-encrypted delivery with one worker grant, expiry, consume-once and
+no-store headers; no private pixels belong in SQL, ordinary files or task text.

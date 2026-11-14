@@ -1,130 +1,161 @@
-# Live hub and local worker
+# Live hub, workers, and native-client rollout
 
-The owner authorized service activation, Phase 2 implementation, paid DeepSeek calls,
-and publication of code after validation on 2026-11-13. The Oracle hub and this PC's
-worker run as systemd services, independently of the coding-agent session. Actual task
-and validation evidence belongs to the [Phase 2 report](PHASE2_REPORT.md) and
-[device file report](FILE_TRANSFER_REPORT.md).
+This runbook owns current operational paths and rollout status. The implementation and
+validation record for 0.4 is the [native/service report](NATIVE_SERVICE_REPORT.md).
+[Phase 2](PHASE2_REPORT.md) and [file-transfer](FILE_TRANSFER_REPORT.md) reports retain
+historical observations; their earlier handoff/schema statements are not current rollout
+claims. Operational secrets, addresses, enrollment bundles, and backups remain private.
+
+## Current rollout record
+
+The Oracle hub and home-PC worker have operated as independent systemd services since
+the earlier authorized activation. The existing work PC is already enrolled and working
+on 0.3; its identity, SSH/age keys, inbox, and journal remain valid. It must receive an
+additive pinned 0.4 update through its destination Codex, not another enrollment.
+
+The Oracle hub and home worker are now verified on 0.4. The hub is active with schema 5
+and SQLite integrity `ok`, after a consistent pre-upgrade schema-4 snapshot. The update
+retained at least eight existing tasks, two workers, 20 transfers, and 60 transfer events.
+The home journal is schema 6 with its consistent schema-3 snapshot retained. Eight
+existing private profile files remained byte-identical, and the model ledger stayed at
+two calls. Both workers heartbeat; the existing work-PC 0.3 diagnostic remains compatible.
+
+A real scoped-desktop-app request created a diagnostic on the existing work PC. The task
+completed and its persistent day-filtered completion notice was retrieved. The same app
+credential received HTTP 401 at the owner task-creation endpoint, confirming role
+separation. This smoke used no model call. The home Slint binary, scoped app environment,
+and menu/icon were installed; the Android debug APK was copied to private output.
+The installed desktop's scoped feed/workers/services requests returned HTTP 200 with no
+sensitive feed rows; its native window rendered on a separate Xvfb display and exited
+successfully. Physical Android acceptance and the work-PC 0.4 delta remain outstanding.
+
+All eight encrypted YoutubeBot archive parts and three metadata deliveries reached the
+already-enrolled work device. The snapshot inventory contains 12,455 files totaling
+8,899,234,841 bytes. Delivery does not imply that its private restorer ran or its 0.4
+service update was applied. Use the [work-service runbook](../deploy/services/WORK_SERVICES.md)
+and [no-clobber restore contract](../deploy/services/README.md).
 
 ## Private network path
 
-The VPS hub binds `127.0.0.1:7878`. The PC opens an outbound SSH connection on port 22
-and forwards `127.0.0.1:17878` to that remote loopback address. HTTP and WebSocket
-messages stay inside the encrypted SSH path between computers. No home-router port
-forwarding, public hub listener, new web firewall allowance, VPN account, or TLS proxy
-is required for this topology. Remote direct plaintext HTTP remains rejected by clients.
+The VPS hub binds `127.0.0.1:7878`. Each enrolled Linux PC initiates an outbound SSH
+connection on port 22 and forwards local `127.0.0.1:17878` to that remote loopback
+address. HTTP/WebSocket traffic remains inside the encrypted cross-network path.
+No home-router forwarding, public hub listener, or new web firewall allowance is needed.
+Direct remote plaintext HTTP remains rejected by application origin validation.
 
-The VPS firewall retains deny-incoming policy and only the existing SSH allowance.
-Host-key verification stays enabled. A changed host key requires independent verification.
-The owner-supplied admin key pair remains in ignored `.secrets/ssh/`; current service
-tunnels use new per-device restricted keys under private user configuration. Neither key contents
-nor the actual server address appears in public configuration templates.
+Per-device restricted keys use the separate `zaturo-link` account, with local TCP
+forwarding permitted only to the hub. Admin access stays separate. Strict host checking
+uses a pinned known-host file; changed keys require independent verification. The VPS
+firewall keeps deny-incoming policy and its existing SSH allowance. Credentials, actual
+host addresses, and private keys never enter public templates or diagnostic output.
+
+Android has its own owner-issued restricted SSH identity and host pin, imported through
+Keystore-encrypted enrollment. Its forward is local `127.0.0.1:17879` to the same private
+hub. The live JVM transport smoke tested this restricted path and wrong-pin refusal;
+physical Android/Keystore/UI/lifecycle acceptance has not occurred.
 
 ## Installed service boundaries
 
-The hub uses the dedicated unprivileged `zaturo-hub` account:
+The hub uses the unprivileged `zaturo-hub` account. A post-restart cgroup
+`MemoryCurrent` observation was 2,650,112 bytes against the 300 MiB service cap; this is
+not RSS, a load benchmark, or a capacity guarantee. Its only control listener remained
+private loopback. Installed paths:
 
 - Binary: `/usr/local/bin/zaturo-hub`.
-- Unit: `/etc/systemd/system/zaturo-hub.service`, enabled at boot.
-- Configuration: `/etc/zaturo/hub.toml`, `root:zaturo-hub`, mode `0640`, under a `0750` directory.
-- Service-only environment: `/etc/zaturo/hub.env`, root-owned mode `0600`.
+- Enabled unit: `/etc/systemd/system/zaturo-hub.service`.
+- Configuration: `/etc/zaturo/hub.toml`, `root:zaturo-hub`, mode `0640`, under `0750`.
+- Service environment: `/etc/zaturo/hub.env`, root-owned mode `0600`.
 - State: `/var/lib/zaturo-hub/hub.db`, under a hub-owned `0700` directory.
+- Device registry: `/etc/zaturo/devices.toml`, `root:zaturo-hub`, mode `0640`.
+- Ciphertext transfer spool: `/var/lib/zaturo-hub/transfers`, mode `0700`.
 
-The PC uses owner-account services because local administrative sudo is unavailable:
+Native-client activation additionally requires a private `apps_file` registry containing
+scoped application bearer digests and any explicit viewer/device binding. It contains no
+provider key or private age identity. Application access is separate from owner-admin and
+worker/device authentication. Sensitive screen ciphertext uses bounded expiring RAM,
+not the ordinary durable transfer spool.
+
+The home PC uses owner-account user services because local administrative sudo is
+unavailable:
 
 - `zaturo-hub-tunnel.service`: [template](../deploy/notebook/zaturo-hub-tunnel.user.service).
 - `zaturo-worker.service`: [template](../deploy/notebook/zaturo-worker.user.service).
 - Binary: `~/.local/lib/zaturobot/zaturo-worker`.
-- Private configuration/environment: `~/.config/zaturobot/`, mode `0700`; files `0600`.
-- State, workspace, and artifact roots: `~/.local/share/zaturobot/`.
+- Protected config/environment: `~/.config/zaturobot/`, directory `0700`, files `0600`.
+- State/workspace/artifact roots: `~/.local/share/zaturobot/`.
+- Convenience wrapper: `~/.local/bin/zaturo`.
 
-User lingering is enabled so the user manager can start at boot and outlive interactive
-logins. The worker reconnects after temporary tunnel/network loss; systemd restarts either
-service after process failure. They are not child processes of this chat. No dedicated
-desktop session or separate worker Unix user is claimed; those isolation requirements
-must be addressed before future computer-use tools are activated.
+Lingering is enabled so user services outlive an interactive login. Worker/tunnel
+reconnection and systemd restart are independent of this chat. No isolated desktop user
+or full computer-control session is implied by these headless services.
 
-## Credentials and the selected model
+## Credentials, models, and heavy jobs
 
-The root project `.env` is private and ignored. Deployment copies use separate roles:
-`owner.env` for the owner CLI, `worker.env` for device authentication and the provider key,
-and `tunnel.env` for SSH connection metadata. The hub environment contains only owner
-and worker service tokens plus logging settings. The OpenCode Go key stays on this PC;
-it is never installed on the hub or embedded in a binary, unit, prompt, example, or commit.
+`owner.env`, `worker.env`, `tunnel.env`, and native `app.env` separate operational roles.
+The hub holds service/application digests and coordination data, not Google, ChatGPT,
+YouTube, or OpenCode Go account credentials. The provider key remains on the home worker.
+No new provider key is needed on the work PC for file, YoutubeBot, or USB foundations.
 
-Only `deepseek-v4.1-flash` is allowed. The active worker model profile explicitly enables
-the Global processing route and public-coding data category. It denies private/personal
-data and training-enabled routes. An assisted task requires explicit
-`--data-policy public-coding`; the flag is an owner declaration, never a model grant.
-Read [provider verification](OPENCODE_GO_RESEARCH.md) before changing that policy.
+Only `deepseek-v4.1-flash` is allowed for the bounded assisted diagnostic. Its protected
+profile explicitly permits public-coding/Global processing and denies private personal
+content and training-enabled routes. Screens, chat/account data, and migrated documents
+are not automatically model inputs. Read [provider policy](LLM_PROVIDERS.md) before
+changing this. Model budgets/reservations remain durable through worker updates; an
+uncertain paid call is not free and must not be replayed automatically.
 
-The active profile uses one concurrent request, a 30-second request timeout, 8 KiB context,
-16 KiB response cap, and at most 2,048 output tokens. Durable admission ceilings are
-16,384 tokens/request, 65,536/task, 131,072/UTC day, and 1,048,576/UTC month, with at most
-four calls/task. The orchestrator has two model steps and one permitted diagnostic tool.
-Retries consume separate reservations. Unknown usage remains charged conservatively;
-neither a timeout nor restart authorizes replay. Token admission is not a dollar cap.
+YoutubeBot browser/video jobs run under separate fixed transient user units, not the
+small diagnostic worker's memory cgroup. The configured bounds are 12 GiB MemoryHigh,
+16 GiB MemoryMax, CPUQuota 200%, TasksMax 256, a 12-hour maximum, and no automatic restart.
+A submission acknowledgment is not video completion. Status reconciliation and verified
+final observations determine completion notices. The VPS runs no media, model, browser,
+ADB, or desktop workload. Real Google consent/channel verification and media acceptance
+remain interactive/explicit, not automated fixture tests.
 
-## Operate from the PC
+## Update and recovery
+
+Build release binaries on a compatible PC, never on the constrained VPS. Stop/quiesce
+the affected process before a verified SQLite backup and replacement, retaining its
+matching binary/configuration. Version 0.4 upgrades hub schema 4 to 5 for chat/activity
+and worker schema 3 to 6 for the independent service journal. Task protocol remains 2.
+Existing task/file records, model reservations, and execution fences are preserved.
+A rollback needs the matching older schema snapshot; replacing a binary alone is unsafe.
+See [migrations](MIGRATIONS.md).
+
+The work-PC helper builds/prepares before stopping its existing worker, takes a consistent
+backup, publishes the reviewed update, and preserves credentials/journal/inbox. If an
+update fails after quiescing, inspect its private recovery marker and live schema;
+do not delete operation evidence or automatically restore an old binary over a new DB.
+The required YoutubeBot revision and passing CI are pinned in the
+[work-service runbook](../deploy/services/WORK_SERVICES.md).
+
+After an authorized update, verify the installed binary version/hash, actual schema and
+integrity, tunnel/worker connectivity, a completed authenticated diagnostic, file inbox
+operation, and the explicitly enabled service capabilities. Native application credentials
+must be tested against scoped routes without granting owner-admin lifecycle APIs.
+
+## Routine operation and acceptance limits
 
 ```bash
 systemctl --user status zaturo-hub-tunnel.service zaturo-worker.service
 journalctl --user -u zaturo-worker.service -n 30 --no-pager
-systemctl --user restart zaturo-hub-tunnel.service zaturo-worker.service
 loginctl show-user "$USER" -p Linger
+~/.local/bin/zaturo files peers
+~/.local/bin/zaturo task diagnostic
 ```
 
-For owner commands, export only the owner service token from its private environment
-file. The ignored `config/hub.remote.local.toml` is a CLI profile pointing `client_url`
-at `http://127.0.0.1:17878`; create it from the hub example when configuring another PC.
-Do not start a second hub using that client profile.
+On the VPS, use `sudo systemctl status zaturo-hub` and bounded structured journald output.
+Never print environment files or authenticated headers. For source owner-CLI operations,
+use the ignored client profile targeting the existing local SSH forward; do not start a
+second hub with that client profile.
 
-```bash
-set -a
-source "$HOME/.config/zaturobot/owner.env"
-set +a
-cargo run -p zaturo-hub -- --config config/hub.remote.local.toml workers list
-cargo run -p zaturo-hub -- --config config/hub.remote.local.toml task create \
-  --kind assisted_diagnostic --target local-worker --data-policy public-coding \
-  --request 'Run a read-only diagnostic of this public Rust development worker.'
-```
+The desktop/Android builds and synthetic/private-transport smokes do not establish
+physical-phone operation, Android Keystore persistence, account consent, or a real video
+upload. The private phone viewer exists only on Linux. It needs an explicit serial-bound
+grant and an unlocked permitted screen; an SMS screen must already be open. A finite
+image change does not mean an SMS or OTP was detected. No OCR, code extraction,
+automatic sign-in, protected-screen bypass, or continuous remote desktop is implemented.
 
-On the VPS, inspect the hub using `sudo systemctl status zaturo-hub` and structured
-journald logs. Never print an environment file or authenticated headers while debugging.
-
-## Updates and recovery
-
-Build release binaries on the PC, never on the constrained VPS. The 0.2.0 update used
-consistent SQLite backups and retained 0.1.0 binaries before changing installed files.
-The worker database migrates from schema 2 to 3; the hub schema remains 1 with additional
-backward-readable fields in old task records. Protocol 2 requires a coordinated hub and
-worker update. Older binaries may not understand newly written assisted tasks or the
-new worker schema, so rollback requires restoring the matching database snapshot.
-
-Stop the worker before its binary/journal update; stop the hub before replacing its
-binary, then restart hub and worker and verify an authenticated task. Private snapshots
-are retained in ignored deployment state and on the VPS for operator recovery. Do not
-replace live SQLite files while either process is using them. See [migrations](MIGRATIONS.md).
-
-The earlier PDF retirement remains recorded in the historical
-[reuse report](../deploy/oracle/REUSE_VPS.md). Its encrypted recovery archive and all local
-PDF files/certificates remain preserved. Desktop control, GitHub account automation,
-email/video integrations, and autonomous scheduling are still future phases.
-
-
-## Device file extension (0.3.0)
-
-The owner authorized encrypted device files and Ubuntu/Debian work-PC enrollment. Hub
-schema is now 4; task WebSocket remains version 2 and the worker journal remains 3.
-The hub uses `/etc/zaturo/devices.toml` (`root:zaturo-hub`, 0640) with distinct device
-credential digests and public age recipients. Its bounded ciphertext spool is
-`/var/lib/zaturo-hub/transfers` (0700). `StateDirectoryMode=0700` preserves state privacy
-across restarts. The old schema-1 snapshot and 0.2.0 hub binary remain for rollback.
-
-Both device SSH keys use the separate `zaturo-link` account, restricted to local TCP
-forwarding to the loopback hub. Admin shell access is preserved separately. Strict host
-checking uses a dedicated pinned known-host file. The home worker's model environment
-and model configuration were preserved byte-for-byte; its inbox is independent of AI.
-The home wrapper is `~/.local/bin/zaturo`. The protected work-PC enrollment bundle and
-prompt are ignored private material; neither contains an admin, owner or provider key.
-See [Linux setup](../deploy/device/README.md) and [file contracts](FILE_TRANSFERS.md).
+The earlier PDF retirement and encrypted backup remain in the historical
+[Oracle reuse report](../deploy/oracle/REUSE_VPS.md). Local PDF files/certificates and
+original local YoutubeBot data remain preserved. General vault, full desktop automation,
+recurring scheduling, and arbitrary account/project actions remain outside this rollout.

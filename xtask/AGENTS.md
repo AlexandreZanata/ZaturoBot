@@ -13,3 +13,6 @@ retain rejection tests for staged and historical leaks.
 
 Run `cargo xtask docs`, `cargo xtask arch`, `cargo xtask secrets`, or `cargo xtask check --locked` from the
 repository root. Checks may spawn Cargo only from command dispatch, never tests.
+
+The shared check also runs synthetic Python deployment-helper fixtures. They must never
+start production services, download model weights or contact real accounts/devices.

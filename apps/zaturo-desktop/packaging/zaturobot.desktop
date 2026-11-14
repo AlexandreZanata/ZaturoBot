@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=ZaturoBot
+Comment=Seu hub privado de tarefas e computadores
+Exec=zaturo-desktop
+Icon=zaturobot
+Terminal=false
+Categories=Utility;Network;
+StartupWMClass=zaturo-desktop
+Actions=PrivateScreen;
+
+[Desktop Action PrivateScreen]
+Name=Tela privada do telefone
+Exec=zaturo-desktop --page private

@@ -1,6 +1,6 @@
 //! Version-two bounded JSON contracts. Authentication is outside message payloads.
 use serde::{Deserialize, Serialize};
-use zaturo_core::{Assignment, AssistedResult, DiagnosticResult, FailureCode};
+use zaturo_core::{Assignment, AssistedResult, DiagnosticResult, FailureCode, ServiceResult};
 
 pub const VERSION: u16 = 2;
 pub const MAX_MESSAGE_BYTES: usize = 16 * 1024;
@@ -29,6 +29,11 @@ pub enum ClientMessage {
         task_id: String,
         lease_token: String,
         result: AssistedResult,
+    },
+    CompletedService {
+        task_id: String,
+        lease_token: String,
+        result: ServiceResult,
     },
     Failed {
         task_id: String,

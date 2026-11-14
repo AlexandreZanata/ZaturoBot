@@ -44,12 +44,16 @@ impl DeviceClient {
         auth.set_sensitive(true);
         let mut headers = header::HeaderMap::new();
         headers.insert(header::AUTHORIZATION, auth);
-        let http = Client::builder()
+        let mut builder = Client::builder()
             .default_headers(headers)
             .redirect(reqwest::redirect::Policy::none())
             .connect_timeout(Duration::from_secs(10))
-            .timeout(Duration::from_secs(120))
-            .build()?;
+            .timeout(Duration::from_secs(120));
+        // Literal-loopback HTTP must never escape the private SSH tunnel through an ambient proxy.
+        if reqwest::Url::parse(origin)?.scheme() == "http" {
+            builder = builder.no_proxy();
+        }
+        let http = builder.build()?;
         Ok(Self {
             http,
             origin: origin.trim_end_matches('/').into(),
@@ -100,6 +104,25 @@ impl DeviceClient {
             "device token does not match local configuration"
         );
         Ok(me)
+    }
+    pub async fn private_frame(&self, id: &str, ciphertext: Vec<u8>) -> Result<()> {
+        blob::object_name(id)?;
+        ensure!(
+            ciphertext.len() <= 8 * 1024 * 1024 + 65536,
+            "private frame exceeds limit"
+        );
+        let response = self
+            .execute(
+                self.http
+                    .post(format!(
+                        "{}/v1/device/private-views/{id}/content",
+                        self.origin
+                    ))
+                    .body(ciphertext),
+            )
+            .await?;
+        bytes(response, 1024).await?;
+        Ok(())
     }
     pub async fn peers(&self) -> Result<Vec<Peer>> {
         self.get("/v1/device/peers").await

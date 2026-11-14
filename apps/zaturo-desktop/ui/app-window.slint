@@ -1,0 +1,222 @@
+import { Button, LineEdit, TextEdit, ScrollView, ComboBox, Spinner, CheckBox } from "std-widgets.slint";
+export struct FeedRow { id:string, time:string, label:string, text:string, role:string, task:string, artifact:string }
+export struct WorkerRow { id:string, detail:string }
+component NavItem inherits Rectangle {
+    in property<string> symbol;
+    in property<string> label;
+    in property<bool> selected;
+    callback clicked;
+    height: 46px; border-radius: 9px;
+    background: selected ? #E5B900 : touch.has-hover ? #212125 : transparent;
+    HorizontalLayout { padding-left:16px; padding-right:12px; spacing:12px;
+        Text {text:root.symbol;vertical-alignment:center;font-size:20px;color:root.selected ? #0B0B0D : #aaa9b2; width:24px;}
+        Text {text:root.label;vertical-alignment:center; font-size:14px;font-weight:root.selected ? 700 : 500;color:root.selected ? #0B0B0D : #dddce2;}
+    }
+    touch:=TouchArea {clicked=>{root.clicked();}}
+}
+component OutlineButton inherits Rectangle {
+    in property<string> label;
+    callback clicked;
+    height:40px; min-width:106px; border-radius:8px; border-width:1px; border-color:#333338;
+    background:touch.has-hover ? #27272b : #19191d;
+    Text {text:root.label;color:#f1f0f5;font-size:13px;horizontal-alignment:center;vertical-alignment:center;}
+    touch:=TouchArea {clicked=>{root.clicked();}}
+}
+component PrimaryButton inherits FocusScope {
+    in property<string> text;
+    callback clicked;
+    min-width:130px; height:40px;
+    accessible-role:button; accessible-label:root.text;
+    Rectangle {border-radius:8px;background:root.enabled ? touch.has-hover ? #F1C71F : #E5B900 : #494330;border-width:root.has-focus ? 2px : 0px;border-color:#FFFFFF;
+        Text {text:root.text;color:#0B0B0D;font-size:13px;font-weight:700;horizontal-alignment:center;vertical-alignment:center;}
+    }
+    touch:=TouchArea {enabled:root.enabled;clicked=>{root.focus();root.clicked();}}
+    key-pressed(event)=>{if root.enabled && (event.text==Key.Return || event.text==" "){root.clicked();return accept;}return reject;}
+}
+export component AppWindow inherits Window {
+    title: "ZaturoBot"; preferred-width:1280px; preferred-height:850px; min-width:980px; min-height:700px;
+    background:#0B0B0D; default-font-family:"Inter"; default-font-size:14px;
+    in property<image> brand-icon;
+    icon:root.brand-icon;
+    in-out property<string> page:"hub";
+    in-out property<string> selected-day;
+    in-out property<string> search-query;
+    in-out property<int> kind-index:0;
+    in-out property<string> composer;
+    in-out property<string> worker-target:"local-worker";
+    in-out property<string> connection-url:"http://127.0.0.1:17878";
+    in-out property<string> connection-token;
+    in property<string> connection-state:"Conexão não configurada";
+    in property<string> status-message:"Conecte seu hub para ver o histórico.";
+    in property<bool> online:false;
+    in property<bool> busy:false;
+    in property<bool> has-more:false;
+    in property<[FeedRow]> events;
+    in property<[WorkerRow]> workers;
+    in property<string> services-summary:"Conecte o hub para consultar os serviços.";
+    in-out property<bool> preview-open:false;
+    in property<image> preview-image;
+    in-out property<string> private-device:"owner-phone";
+    in-out property<string> private-watch:"0";
+    in-out property<bool> private-confirmed:false;
+    in property<bool> private-running:false;
+    in property<image> private-image;
+    in property<bool> private-image-visible:false;
+    in property<string> private-status:"Visualização privada sem histórico, OCR ou envio à IA.";
+    callback start-private;
+    callback close-private;
+    callback refresh;
+    callback filters-changed;
+    callback send-message;
+    callback diagnostic;
+    callback save-connection;
+    callback service-action(string);
+    callback load-more;
+    callback open-artifact(string);
+    VerticalLayout { spacing:0px;
+        Rectangle {height:76px;background:#111113;
+            HorizontalLayout {padding-left:26px;padding-right:28px;padding-top:16px;padding-bottom:16px;spacing:14px;
+                Image {source:root.brand-icon;width:43px;height:43px;image-fit:contain;}
+                HorizontalLayout {spacing:0px;Text{text:"Zaturo";vertical-alignment:center;font-size:26px;font-weight:800;color:white;}Text{text:"Bot";vertical-alignment:center;font-size:26px;font-weight:800;color:#E5B900;}}
+                Text {text:"SEU ASSISTENTE PESSOAL";vertical-alignment:center;font-size:10px;font-weight:600;color:#74737d;horizontal-stretch:1;}
+                Rectangle {width:8px;height:8px;border-radius:4px;background:root.online ? #62c690 : #73727b;}
+                Text {text:root.connection-state;vertical-alignment:center;color:#c8c7ce;font-size:12px;}
+                OutlineButton {label:"Configurações";clicked=>{root.close-private();root.page="settings";}}
+            }
+        }
+        Rectangle {height:1px;background:#28282c;}
+        HorizontalLayout {spacing:0px;
+            Rectangle {width:220px;background:#101012;
+                VerticalLayout {padding:18px;spacing:8px;
+                    Text {text:"ESPAÇO DE TRABALHO";font-size:10px;font-weight:600;color:#777680;height:30px;}
+                    NavItem {symbol:"⌂";label:"Hub do dia";selected:root.page=="hub";clicked=>{root.close-private();root.page="hub";}}
+                    NavItem {symbol:"◇";label:"Serviços";selected:root.page=="services";clicked=>{root.close-private();root.page="services";}}
+                    NavItem {symbol:"▱";label:"Computadores";selected:root.page=="workers";clicked=>{root.close-private();root.page="workers";}}
+                    NavItem {symbol:"↔";label:"Arquivos";selected:root.page=="files";clicked=>{root.close-private();root.page="files";}}
+                    NavItem {symbol:"▯";label:"Tela privada";selected:root.page=="private";clicked=>{root.page="private";}}
+                    Rectangle {vertical-stretch:1;}
+                    Rectangle {height:110px;background:#19191c;border-radius:10px;
+                        VerticalLayout {padding:14px;spacing:7px;Text{text:"VOCÊ NO CONTROLE";font-size:10px;font-weight:700;color:#E5B900;}
+                            Text{text:"Tarefas autorizadas.\nHistórico no seu hub.\nCredenciais neste dispositivo.";color:#96959f;font-size:12px;wrap:word-wrap;}
+                        }
+                    }
+                    Text {text:"LINUX  ·  ZATUROBOT";font-size:10px;color:#62616c;height:32px;}
+                }
+            }
+            Rectangle {width:1px;background:#242428;}
+            Rectangle {horizontal-stretch:1;
+                VerticalLayout {padding:28px;spacing:18px;
+                    HorizontalLayout {height:62px;
+                        VerticalLayout {spacing:6px;
+                            Text {text: root.page=="hub" ? "Seu dia, em movimento." : root.page=="settings" ? "Conecte seu espaço." : root.page=="private" ? "Seu telefone, só para você." : root.page=="workers" ? "Seus computadores." : root.page=="files" ? "Arquivos, onde você estiver." : "O que seu bot pode fazer.";font-size:27px;font-weight:750;color:#f4f3f6;}
+                            Text {text: root.page=="hub" ? "Converse, acompanhe tarefas e encontre o que já aconteceu." : root.page=="settings" ? "Acesso privado ao seu hub, sem credenciais no código." : "Estado real do hub. Cada ação respeita as permissões do dispositivo.";font-size:12px;color:#8f8e99;}
+                        }
+                        Rectangle {horizontal-stretch:1;}
+                        if root.busy: Spinner {width:24px;height:24px;}
+                        OutlineButton {label:"Atualizar";clicked=>{root.refresh();}}
+                    }
+                    if root.page=="hub": Rectangle {height:48px;
+                        HorizontalLayout {spacing:10px;
+                            LineEdit {width:150px;text<=>root.selected-day;placeholder-text:"AAAA-MM-DD";accepted=>{root.filters-changed();}}
+                            ComboBox {width:150px;model:["Tudo","Conversas","Tarefas","Arquivos","Android","YouTube"];current-index<=>root.kind-index;selected=>{root.filters-changed();}}
+                            LineEdit {text<=>root.search-query;placeholder-text:"Pesquisar no histórico...";accepted=>{root.filters-changed();}}
+                            OutlineButton {label:"Filtrar";clicked=>{root.filters-changed();}}
+                        }
+                    }
+                    if root.page=="hub": Rectangle {vertical-stretch:1;background:#111114;border-radius:12px;border-width:1px;border-color:#29292e;
+                        if root.events.length==0: VerticalLayout {alignment:center;spacing:12px;
+                            Text {text:root.online ? "Um novo dia começa aqui." : "Seu hub está a uma conexão de distância.";font-size:21px;font-weight:650;color:#e8e7ed;horizontal-alignment:center;}
+                            Text {text:root.online ? "Envie uma mensagem ou execute o diagnóstico do computador." : "Abra Configurações para conectar seu hub privado.";color:#85848f;font-size:13px;horizontal-alignment:center;}
+                        }
+                        if root.events.length>0: ScrollView {
+                            VerticalLayout {padding:18px;spacing:12px;
+                                for item in root.events: Rectangle {height:card.preferred-height;background:item.role=="owner" ? #242116 : #1a1a1e;border-radius:10px;
+                                    card:=VerticalLayout {padding:16px;spacing:9px;
+                                        HorizontalLayout {Text {text:item.label;color:item.role=="owner" ? #E5B900 : #d7d6df;font-weight:700;font-size:11px;horizontal-stretch:1;}Text{text:item.time;color:#777680;font-size:11px;}}
+                                        Text{text:item.text;color:#e5e4eb;font-size:14px;wrap:word-wrap;}
+                                        if item.task!="": Text{text:"Tarefa · "+item.task;color:#85848e;font-size:10px;font-family:"JetBrains Mono";}
+                                        if item.artifact!="": OutlineButton {label:"Abrir imagem recebida";clicked=>{root.open-artifact(item.artifact);}}
+                                    }
+                                }
+                                if root.has-more: OutlineButton {label:"Carregar mais";clicked=>{root.load-more();}}
+                            }
+                        }
+                    }
+                    if root.page=="hub": Rectangle {height:143px;background:#19191d;border-width:1px;border-color:#343338;border-radius:12px;
+                        VerticalLayout {padding:13px;spacing:9px;
+                            TextEdit {text<=>root.composer;placeholder-text:"O que você quer acompanhar ou fazer?";height:65px;wrap:word-wrap;}
+                            HorizontalLayout {spacing:10px;Text{text:"Solicitações ficam no histórico. Ações precisam de suporte e autorização.";color:#787782;font-size:10px;horizontal-stretch:1;}
+                                OutlineButton {label:"Diagnóstico";clicked=>{root.diagnostic();}}
+                                PrimaryButton {text:"Enviar  →";enabled:root.composer!="" && !root.busy;clicked=>{root.send-message();}}
+                            }
+                        }
+                    }
+                    if root.page=="settings": Rectangle {vertical-stretch:1;background:#151518;border-radius:12px;
+                        VerticalLayout {padding:28px;spacing:16px;alignment:start;
+                            Text {text:"Hub privado";font-size:19px;font-weight:700;color:#eeeeef;}
+                            Text {text:"Use HTTPS ou o túnel SSH local. O aplicativo não abre portas públicas.";font-size:13px;color:#94939f;wrap:word-wrap;}
+                            Text {text:"Endereço do hub";font-size:12px;color:#c4c3ca;}
+                            LineEdit {text<=>root.connection-url;placeholder-text:"http://127.0.0.1:17878";}
+                            Text {text:"Token do aplicativo";font-size:12px;color:#c4c3ca;}
+                            LineEdit {text<=>root.connection-token;placeholder-text:"Deixe vazio para manter a credencial local existente";input-type:password;}
+                            Text {text:"Computador para diagnóstico";font-size:12px;color:#c4c3ca;}
+                            LineEdit {text<=>root.worker-target;}
+                            PrimaryButton {text:"Salvar e conectar";clicked=>{root.save-connection();}}
+                            Text {text:"Tokens são guardados em arquivo privado (0600), fora do Git.\nO aplicativo não recebe a chave da IA nem a chave SSH administrativa.";font-size:12px;color:#85848e;wrap:word-wrap;}
+                        }
+                    }
+                    if root.page=="workers": Rectangle {vertical-stretch:1;background:#151518;border-radius:12px;
+                        VerticalLayout {padding:24px;spacing:15px;alignment:start;
+                            Text {text:"Dispositivos registrados";font-size:19px;font-weight:700;color:white;}
+                            Text {text:"A última comunicação é evidência de contato, não garantia de conexão atual.";color:#85848e;font-size:12px;wrap:word-wrap;}
+                            for worker in root.workers: Rectangle {height:76px;background:#202024;border-radius:9px;
+                                VerticalLayout {padding:15px;spacing:8px;Text{text:worker.id;font-weight:700;color:#efedf3;}Text{text:worker.detail;color:#91909c;font-size:12px;}}
+                            }
+                        }
+                    }
+                    if root.page=="services": Rectangle {vertical-stretch:1;background:#151518;border-radius:12px;
+                        VerticalLayout {padding:24px;spacing:16px;alignment:start;
+                            Text {text:"Serviços disponíveis";font-size:19px;font-weight:700;color:white;}
+                            HorizontalLayout {spacing:12px;
+                                OutlineButton {label:"Perfis do YouTube";clicked=>{root.service-action("youtube_profiles");}}
+                                OutlineButton {label:"Dispositivos Android";clicked=>{root.service-action("android_devices");}}
+                            }
+                            Text {text:root.services-summary;color:#b4b3bd;font-size:14px;wrap:word-wrap;}
+                            Text {text:"Contas do YouTube são conectadas no computador de execução.\nDispositivos Android precisam de autorização USB e seleção explícita.";color:#85848e;font-size:12px;wrap:word-wrap;}
+                        }
+                    }
+                    if root.page=="files": Rectangle {vertical-stretch:1;background:#151518;border-radius:12px;
+                        VerticalLayout {padding:24px;spacing:16px;alignment:start;
+                            Text {text:"Entrega criptografada entre os computadores";font-size:19px;font-weight:700;color:white;}
+                            Text {text:"Os arquivos recebidos ficam na sua caixa de entrada privada.\nA VPS transporta conteúdo cifrado; o worker verifica antes de salvar.";color:#b4b3bd;wrap:word-wrap;}
+                            Text {text:"zaturo files send /caminho/arquivo --to work-pc\nzaturo files list\nzaturo files status ID";font-family:"JetBrains Mono";font-size:13px;color:#E5B900;}
+                            Text {text:"Use o cliente de dispositivo instalado para enviar e receber.\nA credencial do aplicativo deste aplicativo não substitui a identidade de arquivos.";color:#85848e;font-size:12px;wrap:word-wrap;}
+                        }
+                    }
+                    if root.page=="private": Rectangle {vertical-stretch:1;background:#151518;border-radius:12px;
+                        VerticalLayout {padding:22px;spacing:12px;
+                            Text {text:"CAPTURA PRIVADA · PONTA A PONTA";color:#E5B900;font-size:11px;font-weight:700;}
+                            Text {text:"Deixe o aplicativo de SMS aberto no telefone desbloqueado. A espera observa mudanças visuais; não lê nem reconhece códigos. Nenhuma imagem entra no feed, nos logs ou na IA.";color:#a6a5af;font-size:12px;wrap:word-wrap;}
+                            HorizontalLayout {spacing:10px;LineEdit {text<=>root.private-device;placeholder-text:"Dispositivo Android registrado";}LineEdit {width:130px;text<=>root.private-watch;placeholder-text:"Espera 0–120 s";}}
+                            CheckBox {text:"Confirmo o acesso ao meu próprio telefone e autorizo esta captura privada.";checked<=>root.private-confirmed;}
+                            HorizontalLayout {spacing:12px;PrimaryButton {text:"Autorizar captura";enabled:root.private-confirmed&&!root.private-running;clicked=>{root.start-private();}}OutlineButton {label:"Encerrar e limpar";clicked=>{root.close-private();}}}
+                            Text {text:root.private-status;color:#b8b7c0;font-size:12px;wrap:word-wrap;}
+                            Rectangle {vertical-stretch:1;background:#08080a;border-radius:8px;
+                                if root.private-image-visible: Image {source:root.private-image;image-fit:contain;}
+                                if !root.private-image-visible: Text {text:root.private-running ? "Aguardando o computador e o telefone…" : "A imagem aparecerá apenas nesta sessão.";color:#74737e;horizontal-alignment:center;vertical-alignment:center;font-size:13px;}
+                            }
+                            Text {text:"A tela é apagada em até 60 segundos, ao sair desta aba ou ao tirar o foco da janela. Bloqueios do Android e janelas protegidas são respeitados.";color:#82818c;font-size:11px;wrap:word-wrap;}
+                        }
+                    }
+                    Text {text:root.status-message;font-size:11px;color:#95949e;wrap:word-wrap;height:28px;}
+                }
+            }
+        }
+    }
+    if root.preview-open: Rectangle {background:#09090bef;
+        VerticalLayout {padding:30px;spacing:14px;
+            HorizontalLayout {Text{text:"Imagem recebida e verificada";color:white;horizontal-stretch:1;}OutlineButton {label:"Fechar";clicked=>{root.preview-open=false;}}}
+            Image {source:root.preview-image;image-fit:contain;}
+        }
+    }
+}

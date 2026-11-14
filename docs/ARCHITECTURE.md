@@ -58,3 +58,22 @@ a registry-authenticated device identity to HTTP/WS and serializes disk/DB check
 Worker composition checks an independent private inbox every five seconds. Received files
 never enter the model/task execution path. Both PCs use outbound restricted pinned SSH;
 the hub stores ciphertext and public recipients only. See [file transfers](FILE_TRANSFERS.md).
+
+
+## Native clients, activity and service adapters (0.4)
+
+The owner explicitly authorized narrow native-client/Youtube/Android vertical slices.
+Linux Rust/Slint and Android Kotlin clients share indexed UTC-persisted daily chat/activity;
+new app credentials are independent of owner-admin and worker keys. The Android client
+owns a restricted pinned SSH tunnel, so no public hub HTTP port is introduced.
+`zaturo-youtube` is a fixed subprocess/JSON adapter; Python retains generation/upload.
+`zaturo-android` owns serial-bound USB operations and control leases. Worker service
+journals fence unknown external effects; independent heavy video units contain resources.
+Task protocol 2 is retained through capability-gated additive service variants. Null new
+task fields are omitted, so enrolled 0.3 workers retain their existing diagnostic flow.
+
+Normal artifacts use the encrypted file spool and verified endpoint inboxes. Sensitive
+screens take a separate age-encrypted RAM-only path, bound to the owner's endpoint key,
+expiring/consumed once with no image SQL/spool/LLM access. Private acceptance permits only
+fixed metadata and server-known summaries. See [native clients](NATIVE_CLIENTS.md) and
+[YoutubeBot](YOUTUBE_SERVICE.md) for operational boundaries and actual limitations.

@@ -52,3 +52,15 @@ Memory/load evidence is separate from correctness tests; see
 [resource limits](RESOURCE_LIMITS.md). Record commands actually run and environmental
 constraints in the engineering report. CI configuration existing locally is not proof
 that a remote GitHub Actions run has passed.
+
+
+0.4 fixtures add local-midnight/Unicode/literal daily history, atomic chat and stable notices,
+legacy schema/journal preservation, service intent/reconciliation and actual job evidence,
+USB authorization/serial/timeout/process-group/lease tests, and full fake-ADB -> worker ->
+hub RAM agecipher -> owner-memory decrypt/once/expiry/cancel tests. Native desktop tests
+exercise bounded HTTP/private paths; an isolated-Xvfb fixture visibly renders an ephemeral
+synthetic PNG and proves earlier server TTL clearing/DELETE without plaintext files.
+Android JVM tests check origin/enrollment and canonical SSH-wire fingerprints; an explicit
+opt-in smoke uses a new restricted key against hub healthz and rejects a wrong host pin.
+APK compilation/Lint are not physical Android acceptance. Google/realUSB/paidgeneration
+are never CI requirements. See [native clients](NATIVE_CLIENTS.md) and adapter tests.

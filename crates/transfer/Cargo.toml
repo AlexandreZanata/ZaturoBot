@@ -6,6 +6,7 @@ publish.workspace = true
 
 [dependencies]
 age.workspace = true
+zeroize.workspace = true
 anyhow.workspace = true
 libc.workspace = true
 reqwest.workspace = true

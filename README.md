@@ -1,40 +1,61 @@
 # ZaturoBot
 
-A single-owner Linux automation foundation: a lightweight coordination hub and an
-outbound Linux workers. It persists task history in SQLite, reconciles durable leases
-and worker journals, and supports a direct diagnostic plus a bounded model-assisted
-public coding diagnostic. The direct diagnostic needs no AI API key; the assisted route
-uses the owner-selected OpenCode Go model. Neither needs Docker, a desktop, or a GPU.
+A personal Linux assistant with a private coordination hub, outbound workers, and native
+Linux/Android clients. Durable tasks, explicit permissions, bounded execution, and
+interruption recovery form the shared foundation. The hub stays lightweight; models,
+media processing, and authorized USB operations run on a worker.
 
-The code and engineering documentation are English. Future owner interfaces will default
-to Brazilian Portuguese and support English. Start with [AGENTS.md](AGENTS.md) when
-changing code and the [documentation map](docs/README.md) for detailed contracts.
+Version 0.4 adds native clients, persistent daily chat/activity, a typed YoutubeBot
+service adapter, and Android USB foundations. These are specific implemented slices,
+not unrestricted computer control or general account automation. Read the
+[0.4 engineering report](docs/NATIVE_SERVICE_REPORT.md) for validation, rollout status,
+and remaining physical-device/account acceptance.
 
-## Run locally
+## Implemented capabilities
 
-Install the pinned Rust toolchain and a C compiler for bundled SQLite. From the repository
-root, generate two distinct local service tokens in a private shell. These commands set
-only this shell's environment; the application does not load `.env` automatically.
+- Durable diagnostic tasks, leases, idempotency, owner controls, and bounded restart
+  recovery. A direct diagnostic needs no model key.
+- A bounded public-coding diagnostic using only the owner-authorized
+  `deepseek-v4.1-flash` route, with independent tool policy and durable token admission.
+- Encrypted resumable files between independently enrolled Linux devices through the
+  private VPS relay. Workers save verified files without executing them or sending them
+  to a model.
+- A Rust/Slint Linux desktop and native Kotlin Android companion with persistent chat,
+  day/type/search filters, worker status, and explicit supported actions. Ordinary chat
+  is recorded honestly; arbitrary text does not authorize a shell or an unsupported task.
+- A fixed YoutubeBot JSON service boundary with durable operation fencing, independent
+  heavy-job units, and actual completion notices. The existing extension, recorder,
+  generation, and upload pipeline remains in its own project.
+- Serial-bound Android USB status and finite private screenshot/change-watch requests.
+  Sensitive image viewing is desktop-only and uses short-lived endpoint-encrypted RAM
+  delivery, separate from normal files/feed/history. This is not an SMS semantic detector.
+
+Engineering artifacts are English; owner interface copy defaults to Brazilian Portuguese.
+Start with [AGENTS.md](AGENTS.md) when changing code and the
+[documentation map](docs/README.md) for contracts.
+
+## Run the core locally
+
+Install the pinned Rust toolchain and native build prerequisites. Bundled SQLite needs a
+C compiler; building the desktop additionally needs the Linux UI prerequisites described
+in its [README](apps/zaturo-desktop/README.md). Generate distinct local tokens and supply
+the same relevant values securely to each terminal. Applications do not load `.env`
+automatically.
 
 ```bash
 export ZATURO_OWNER_TOKEN="$(openssl rand -hex 32)"
 export ZATURO_WORKER_TOKEN="$(openssl rand -hex 32)"
-cargo build --workspace
-```
-
-Run the hub in that shell:
-
-```bash
+cargo build --locked -p zaturo-hub -p zaturo-worker
 cargo run -p zaturo-hub -- serve
 ```
 
-In a second terminal, set the same `ZATURO_WORKER_TOKEN` securely and start the worker:
+In a worker-configured terminal:
 
 ```bash
 cargo run -p zaturo-worker -- connect
 ```
 
-In a third terminal, set the same `ZATURO_OWNER_TOKEN` securely and create a task:
+In an owner-configured terminal:
 
 ```bash
 cargo run -p zaturo-hub -- task create --kind diagnostic --target local-worker \
@@ -44,70 +65,45 @@ cargo run -p zaturo-hub -- task show TASK_ID
 cargo run -p zaturo-hub -- workers list
 ```
 
-Replace `TASK_ID` with the UUID returned by creation/list. `show` returns the task plus
-the first bounded event page; use the API to page through longer histories. Reusing the
-same idempotency key with the same request returns the same task. Changing its payload
-while reusing the key is a conflict. Default data files are `data/hub.db` and
-`data/worker.db`; keep them separate.
+Replace `TASK_ID` with the returned UUID. Default examples are
+[hub](config/hub.example.toml) and [worker](config/worker.example.toml); both apps accept
+`--config PATH`. Use `task pause`, `task resume`, or `task cancel` with an eligible
+nonterminal task. Hub and worker retain separate SQLite databases.
 
-Owner controls are `task pause TASK_ID`, `task resume TASK_ID`, and `task cancel TASK_ID`.
-The diagnostic is very short, so it may already be terminal before a control request.
-A terminal task cannot resume. Restart the hub/worker against their original databases
-to exercise persisted recovery; only the read-only diagnostic is safe to repeat.
+A model-assisted task additionally requires the protected worker-local configuration,
+provider key, explicit public-coding/Global-processing authorization, and advertised
+`agent.diagnostic.v1` capability. Read [provider policy](docs/LLM_PROVIDERS.md).
+Fake models are test fixtures, never a hidden production fallback.
 
-Both binaries accept a global `--config PATH`. Default examples are
-[hub](config/hub.example.toml) and [worker](config/worker.example.toml).
-The hub binds `127.0.0.1:7878`. Remote worker/client origins require HTTPS; deployment
-uses VPN/private reachability plus reviewed TLS termination or a secure local tunnel.
-Local settings are not a public-internet deployment recipe.
+## Native clients and existing devices
 
-## Model-assisted coding diagnostic
+Build/run the desktop with `cargo build --release --locked -p zaturo-desktop` and
+`target/release/zaturo-desktop`. It uses a separate scoped application credential and
+the existing private tunnel or an HTTPS origin. Build/enroll the Android debug app using
+[its README](mobile/android/README.md); no credential is embedded in the APK. Its own
+restricted, host-pinned SSH transport was tested, but physical-phone acceptance remains.
 
-The only configured model is `deepseek-v4.1-flash`. Read
-[provider policy](docs/LLM_PROVIDERS.md) and the disabled
-[model example](config/models.example.toml) before activation. The worker receives a
-protected local model-config path and API key; the hub never receives that key.
-Explicitly authorize public-coding disclosure and Global processing. The model can
-request only the existing read-only diagnostic, then produce a bounded summary.
+The already-enrolled work PC's 0.3 installation remains valid. Update it additively through
+[work services](deploy/services/WORK_SERVICES.md); keep its worker identity, private
+SSH/age keys, inbox, and journal. **Do not re-enroll it.** The destination Codex performs
+the pinned update and private-data restoration. All eight encrypted archive parts and
+three metadata deliveries have reached that existing device; delivery alone does not
+mean source overlays were applied or services upgraded.
 
-```bash
-cargo run -p zaturo-hub -- task create --kind assisted_diagnostic \
-  --target local-worker --data-policy public-coding \
-  --request "Inspect the public Rust coding environment with the approved diagnostic."
-```
+Installed Linux profiles provide `~/.local/bin/zaturo` for `files peers`, `files send`,
+`files list`, and `task diagnostic`. See [file contracts](docs/FILE_TRANSFERS.md),
+[historical 0.3 measurements](docs/FILE_TRANSFER_REPORT.md), and
+[current live operations](docs/LIVE_DEPLOYMENT.md). Both PCs connect outbound through
+restricted SSH on port 22; no home-router port forwarding or public control API is needed.
 
-This requires a worker advertising `agent.diagnostic.v1` through a validated real
-provider configuration. Model-disabled workers retain the direct diagnostic only.
-Fake models are test fixtures, never an undisclosed production fallback. Budget
-reservations survive restart and uncertain paid requests stop for reconciliation.
+YoutubeBot uses the reviewed revision and passing CI linked in the
+[0.4 report](docs/NATIVE_SERVICE_REPORT.md). Google/ChatGPT sign-in and exact channel
+verification remain interactive. No live generation/upload is claimed by a fixture test.
+Private phone viewing requires the registered USB phone, an explicit grant, and an
+already unlocked permitted screen; for SMS viewing, its SMS app must already be open.
+There is no OCR, OTP extraction, automatic sign-in, or lock/secure-window bypass.
 
-The installed private services and owner CLI profile are documented in
-[the live deployment runbook](docs/LIVE_DEPLOYMENT.md); current execution evidence is in
-[the Phase 2 report](docs/PHASE2_REPORT.md). The hub remains reachable through the
-verified SSH tunnel, with operational keys and tokens excluded from the source artifact.
-
-## Files between computers
-
-Version 0.3.0 adds encrypted resumable files through the VPS with separate credentials
-per device. Both PCs initiate pinned SSH connections; no home-router port is needed.
-Only ciphertext is stored on the relay. The worker verifies and saves incoming files
-without opening/executing them or sending them to a model.
-
-Use [Ubuntu/Debian enrollment](deploy/device/README.md) with the private owner-issued
-bundle. Installed profiles provide a `~/.local/bin/zaturo` wrapper:
-
-```bash
-~/.local/bin/zaturo files peers
-~/.local/bin/zaturo files send /absolute/path/report.pdf --to work-pc
-~/.local/bin/zaturo files list
-~/.local/bin/zaturo task diagnostic
-```
-
-See [file contracts and recovery](docs/FILE_TRANSFERS.md) and
-[measured VPS verification](docs/FILE_TRANSFER_REPORT.md). The physical work PC still
-runs its protected enrollment handoff; a simulated second profile is not that installation.
-
-## Validate
+## Validate and review
 
 ```bash
 cargo xtask check --locked
@@ -116,25 +112,24 @@ cargo xtask docs
 cargo xtask secrets
 ```
 
-See [testing](docs/TESTING.md), [deployment](docs/DEPLOYMENT.md),
-[security](docs/SECURITY.md), and [resource limits](docs/RESOURCE_LIMITS.md).
-The current quality gate passed 107 tests; Phase 2 live execution and restart evidence
-are recorded in [its report](docs/PHASE2_REPORT.md). A recorded 100-task local benchmark
-observed 8.30 MiB idle hub RSS and 9.11 MiB peak RSS; this is development-machine
-evidence, not an Oracle capacity guarantee. Read the
-[engineering report](docs/ENGINEERING_REPORT.md) for commands, environment, constraints,
-and known limitations. The production listener bounds TCP admission and idle time
-before authentication; remote access still requires a private secure network path.
+The latest local gate passed **149 Rust tests and 21 Python helper tests**, plus strict
+formatting/Clippy, documentation/architecture/registry checks, publication guard, and
+rustdoc. Desktop release and Android debug APK builds provide build evidence; they do
+not replace real Google/video or physical Android acceptance. The six-page
+[system design PDF](output/pdf/zaturobot-system-design.pdf) was rendered and reviewed.
+
+Current results are in the [0.4 report](docs/NATIVE_SERVICE_REPORT.md). Earlier
+[foundation](docs/ENGINEERING_REPORT.md) and [Phase 2](docs/PHASE2_REPORT.md) reports
+remain historical evidence. The 100-task local foundation benchmark observed 8.30 MiB
+idle hub RSS and 9.11 MiB peak RSS; it is not an Oracle capacity guarantee for 0.4.
 
 ## Scope and license
 
-The owner authorized Phases 0–2, private hub/worker activation, encrypted cross-network device files and bounded multiple
-diagnostic workers, and GitHub publication
-after validation. Computer use, encrypted vault, personal service adapters, recurring
-scheduling, and graphical/mobile clients remain [planned](docs/ROADMAP.md). This phase
-does not add arbitrary project editing, desktop control, or an unrestricted shell.
-Operational keys, tokens, databases, and backups stay ignored and untracked; the
-publication guard checks visible work, staging, and reachable history before push.
+The owner authorized Phases 0–2, encrypted cross-network files, bounded multiple workers,
+private deployment/publication, and the explicit native-client/YoutubeBot/Android slices.
+Full desktop automation, general vault, recurring scheduling, arbitrary project editing,
+and unrestricted account actions remain [planned](docs/ROADMAP.md). Operational keys,
+tokens, account data, databases, backups, and enrollment bundles stay private and untracked.
 
-Dual MIT OR Apache-2.0 is recommended; license adoption remains an owner decision in
-[ADR-0007](docs/DECISIONS.md). No license grant is assumed from repository visibility.
+Dual MIT OR Apache-2.0 remains a recommendation pending the owner's license adoption
+([ADR-0007](docs/DECISIONS.md)); no license grant is inferred from repository visibility.

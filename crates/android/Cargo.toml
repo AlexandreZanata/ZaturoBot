@@ -1,0 +1,20 @@
+[package]
+name = "zaturo-android"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+tokio.workspace = true
+sha2.workspace = true
+uuid.workspace = true
+rustix.workspace = true
+zeroize.workspace = true
+zaturo-core.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

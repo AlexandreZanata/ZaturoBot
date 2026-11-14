@@ -72,3 +72,25 @@ Gate: a single-worker agent is already reliable and measured before complexity g
 
 This pass includes the explicitly authorized Phase 2, device-file extension and private installation.
 Phase 3 computer use and every later feature still require their own scoped request.
+
+
+## Owner-authorized 0.4 vertical slices
+
+The owner requested YoutubeBot preservation/improvement, Linux Slint and native Kotlin
+Android clients, persistent daily activity/chat and controlled Android USB foundations.
+These concrete slices are authorized even though the complete later phases remain planned.
+
+<!-- feature:native-clients status:implemented -->
+Initial native Linux and Android clients share owner/application-authenticated chat/feed;
+Android uses its own pinned restricted SSH key and Keystore-encrypted enrollment.
+
+<!-- feature:android-usb status:implemented -->
+Serial-bound USB state, controlled owner screenshot/finite visual-change watch and
+short-lived age-encrypted RAM delivery to the desktop private viewer. No OTP OCR, SMS
+semantic harvesting, automatic sign-in or lock/secure-screen bypass. Physical USB acceptance
+remains opt-in; Android mobile private-image rendering is not implemented in this slice.
+
+<!-- feature:youtube-service status:implemented -->
+The existing YoutubeBot video/extension/upload pipeline is preserved in its own repository;
+a fixed typed service adapter, independent heavy job units and actual completion notices
+integrate it with this hub. Real Google consent and channel actions remain user-interactive.

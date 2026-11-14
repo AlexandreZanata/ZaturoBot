@@ -25,6 +25,8 @@ pub fn router(state: AppState) -> Router {
         .route_layer(middleware::from_fn_with_state(state.clone(), owner_auth));
     Router::new()
         .merge(crate::files::router(state.clone()))
+        .merge(crate::activity::router(state.clone()))
+        .merge(crate::private_views::router(state.clone()))
         .merge(owner_routes)
         .route(
             "/healthz",
@@ -61,7 +63,12 @@ pub fn bearer(headers: &HeaderMap) -> Option<&str> {
         .strip_prefix("Bearer ")
 }
 async fn owner_auth(State(state): State<AppState>, request: Request<Body>, next: Next) -> Response {
-    if bearer(request.headers()).is_some_and(|b| state.owner.verifies(b)) {
+    if bearer(request.headers()).is_some_and(|b| {
+        state.owner.verifies(b)
+            || (request.method() == axum::http::Method::GET
+                && request.uri().path() == "/v1/workers"
+                && state.authorize_app(b, false))
+    }) {
         next.run(request).await
     } else {
         failure(StatusCode::UNAUTHORIZED, "unauthorized")

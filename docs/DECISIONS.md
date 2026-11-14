@@ -113,3 +113,32 @@ not the admin key, owner bearer or AI key. Basic multiple diagnostic workers are
 for this scope; general multi-agent autonomy remains planned. Keep task protocol version 2;
 the file API is additive HTTP and a separate five-second inbox loop preserves heartbeat
 responsiveness. Desktop, browser and social-account actions are future scope.
+
+
+## ADR-0015: Authorized native clients and typed service slices - accepted
+
+The owner requested Linux Rust/Slint, Android-only Kotlin, a persistent daily chat/activity
+hub, YoutubeBot preservation/improvement and Android USB foundations. Implement these
+narrow slices without claiming complete later roadmap phases. Ordinary chat is durable;
+only explicit supported actions execute. Separate app credentials avoid distributing the
+owner-admin or provider key. Slint interpreter embeds native UI while preserving the
+workspace unsafe-code forbid policy; generated FFI stays inside third-party dependencies.
+
+## ADR-0016: Existing YoutubeBot remains the video implementation - accepted
+
+Keep its extension/generation/upload core unchanged and expose a fixed bounded JSON CLI.
+Durable operation identity, a separate job ledger and status-only reconciliation fence
+external effects. Heavy actors use independent fixed user units rather than inheriting
+the diagnostic worker's 512 MiB cap. Acceptance is distinct from actual job completion;
+only verified final observations produce completion notices. Local-only data is privately
+archived/segmented and staged without overwriting new source or existing destination data.
+
+## ADR-0017: Sensitive screens use endpoint encryption and ephemeral RAM - accepted
+
+The owner requested remote SMS-screen viewing as an Android foundation example. Phone
+pixels never enter normal artifacts, SQL, task text, OCR or an external model. An explicit
+finite owner grant binds a registered USB device and recipient key. The worker encrypts
+raw PNG in memory using standard age, and the hub holds bounded ciphertext at most
+60 seconds for one retrieval. App close/cancel revokes it. The desktop decrypts in memory;
+Android mobile private-image rendering remains absent. Visual change is not semantic SMS
+arrival detection, and Android lock/secure-window protections remain enforced.

@@ -1,6 +1,13 @@
 //! Canonical domain contracts and deterministic task rules.
 
 use serde::{Deserialize, Serialize};
+mod activity;
+pub use activity::*;
+mod service;
+pub use service::*;
+mod android;
+pub use android::*;
+
 mod files;
 pub use files::*;
 
@@ -85,6 +92,7 @@ pub enum TaskKind {
     #[default]
     Diagnostic,
     AssistedDiagnostic,
+    Service,
 }
 
 impl TaskKind {
@@ -92,6 +100,7 @@ impl TaskKind {
         match self {
             Self::Diagnostic => "diagnostic.v1",
             Self::AssistedDiagnostic => "agent.diagnostic.v1",
+            Self::Service => "service.v1",
         }
     }
 }
@@ -99,6 +108,8 @@ impl TaskKind {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NewTask {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub service: Option<ServiceRequest>,
     pub kind: TaskKind,
     pub request: String,
     pub target_worker: String,
@@ -117,6 +128,7 @@ impl NewTask {
     ) -> Self {
         Self {
             kind: TaskKind::Diagnostic,
+            service: None,
             request: "Run the safe deterministic diagnostic".into(),
             target_worker: target_worker.into(),
             idempotency_key: idempotency_key.into(),
@@ -140,6 +152,11 @@ impl NewTask {
     }
 
     pub fn validate(&self) -> Result<(), String> {
+        if (self.kind == TaskKind::Service) != self.service.is_some()
+            || self.service.as_ref().is_some_and(|s| !s.validates())
+        {
+            return Err("invalid service task request".into());
+        }
         if self.request.trim().is_empty() || self.request.len() > 4096 {
             return Err("request must contain 1 to 4096 bytes".into());
         }
@@ -219,6 +236,10 @@ impl DiagnosticResult {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Task {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub service: Option<ServiceRequest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub service_result: Option<ServiceResult>,
     pub id: String,
     pub operation_id: String,
     pub kind: TaskKind,

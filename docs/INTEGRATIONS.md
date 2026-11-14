@@ -50,3 +50,12 @@ verifies that injected email text cannot grant send permission or reveal tokens.
 All adapters require typed input/output, capability registration, operation identity,
 resource bounds, cancellation semantics, redacted errors, audit evidence, and explicit
 uncertain-effect recovery. See [add-integration](recipes/add-integration.md).
+
+
+## Authorized video and Android slices
+
+The existing video project is now an owner-authorized typed worker service, with its
+original generator/extension/upload implementation preserved in its own repository.
+See [YoutubeBot service](YOUTUBE_SERVICE.md). Android USB discovery and controlled private
+capture are implemented separately; see [Android](ANDROID_INTEGRATION.md). Neither is
+an unrestricted model tool. Remaining integrations above retain their planned status.

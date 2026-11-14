@@ -41,6 +41,8 @@ enum TaskCommand {
         request: String,
         #[arg(long)]
         data_policy: Option<String>,
+        #[arg(long)]
+        service_request: Option<PathBuf>,
     },
     List {
         #[arg(long)]
@@ -100,6 +102,7 @@ async fn main() -> Result<()> {
                 idempotency_key,
                 request,
                 data_policy,
+                service_request,
             } => {
                 let key = idempotency_key.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
                 let mut task = match (kind.as_str(), data_policy.as_deref()) {
@@ -107,11 +110,35 @@ async fn main() -> Result<()> {
                     ("assisted_diagnostic", Some("public-coding")) => {
                         NewTask::assisted_diagnostic(target, key)
                     }
+                    ("service", None) => {
+                        let path = service_request.as_ref().context(
+                            "service requires --service-request PATH to a typed JSON request",
+                        )?;
+                        anyhow::ensure!(
+                            std::fs::metadata(path)?.len() <= 4096,
+                            "service request exceeds limit"
+                        );
+                        let request: zaturo_core::ServiceRequest = serde_json::from_str(
+                            &std::fs::read_to_string(path)?,
+                        )
+                        .map_err(|_| {
+                            anyhow::anyhow!("invalid typed service request; values are not logged")
+                        })?;
+                        let mut task = NewTask::diagnostic(target, key);
+                        task.kind = zaturo_core::TaskKind::Service;
+                        task.max_attempts = 1;
+                        task.service = Some(request);
+                        task
+                    }
                     ("assisted_diagnostic", _) => bail!(
                         "assisted_diagnostic requires --data-policy public-coding; submit public coding context only"
                     ),
                     _ => bail!("unsupported task kind or disclosure policy"),
                 };
+                anyhow::ensure!(
+                    kind == "service" || service_request.is_none(),
+                    "--service-request is only valid for service tasks"
+                );
                 task.request = request;
                 post("/v1/tasks".into()).json(&task).send().await?
             }

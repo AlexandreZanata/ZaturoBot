@@ -24,6 +24,10 @@ enum Command {
         #[command(subcommand)]
         command: Files,
     },
+    Android {
+        #[command(subcommand)]
+        command: Android,
+    },
     Task {
         #[command(subcommand)]
         command: Task,
@@ -53,6 +57,11 @@ enum Files {
     Sync,
 }
 #[derive(Subcommand)]
+enum Android {
+    Devices,
+    Status { id: String },
+}
+#[derive(Subcommand)]
 enum Task {
     Diagnostic,
     Show { id: String },
@@ -79,9 +88,36 @@ async fn main() -> Result<()> {
     match cli.command {
         Command::Connect => zaturo_worker::run(config, token).await?,
         Command::Identity { .. } => unreachable!(),
+        Command::Android { command } => {
+            let android = config
+                .android
+                .as_ref()
+                .context("[android] configuration is required")?;
+            let adb = zaturo_android::AdbClient::new(&android.executable)?;
+            match command {
+                Android::Devices => println!(
+                    "{}",
+                    serde_json::to_string_pretty(&adb.discover(zaturo_worker::now_ms()).await?)?
+                ),
+                Android::Status { id } => {
+                    let device = android
+                        .devices
+                        .iter()
+                        .find(|d| d.device_id == id)
+                        .context("Android device ID is not registered")?;
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(
+                            &adb.inspect(device, zaturo_worker::now_ms()).await?
+                        )?
+                    );
+                }
+            }
+        }
         Command::Task { command } => match command {
             Task::Diagnostic => {
                 let request = zaturo_core::NewTask {
+                    service: None,
                     kind: zaturo_core::TaskKind::Diagnostic,
                     request: "Run the registered read-only diagnostic on this device.".into(),
                     target_worker: config.worker_id.clone(),

@@ -13,11 +13,13 @@ impl WorkerJournal {
         Ok(Self {
             connection: Mutex::new(connection(
                 path,
-                3,
+                6,
                 concat!(
                     include_str!("../migrations/0002_worker.sql"),
                     "\n",
-                    include_str!("../migrations/0003_worker_model_budget.sql")
+                    include_str!("../migrations/0003_worker_model_budget.sql"),
+                    "\n",
+                    include_str!("../migrations/0006_worker_services.sql")
                 ),
             )?),
         })

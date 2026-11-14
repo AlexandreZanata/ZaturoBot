@@ -10,6 +10,7 @@ lease_seconds = 30
 max_workers = 1
 # Enable these together for registry-authenticated encrypted file relay:
 # devices_file = "/etc/zaturo/devices.toml"
+# apps_file = "/etc/zaturo/apps.toml"
 # transfer_root = "/var/lib/zaturo-hub/transfers"
 # Increase max_workers to the number of independently registered devices (at most 8).
 [transfer_limits]

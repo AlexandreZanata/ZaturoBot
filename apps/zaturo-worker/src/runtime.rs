@@ -56,6 +56,7 @@ pub async fn run(config: WorkerConfig, token: String) -> Result<()> {
         std::fs::create_dir_all(path)?;
     }
     let journal = Arc::new(WorkerJournal::open(&config.database)?);
+    let _service_jobs = crate::service_jobs::start(&config, &token, journal.clone())?;
     let mut backoff = 1;
     loop {
         let started = tokio::time::Instant::now();
@@ -120,7 +121,7 @@ pub async fn connect_once_with_router(
     };
     transmit(&mut socket, hello).await?;
     let mut job = None;
-    let result = session(config, &mut socket, &journal, router, &mut job).await;
+    let result = session(config, token, &mut socket, &journal, router, &mut job).await;
     stop_job(&mut job, &journal).await?;
     result
 }
@@ -140,11 +141,16 @@ fn validate_assignment(config: &WorkerConfig, assignment: &Assignment) -> Result
         task.target_worker == config.worker_id
             && task.assigned_worker.as_deref() == Some(&config.worker_id)
             && task.lease_token.as_deref() == Some(&assignment.lease_token)
-            && task.required_capabilities == [task.kind.capability()]
+            && task.required_capabilities
+                == [task
+                    .service
+                    .as_ref()
+                    .map(|s| s.capability())
+                    .unwrap_or(task.kind.capability())]
             && config
                 .capabilities
                 .iter()
-                .any(|c| c == task.kind.capability())
+                .any(|c| task.required_capabilities.contains(c))
             && matches!(task.state, TaskState::Assigned | TaskState::Running)
             && permits("diagnostic.v1", ActionClass::ReadOnly, &config.capabilities),
         "assignment denied by local policy"
@@ -158,6 +164,7 @@ fn validate_assignment(config: &WorkerConfig, assignment: &Assignment) -> Result
 
 async fn session(
     config: &WorkerConfig,
+    token: &str,
     socket: &mut Socket,
     journal: &Arc<WorkerJournal>,
     router: Option<Arc<Router>>,
@@ -202,11 +209,15 @@ async fn session(
                         ensure!(assignment.task.id == task_id && now_ms() < assignment.task.deadline_at && now_ms() < assignment.lease_expires_at, "expired assignment");
                         let cancellation = Cancellation::new();
                         let operation_id = assignment.task.operation_id.clone();
-                        let work = assignment.clone(); let local = journal.clone(); let models = router.clone(); let cancel = cancellation.clone();
+                        let work = assignment.clone(); let local = journal.clone(); let models = router.clone(); let cancel = cancellation.clone();let settings=config.clone();let credential=token.to_owned();
                         let handle = tokio::spawn(async move {
                             match work.task.kind {
                                 TaskKind::Diagnostic => execution::diagnostic(work, local, cancel).await,
                                 TaskKind::AssistedDiagnostic => execution::execute(work, local, models, cancel).await,
+                                TaskKind::Service=>{
+                                    if matches!(work.task.service,Some(zaturo_core::ServiceRequest::AndroidPrivateView{..})) {crate::private_views::execute(work,settings,credential,cancel).await}
+                                    else {crate::service_execution::execute(work,local,settings.youtube,settings.android.map(|a|a.executable),cancel).await}
+                                }
                             }
                         });
                         *job = Some(Job { handle, cancellation, operation_id });

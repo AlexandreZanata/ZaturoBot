@@ -162,6 +162,17 @@ impl Engine {
                 t.updated_at = now;
                 r.save_transfer(&t)?;
                 r.transfer_event(&t, now, "Recipient verified and published the file")?;
+                let item = zaturo_core::FeedItem {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    created_at: now,
+                    kind: zaturo_core::FeedKind::File,
+                    role: "assistant".into(),
+                    text: format!("Arquivo recebido por {}: {}", t.recipient, t.filename),
+                    task_id: None,
+                    artifact_id: Some(t.id.clone()),
+                    sensitive: false,
+                };
+                r.insert_feed(&item, &format!("file:{}:delivered", t.id))?;
             }
             Ok(t)
         })

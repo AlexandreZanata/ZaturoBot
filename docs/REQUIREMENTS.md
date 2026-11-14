@@ -48,3 +48,15 @@ resumable bounded encrypted transfer and private inboxes; preserve local files/c
 in the unrelated PDF project. The work PC can run the existing diagnostic; only the home
 worker has the bounded public-coding DeepSeek route. Mouse/desktop/browser/social posting
 are future requests and are not implemented by receiving a file or submitting task text.
+
+
+## Owner-authorized 0.4 scope
+
+The owner additionally authorized YoutubeBot improvements (preserve extension/video/upload),
+removal of that project's harness scaffolding, private local-data migration to the already
+enrolled work PC, Linux Slint/Rust and Android Kotlin clients, branded system design and
+Android USB foundations. This supersedes the earlier read-only rule for YoutubeBot only;
+CelularLinuxADB and other projects remain read-only references. Keep scopes, provenance,
+original local files and existing work-PC credentials/journal. Make recommended decisions
+without user questions; unavailable hardware/interactive Google consent is reported honestly,
+not bypassed. Native sensitive views remain separate from the persistent ordinary feed.

@@ -16,3 +16,8 @@ failure fencing, disclosure policy and restart behavior before changing recovery
 `transfers.rs` owns file admission/idempotency, ownership, quota reservations, progress,
 delivery and expiry. Infrastructure verifies/writes/fsyncs bytes before checkpointing;
 remove expired bytes before releasing quota. File payloads never become executable tasks.
+
+`activity.rs` atomically records chat/idempotent task creation and canonical day/search
+filters; terminal tasks publish stable notices. `service_tasks.rs` validates typed service
+evidence. Accepted video jobs produce an initiation notice; only actual job observations
+produce final completion. Private results require the exact metadata-only core contract.

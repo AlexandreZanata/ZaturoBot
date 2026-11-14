@@ -4,7 +4,10 @@ ZaturoBot is a single-owner Linux assistant. A lightweight hub coordinates durab
 a notebook worker executes them. The current authorized scope is Phases 0–2:
 authenticated durable tasks, one typed diagnostic, and bounded public-coding model
 orchestration, plus explicitly authorized encrypted cross-network device files and multiple
-bounded diagnostic workers. Desktop, vault, integrations, scheduling, and rich clients remain planned.
+bounded diagnostic workers. The owner additionally authorized native Linux Slint and
+Android Kotlin clients, a persistent day-filtered chat/activity feed, YoutubeBot service
+integration and Android USB foundations. Full desktop automation, general vault,
+scheduling and arbitrary account actions remain planned.
 
 ## Read only the context you need
 
@@ -39,7 +42,9 @@ explains those sources without defining competing copies. Correct code and docs 
 - Read-only inspection and reversible work inside an already approved scope may proceed.
   Document a conservative interpretation of nonblocking ambiguity. Ask when a security
   boundary or authorization cannot be determined from the existing instructions.
-- Do not modify the owner's other repositories. Reference repositories are read-only.
+- The owner explicitly authorized YoutubeBot improvements in its isolated checkout;
+  preserve all original local files and its extension/video/upload behavior. Other
+  repositories (including CelularLinuxADB) remain read-only references.
 - Future features remain planned until implemented and verified. Do not make paid calls
   or contact production services in tests.
 

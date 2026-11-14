@@ -11,3 +11,5 @@ ssh-key-*.key.pub
 /artifacts/
 /workspaces/
 __pycache__/
+
+/output/pdf/qa/

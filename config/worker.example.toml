@@ -14,3 +14,17 @@ reconnect_max_seconds = 30
 # identity = "/home/owner/.config/zaturobot/transfer.identity"
 # cache = "/home/owner/.local/share/zaturobot/transfer-cache"
 # inbox = "/home/owner/.local/share/zaturobot/inbox"
+
+# Optional owner-authorized service adapters. Advertise only the configured capabilities.
+# [youtube]
+# python = "/home/owner/YoutubeBot/.venv/bin/python"
+# project_root = "/home/owner/YoutubeBot"
+# allow_schedule = false
+# [android]
+# executable = "/usr/bin/adb"
+# allow_sensitive_views = false
+# [[android.devices]]
+# device_id = "owner-phone"
+# adb_serial = "EXPLICIT_OWNER_USB_SERIAL"
+# display_name = "Owner phone"
+# capabilities = ["device_status", "sensitive_screen_view"]

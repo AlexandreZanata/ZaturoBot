@@ -33,6 +33,7 @@ async fn two_devices_resume_encrypted_delivery_diagnostic_and_denials() {
     let address = listener.local_addr().unwrap();
     let origin = format!("http://{address}");
     let config = HubConfig {
+        apps_file: None,
         bind: address,
         client_url: origin.clone(),
         database: p.join("hub.db"),

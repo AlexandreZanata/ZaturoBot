@@ -159,6 +159,11 @@ async fn session(state: AppState, mut socket: WebSocket, authenticated_id: Strin
                         let completed_id = task_id.clone();
                         (database(&state, move |e| e.complete_assisted(&task_id, &id, &lease_token, result.diagnostic, result.orchestration, now_ms()).map(|_| ())).await, Some(completed_id))
                     }
+                    ClientMessage::CompletedService {task_id,lease_token,result}=>{
+                        if outstanding.as_deref()!=Some(task_id.as_str()){break;}
+                        let completed_id=task_id.clone();
+                        (database(&state,move |e|e.complete_service(&task_id,&id,&lease_token,result,now_ms()).map(|_|())).await,Some(completed_id))
+                    }
                     ClientMessage::Failed { task_id, lease_token, code } => {
                         if outstanding.as_deref() != Some(task_id.as_str()) { break; }
                         let completed_id = task_id.clone();

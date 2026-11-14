@@ -20,6 +20,12 @@ stable discovery keys; [architecture.toml](../architecture.toml) is the dependen
   diagnostic planning, policy/executor ports, evidence-based completion, and no shell.
 - `zaturo-transfer` — `crates/transfer`: streaming age encryption, bounded opaque spool,
   durable resumable client caches, per-transfer inbox publication and checksum verification.
+- `zaturo-android` — `crates/android`: fixed serial-bound ADB discovery/status/capture,
+  revocable owner leases, process-group limits and opaque zeroizing screen frames.
+- `zaturo-youtube` — `crates/youtube`: fixed JSON CLI adapter to the existing Python
+  YoutubeBot, explicit scheduling grants, result curation and uncertain-job reconciliation.
+- `zaturo-desktop` — `apps/zaturo-desktop`: Linux Rust/Slint owner hub, daily activity,
+  bounded chat/service actions and an ephemeral memory-only private-screen panel.
 - `zaturo-hub` — `apps/zaturo-hub`: HTTP/WebSocket composition, pre-HTTP bounded TCP listener,
   notification-driven dispatch with durable fallback, and owner CLI.
 - `zaturo-worker` — `apps/zaturo-worker`: outbound connection, journal reconciliation,

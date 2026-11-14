@@ -34,5 +34,15 @@ version definitions. Review upstream license notices before distributing binarie
 
 Transitive dependencies are inherited from these adapters, pinned in the lockfile, and
 compiled with the toolchain recorded in `rust-toolchain.toml`. This inventory is not a
-claim that a vulnerability or license audit has been performed. Python 3 supports optional benchmarks and the Linux enrollment installer; the running
-services and repository quality gate are Rust-based.
+claim that a vulnerability or license audit has been performed. Python 3 supports optional benchmarks and the Linux enrollment installer; the hub/worker are Rust-based and the Rust quality driver also invokes hermetic Python
+deployment-helper fixtures.
+
+
+Native/service additions: `chrono` validates UTC/local-day boundaries; `rustix` provides
+safe owned process-group signalling; `zeroize` wipes owned sensitive buffers. `slint`,
+`slint-interpreter` and `slint-build` provide the pinned native Linux software renderer,
+UI syntax checks and event lifecycle without weakening first-party unsafe-code policy.
+`image` is PNG-only for bounded memory decoding, not a network fetch path. Android uses
+native Kotlin/Android APIs, Keystore AES-GCM and pinned SSHJ with canonical SSH host-key
+verification; Gradle/Maven manifests pin its build dependencies. The optional design-PDF
+generator uses reportlab/Pillow outside the running hub/worker. Provider policy is unchanged.

@@ -18,6 +18,8 @@ pub struct HubConfig {
     #[serde(default)]
     pub devices_file: Option<PathBuf>,
     #[serde(default)]
+    pub apps_file: Option<PathBuf>,
+    #[serde(default)]
     pub transfer_root: Option<PathBuf>,
     #[serde(default)]
     pub transfer_limits: TransferLimits,

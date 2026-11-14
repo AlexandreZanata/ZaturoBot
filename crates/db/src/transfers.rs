@@ -90,7 +90,7 @@ impl Repository<'_> {
 mod tests {
     use crate::HubStore;
     #[test]
-    fn upgrades_hub_one_to_four_without_losing_existing_worker_evidence() {
+    fn upgrades_hub_one_to_five_without_losing_existing_worker_evidence() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("hub.db");
         let old = rusqlite::Connection::open(&path).unwrap();
@@ -123,7 +123,7 @@ mod tests {
         assert_eq!(
             db.pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
                 .unwrap(),
-            4
+            5
         );
     }
 }

@@ -29,6 +29,7 @@ async fn hub(path: &Path) -> Hub {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let config = HubConfig {
+        apps_file: None,
         devices_file: None,
         transfer_root: None,
         transfer_limits: Default::default(),
@@ -57,6 +58,8 @@ async fn hub(path: &Path) -> Hub {
 fn worker(path: &Path, base: &str) -> WorkerConfig {
     WorkerConfig {
         files: None,
+        youtube: None,
+        android: None,
         hub_url: base.into(),
         worker_id: "local-worker".into(),
         database: path.join("worker.db"),

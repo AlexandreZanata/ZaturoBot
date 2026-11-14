@@ -18,6 +18,10 @@ pub struct WorkerConfig {
     pub models_config: Option<PathBuf>,
     #[serde(default)]
     pub files: Option<FilesConfig>,
+    #[serde(default)]
+    pub youtube: Option<zaturo_youtube::YoutubeConfig>,
+    #[serde(default)]
+    pub android: Option<AndroidConfig>,
 }
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -25,6 +29,15 @@ pub struct FilesConfig {
     pub identity: PathBuf,
     pub cache: PathBuf,
     pub inbox: PathBuf,
+}
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AndroidConfig {
+    pub executable: PathBuf,
+    #[serde(default)]
+    pub devices: Vec<zaturo_core::RegisteredAndroidDevice>,
+    #[serde(default)]
+    pub allow_sensitive_views: bool,
 }
 impl WorkerConfig {
     pub fn load(path: &Path) -> Result<Self> {
@@ -40,23 +53,64 @@ impl WorkerConfig {
         ensure!(
             self.max_concurrent_tasks == 1
                 && self.capabilities.contains(&"diagnostic.v1".into())
-                && self.capabilities.len() <= 2
-                && self
-                    .capabilities
-                    .iter()
-                    .all(|c| matches!(c.as_str(), "diagnostic.v1" | "agent.diagnostic.v1"))
+                && self.capabilities.len() <= 6
+                && self.capabilities.iter().all(|c| matches!(
+                    c.as_str(),
+                    "diagnostic.v1"
+                        | "agent.diagnostic.v1"
+                        | "youtube.read.v1"
+                        | "youtube.submit.v1"
+                        | "android.devices.v1"
+                        | "android.private.v1"
+                ))
                 && self
                     .capabilities
                     .iter()
                     .collect::<std::collections::BTreeSet<_>>()
                     .len()
                     == self.capabilities.len(),
-            "one task and only registered diagnostic capabilities are allowed"
+            "one task and only registered diagnostic/service capabilities are allowed"
         );
         ensure!(
             !self.capabilities.iter().any(|c| c == "agent.diagnostic.v1")
                 || self.models_config.is_some(),
             "assisted capability requires a model configuration"
+        );
+        if let Some(youtube) = &self.youtube {
+            youtube.validate()?;
+        }
+        ensure!(
+            !self.capabilities.iter().any(|c| c.starts_with("youtube.")) || self.youtube.is_some(),
+            "YouTube capabilities require a configured local adapter"
+        );
+        ensure!(
+            !self.capabilities.iter().any(|c| c == "youtube.submit.v1")
+                || self.youtube.as_ref().is_some_and(|y| y.allow_schedule),
+            "YouTube submission requires a local scheduling grant"
+        );
+        ensure!(
+            !self.capabilities.iter().any(|c| c.starts_with("android.")) || self.android.is_some(),
+            "Android capabilities require a configured local adapter"
+        );
+        if let Some(android) = &self.android {
+            ensure!(
+                android.executable.is_absolute() && android.devices.len() <= 8,
+                "invalid Android configuration"
+            );
+            if !android.devices.is_empty() {
+                zaturo_android::SessionManager::new(android.devices.clone())?;
+            }
+            for device in &android.devices {
+                device.validate().map_err(anyhow::Error::msg)?;
+            }
+        }
+        ensure!(
+            !self.capabilities.iter().any(|c| c == "android.private.v1")
+                || self
+                    .android
+                    .as_ref()
+                    .is_some_and(|a| a.allow_sensitive_views && !a.devices.is_empty()),
+            "sensitive Android views require explicit registered devices and a local grant"
         );
         ensure!(
             (1..=5).contains(&self.heartbeat_seconds),

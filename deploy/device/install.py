@@ -74,8 +74,10 @@ def main():
     if commit != bundle["source_commit"]:
         raise ValueError("check out the source commit specified by the enrollment bundle")
     version = subprocess.check_output([str(args.binary.resolve()), "--version"], text=True).strip()
-    if version != "zaturo-worker 0.3.0":
-        raise ValueError("the reviewed 0.3.0 worker binary is required")
+    manifest=(repo / "Cargo.toml").read_text().split("[workspace.package]",1)[1].split("\n[",1)[0]
+    match=re.search(r'^version\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+)"\s*$',manifest,re.MULTILINE)
+    if not match or version != "zaturo-worker " + match.group(1):
+        raise ValueError("the reviewed workspace worker version is required")
     if not args.home.is_absolute() or any(c.isspace() for c in str(args.home)):
         raise ValueError("an absolute home path without whitespace is required")
     config = args.home / ".config/zaturobot"

@@ -1,0 +1,6 @@
+# Copy outside the repository into a private directory (0700), files 0600.
+hub_url = "http://127.0.0.1:17878"
+credentials_file = "/home/owner/.config/zaturobot/app.env"
+target_worker = "local-worker"
+inbox_root = "/home/owner/.local/share/zaturobot/inbox"
+transfer_identity = "/home/owner/.config/zaturobot/transfer.identity"

@@ -12,3 +12,8 @@ It performs no I/O. Persisted times are injected UTC Unix milliseconds.
 Never infer a disclosure grant from owner text or model output. Keep legacy diagnostic
 JSON readable when extending optional evidence. Extend transition and acceptance tests
 with behavioral changes. Do not define wire envelopes, SQL, or authentication here.
+
+`activity.rs` owns non-sensitive daily history/chat contracts and fixed local-day boundaries.
+`service.rs` owns explicit allowlisted service requests and capped results. Private-screen
+results permit only exact server-known metadata/summaries, never arbitrary text/pixels.
+`android.rs` owns explicit USB registration/state/grant contracts; no hardware I/O here.

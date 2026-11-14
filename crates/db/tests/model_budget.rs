@@ -362,7 +362,7 @@ fn version_two_database_migrates_and_cached_assisted_evidence_survives_restart()
     assert_eq!(
         db.pragma_query_value::<i64, _>(None, "user_version", |r| r.get(0))
             .unwrap(),
-        3
+        6
     );
 }
 

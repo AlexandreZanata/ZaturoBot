@@ -73,3 +73,11 @@ credentials are excluded from work-PC enrollment. Incoming content is inert priv
 never a task, shell input or LLM context. Quotas, fixed chunks, strict UUID object paths,
 no-follow file opens, local process locks and no-overwrite publication bound the file path.
 See [file contracts and recovery](FILE_TRANSFERS.md); this is not the future general vault.
+
+
+Native app credentials are independently revocable; they cannot control owner-admin APIs.
+Google/YouTube credentials stay inside the worker-local profile, distinct from hub tokens.
+Sensitive screens bypass normal feed/artifact persistence: standard age ciphertext exists
+only in bounded hub RAM for one retrieval/short TTL; fixed metadata acceptance blocks raw
+pixels/codes/captions entering task SQL. Literal-loopback app/device clients bypass HTTP
+proxy routing and private responses are no-store. See [private screens](ANDROID_SENSITIVE_SCREENS.md).

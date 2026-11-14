@@ -78,3 +78,11 @@ age streams never require whole-file RAM. Inbox plaintext and endpoint recovery 
 are local owner-retained disk, not part of VPS spool quota. The live measurement in
 [the file report](FILE_TRANSFER_REPORT.md) includes cgroup file-cache memory and is not
 a guarantee for arbitrary throughput or simultaneous large transfers.
+
+
+0.4 private views reserve one HTTP request independently of file transfers, with at most
+two RAM frames of8MiB+64KiB ciphertext and no disk spool. Private plaintext remains on
+endpoints; the VPS keeps only expiring ciphertext. Normal source defaults remain8GiB/24h;
+the large owner-authorized Youtube migration temporarily uses16GiB/7days, within existing
+hard maxima. Video actors use a separate reviewed work-PC resource unit rather than the
+512MiB worker cgroup. See [Youtube service](YOUTUBE_SERVICE.md) and [native clients](NATIVE_CLIENTS.md).

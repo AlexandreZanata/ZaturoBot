@@ -41,3 +41,16 @@ with no bulk task rewrite. Stop hub writers and take a verified SQLite backup fi
 A 0.2 hub refuses schema 4; rollback requires restoring the matching pre-upgrade hub
 snapshot and its binary, not merely replacing the executable. Ciphertext spool and
 registry configuration must be reconciled separately if rolling back after new uploads.
+
+
+`crates/db/migrations/0005_hub_activity.sql` upgrades hub 4 to 5 (or composes 1 -> 4 -> 5)
+with indexed feed items, chat idempotency, operation lookup and service-update deduplication.
+Task/file rows are preserved; existing terminal tasks seed metadata-only notices once by
+stable dedupe key. Sensitive frames are never SQL rows. Back up/quiesce before upgrading;
+a 0.3 hub needs its matching schema-4 backup to roll back.
+
+`crates/db/migrations/0006_worker_services.sql` upgrades worker 3 to 6 (or 2 -> 3 -> 6)
+with a separate service intent/result journal. Existing diagnostic/model tables and charged
+reservations remain unchanged. Unknown side-effecting service intents reconcile via status
+rather than resubmit. Screenshot frames never enter this journal. Rollback requires the
+consistent schema-3 snapshot and old worker binary, not merely a binary replacement.

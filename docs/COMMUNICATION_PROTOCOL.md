@@ -71,3 +71,21 @@ transfer admission/checkpoints and bounded encrypted chunks. JSON remains capped
 16 KiB on requests; chunk routes permit at most 4 MiB and use a 120-second file deadline.
 Two device HTTP requests run concurrently. See [file transfers](FILE_TRANSFERS.md) for
 ownership, idempotent retries, acknowledgement, limits and expiry behavior.
+
+
+## Capability-gated 0.4 service extension
+
+Task protocol2 remains compatible for existing enrolled0.3diagnostic workers: new optional
+service/task-result fields are omitted when absent; only registered new per-service
+capabilities receive new Service assignments. `completed_service` carries bounded typed
+metadata. Worker journal6 fences submissions and reconciles unknown effects by status.
+Independent service-job observations use authenticated `/v1/device/activity` and stable
+operation/state keys. No API accepts arbitrary model-controlled shell strings.
+
+Application credentials use `/v1/feed`, `/v1/chat`, `/v1/services`, artifact metadata and
+read-only worker visibility; they cannot use owner-admin task-control routes. Private
+views use a distinct authenticated grant/frame path with RAM-only standard agecipher,
+no-store responses, explicit confirmation, at most two sessions and one reserved private
+request (separate from normal file throughput). One worker grant and one owner read are
+allowed. Waiting expiry is watch+60seconds(max180); received frames expire within60.
+Task acceptance rejects noncanonical private metadata or captions before SQL persistence.

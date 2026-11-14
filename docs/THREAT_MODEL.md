@@ -48,3 +48,12 @@ Provider requests can incur spend even if their response is lost. Transactional 
 reservations, uncertainty retention, bounded retry, and debt admission contain that risk;
 they do not establish exactly-once provider charging. A compromised host can bypass
 local controls, so OS/file permissions and protected service identities remain necessary.
+
+
+0.4 adds native apps, fixed service subprocesses and USB observations. Independent app
+roles/host pins reduce credential scope; typed requests, per-channel actor locks and
+separate job containment prevent model text from becoming a command. An uncertain remote
+upload is not replay authorization. Private phone frames are recipient-encrypted before
+leaving the worker; the VPS cannot decrypt and never persists them. Token theft on an
+owner endpoint, OS screen/compositor capture, initial physical USB authorization and
+interactive Google consent remain explicit trust boundaries, not solved by transport.

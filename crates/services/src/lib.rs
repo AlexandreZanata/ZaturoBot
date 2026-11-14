@@ -1,4 +1,6 @@
 //! Transactional application use cases shared by transport and CLI composition roots.
+mod activity;
+mod service_tasks;
 mod transfers;
 
 use std::path::Path;
@@ -43,53 +45,8 @@ impl Engine {
     }
 
     pub fn create(&self, request: NewTask, now: i64) -> Result<Task> {
-        request.validate().map_err(Error::Invalid)?;
-        let deadline_at = now
-            .checked_add((request.timeout_seconds * 1000) as i64)
-            .ok_or_else(|| Error::Invalid("timestamp overflows".into()))?;
-        self.store.transaction(|repository| {
-            if let Some((task, previous)) =
-                repository.by_idempotency_key(&request.idempotency_key)?
-            {
-                return if previous == request {
-                    Ok(task)
-                } else {
-                    Err(Error::Conflict(
-                        "idempotency key has a different request".into(),
-                    ))
-                };
-            }
-            if repository.unfinished_count()? >= self.limits.max_queued_tasks {
-                return Err(Error::Capacity);
-            }
-            let mut task = Task {
-                id: Uuid::new_v4().to_string(),
-                operation_id: Uuid::new_v4().to_string(),
-                kind: request.kind,
-                request: request.request.clone(),
-                target_worker: request.target_worker.clone(),
-                state: TaskState::Created,
-                required_capabilities: vec![request.kind.capability().into()],
-                priority: request.priority,
-                budget: ExecutionBudget::default(),
-                max_attempts: request.max_attempts,
-                attempts: 0,
-                created_at: now,
-                updated_at: now,
-                deadline_at,
-                assigned_worker: None,
-                lease_token: None,
-                lease_expires_at: None,
-                result: None,
-                data_policy: request.data_policy,
-                orchestration: None,
-                failure: None,
-            };
-            repository.insert_task(&task, &request)?;
-            repository.append_event(&task, now, "Task created")?;
-            transition(repository, &mut task, TaskState::Queued, now, "Task queued")?;
-            Ok(task)
-        })
+        self.store
+            .transaction(|r| create_record(r, request, now, &self.limits))
     }
 
     pub fn get(&self, id: &str) -> Result<Task> {
@@ -121,7 +78,15 @@ impl Engine {
         validate_identifier(id).map_err(Error::Invalid)?;
         if capabilities.len() > 16
             || capabilities.iter().any(|capability| {
-                !matches!(capability.as_str(), "diagnostic.v1" | "agent.diagnostic.v1")
+                !matches!(
+                    capability.as_str(),
+                    "diagnostic.v1"
+                        | "agent.diagnostic.v1"
+                        | "youtube.read.v1"
+                        | "youtube.submit.v1"
+                        | "android.devices.v1"
+                        | "android.private.v1"
+                )
             })
         {
             return Err(Error::Invalid(
@@ -317,7 +282,8 @@ impl Engine {
         self.store.transaction(|repository| {
             let mut task = repository.task(task_id)?.ok_or(Error::NotFound)?;
             let assisted = completion.orchestration.is_some();
-            if assisted != (task.kind == TaskKind::AssistedDiagnostic)
+            if task.kind == TaskKind::Service
+                || assisted != (task.kind == TaskKind::AssistedDiagnostic)
                 || (assisted && task.data_policy != Some(DataPolicy::PublicCoding))
             {
                 return Err(Error::Invalid(
@@ -534,5 +500,68 @@ fn transition(
     task.updated_at = now;
     repository.save_task(task)?;
     repository.append_event(task, now, message)?;
+    if task.state.is_terminal() {
+        activity::task_notice(repository, task)?;
+    }
     Ok(())
+}
+
+fn create_record(
+    repository: &Repository<'_>,
+    request: NewTask,
+    now: i64,
+    limits: &Limits,
+) -> Result<Task> {
+    request.validate().map_err(Error::Invalid)?;
+    let deadline_at = now
+        .checked_add((request.timeout_seconds * 1000) as i64)
+        .ok_or_else(|| Error::Invalid("timestamp overflows".into()))?;
+    if let Some((task, previous)) = repository.by_idempotency_key(&request.idempotency_key)? {
+        return if previous == request {
+            Ok(task)
+        } else {
+            Err(Error::Conflict(
+                "idempotency key has a different request".into(),
+            ))
+        };
+    }
+    if repository.unfinished_count()? >= limits.max_queued_tasks {
+        return Err(Error::Capacity);
+    }
+    let mut task = Task {
+        service: request.service.clone(),
+        service_result: None,
+        id: Uuid::new_v4().to_string(),
+        operation_id: Uuid::new_v4().to_string(),
+        kind: request.kind,
+        request: request.request.clone(),
+        target_worker: request.target_worker.clone(),
+        state: TaskState::Created,
+        required_capabilities: vec![
+            request
+                .service
+                .as_ref()
+                .map(|s| s.capability())
+                .unwrap_or(request.kind.capability())
+                .into(),
+        ],
+        priority: request.priority,
+        budget: ExecutionBudget::default(),
+        max_attempts: request.max_attempts,
+        attempts: 0,
+        created_at: now,
+        updated_at: now,
+        deadline_at,
+        assigned_worker: None,
+        lease_token: None,
+        lease_expires_at: None,
+        result: None,
+        data_policy: request.data_policy,
+        orchestration: None,
+        failure: None,
+    };
+    repository.insert_task(&task, &request)?;
+    repository.append_event(&task, now, "Task created")?;
+    transition(repository, &mut task, TaskState::Queued, now, "Task queued")?;
+    Ok(task)
 }
