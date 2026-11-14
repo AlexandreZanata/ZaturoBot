@@ -68,3 +68,13 @@ This was a development-machine synthetic workload, not the Oracle VPS. It establ
 observations for that run, not target-machine capacity, sustained memory behavior,
 long-running retention, or future-tool performance. A measured deployment workload and
 separate cgroup/systemd constrained run remain necessary before a production claim.
+
+
+The authorized device-file extension has separate bounded chunk bodies, two concurrent
+device HTTP requests, reserved spool admission and expiry. Defaults and hard maxima are
+canonical `zaturo-core::TransferLimits`/chunk constants, validated at hub startup; see
+[file limits and recovery](FILE_TRANSFERS.md#bounds-and-recovery). Ciphertext, hashing and
+age streams never require whole-file RAM. Inbox plaintext and endpoint recovery caches
+are local owner-retained disk, not part of VPS spool quota. The live measurement in
+[the file report](FILE_TRANSFER_REPORT.md) includes cgroup file-cache memory and is not
+a guarantee for arbitrary throughput or simultaneous large transfers.

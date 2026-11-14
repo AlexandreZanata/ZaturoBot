@@ -37,6 +37,11 @@ phase = 2
 status = "implemented"
 
 [[features]]
+id = "device-files"
+phase = 2
+status = "implemented"
+
+[[features]]
 id = "computer-use"
 phase = 3
 status = "planned"
@@ -92,3 +97,7 @@ examples = ["config/worker.example.toml"]
 name = "ModelsConfig"
 source = "crates/llm/src/config.rs"
 examples = ["config/models.example.toml"]
+
+[[migrations]]
+path = "crates/db/migrations/0004_hub_transfers.sql"
+documentation = "docs/MIGRATIONS.md"

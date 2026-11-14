@@ -1,4 +1,5 @@
 //! Transactional application use cases shared by transport and CLI composition roots.
+mod transfers;
 
 use std::path::Path;
 use thiserror::Error;

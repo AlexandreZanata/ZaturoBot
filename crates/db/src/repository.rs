@@ -13,7 +13,7 @@ pub struct HubStore {
 }
 
 pub struct Repository<'a> {
-    connection: &'a Connection,
+    pub(crate) connection: &'a Connection,
 }
 
 impl HubStore {
@@ -21,8 +21,12 @@ impl HubStore {
         Ok(Self {
             connection: Mutex::new(connection(
                 path,
-                1,
-                include_str!("../migrations/0001_hub.sql"),
+                4,
+                concat!(
+                    include_str!("../migrations/0001_hub.sql"),
+                    "\n",
+                    include_str!("../migrations/0004_hub_transfers.sql")
+                ),
             )?),
         })
     }

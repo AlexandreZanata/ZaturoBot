@@ -1,6 +1,8 @@
 //! Canonical domain contracts and deterministic task rules.
 
 use serde::{Deserialize, Serialize};
+mod files;
+pub use files::*;
 
 mod model;
 pub use model::{

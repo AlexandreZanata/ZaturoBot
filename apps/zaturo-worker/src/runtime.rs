@@ -44,6 +44,7 @@ pub async fn run(config: WorkerConfig, token: String) -> Result<()> {
     config.validate()?;
     Credential::new(&token)?;
     let router = execution::load_router(&config)?;
+    let _inbox = crate::files::start_inbox(&config, &token)?;
     for path in [&config.workspace_root, &config.artifact_root] {
         std::fs::create_dir_all(path)?;
     }

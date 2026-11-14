@@ -3,7 +3,8 @@
 ZaturoBot is a single-owner Linux assistant. A lightweight hub coordinates durable tasks;
 a notebook worker executes them. The current authorized scope is Phases 0–2:
 authenticated durable tasks, one typed diagnostic, and bounded public-coding model
-orchestration. Desktop, vault, integrations, scheduling, and rich clients remain planned.
+orchestration, plus explicitly authorized encrypted cross-network device files and multiple
+bounded diagnostic workers. Desktop, vault, integrations, scheduling, and rich clients remain planned.
 
 ## Read only the context you need
 

@@ -1,7 +1,7 @@
 use anyhow::{Result, ensure};
 use serde::Deserialize;
 use std::{net::SocketAddr, path::PathBuf};
-use zaturo_core::Limits;
+use zaturo_core::{Limits, TransferLimits};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -15,6 +15,12 @@ pub struct HubConfig {
     pub max_page_size: u32,
     pub lease_seconds: u64,
     pub max_workers: u32,
+    #[serde(default)]
+    pub devices_file: Option<PathBuf>,
+    #[serde(default)]
+    pub transfer_root: Option<PathBuf>,
+    #[serde(default)]
+    pub transfer_limits: TransferLimits,
 }
 impl HubConfig {
     pub fn load(path: &std::path::Path) -> Result<Self> {
@@ -46,13 +52,22 @@ impl HubConfig {
             "lease must be 10..300 seconds"
         );
         ensure!(
-            self.max_workers == 1,
-            "phase one supports one registered device"
+            (1..=8).contains(&self.max_workers),
+            "max_workers must be 1..8"
         );
         zaturo_core::validate_identifier(&self.worker_id).map_err(anyhow::Error::msg)?;
         ensure!(
             !self.database.as_os_str().is_empty(),
             "database path is required"
+        );
+        ensure!(self.transfer_limits.validates(), "invalid transfer limits");
+        ensure!(
+            self.devices_file.is_some() == self.transfer_root.is_some(),
+            "device registry and transfer root must be configured together"
+        );
+        ensure!(
+            self.devices_file.is_none() || self.max_page_size >= 20,
+            "device file API requires max_page_size of at least 20"
         );
         validate_url(&self.client_url)?;
         Ok(())

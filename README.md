@@ -1,7 +1,7 @@
 # ZaturoBot
 
 A single-owner Linux automation foundation: a lightweight coordination hub and an
-outbound notebook worker. It persists task history in SQLite, reconciles durable leases
+outbound Linux workers. It persists task history in SQLite, reconciles durable leases
 and worker journals, and supports a direct diagnostic plus a bounded model-assisted
 public coding diagnostic. The direct diagnostic needs no AI API key; the assisted route
 uses the owner-selected OpenCode Go model. Neither needs Docker, a desktop, or a GPU.
@@ -86,6 +86,27 @@ The installed private services and owner CLI profile are documented in
 [the Phase 2 report](docs/PHASE2_REPORT.md). The hub remains reachable through the
 verified SSH tunnel, with operational keys and tokens excluded from the source artifact.
 
+## Files between computers
+
+Version 0.3.0 adds encrypted resumable files through the VPS with separate credentials
+per device. Both PCs initiate pinned SSH connections; no home-router port is needed.
+Only ciphertext is stored on the relay. The worker verifies and saves incoming files
+without opening/executing them or sending them to a model.
+
+Use [Ubuntu/Debian enrollment](deploy/device/README.md) with the private owner-issued
+bundle. Installed profiles provide a `~/.local/bin/zaturo` wrapper:
+
+```bash
+~/.local/bin/zaturo files peers
+~/.local/bin/zaturo files send /absolute/path/report.pdf --to work-pc
+~/.local/bin/zaturo files list
+~/.local/bin/zaturo task diagnostic
+```
+
+See [file contracts and recovery](docs/FILE_TRANSFERS.md) and
+[measured VPS verification](docs/FILE_TRANSFER_REPORT.md). The physical work PC still
+runs its protected enrollment handoff; a simulated second profile is not that installation.
+
 ## Validate
 
 ```bash
@@ -97,7 +118,7 @@ cargo xtask secrets
 
 See [testing](docs/TESTING.md), [deployment](docs/DEPLOYMENT.md),
 [security](docs/SECURITY.md), and [resource limits](docs/RESOURCE_LIMITS.md).
-The current quality gate passed 100 tests; Phase 2 live execution and restart evidence
+The current quality gate passed 107 tests; Phase 2 live execution and restart evidence
 are recorded in [its report](docs/PHASE2_REPORT.md). A recorded 100-task local benchmark
 observed 8.30 MiB idle hub RSS and 9.11 MiB peak RSS; this is development-machine
 evidence, not an Oracle capacity guarantee. Read the
@@ -107,7 +128,8 @@ before authentication; remote access still requires a private secure network pat
 
 ## Scope and license
 
-The owner authorized Phases 0–2, private hub/worker activation, and GitHub publication
+The owner authorized Phases 0–2, private hub/worker activation, encrypted cross-network device files and bounded multiple
+diagnostic workers, and GitHub publication
 after validation. Computer use, encrypted vault, personal service adapters, recurring
 scheduling, and graphical/mobile clients remain [planned](docs/ROADMAP.md). This phase
 does not add arbitrary project editing, desktop control, or an unrestricted shell.

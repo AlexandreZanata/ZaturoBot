@@ -13,6 +13,7 @@ ExecStart=/usr/local/bin/zaturo-hub --config /etc/zaturo/hub.toml serve
 Restart=on-failure
 RestartSec=5
 StateDirectory=zaturo-hub
+StateDirectoryMode=0700
 UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true

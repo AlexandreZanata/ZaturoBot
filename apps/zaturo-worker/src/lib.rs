@@ -1,6 +1,7 @@
 //! Outbound worker transport and durable, policy-checked diagnostic execution.
 pub mod config;
 mod execution;
+pub mod files;
 mod runtime;
 pub use runtime::{connect_once, connect_once_with_router, run};
 

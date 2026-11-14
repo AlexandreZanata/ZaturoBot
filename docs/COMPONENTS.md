@@ -18,6 +18,8 @@ stable discovery keys; [architecture.toml](../architecture.toml) is the dependen
   routing, bounded OpenCode Go transport, cancellation, and synthetic fake client.
 - `zaturo-orchestrator` — `crates/orchestrator`: strict structured proposals, bounded
   diagnostic planning, policy/executor ports, evidence-based completion, and no shell.
+- `zaturo-transfer` — `crates/transfer`: streaming age encryption, bounded opaque spool,
+  durable resumable client caches, per-transfer inbox publication and checksum verification.
 - `zaturo-hub` — `apps/zaturo-hub`: HTTP/WebSocket composition, pre-HTTP bounded TCP listener,
   notification-driven dispatch with durable fallback, and owner CLI.
 - `zaturo-worker` — `apps/zaturo-worker`: outbound connection, journal reconciliation,

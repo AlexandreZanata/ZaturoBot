@@ -37,3 +37,14 @@ Implementation status belongs to [roadmap](ROADMAP.md), not to duplicated checkl
 Acceptance: start hub and worker; create/list/show an authenticated diagnostic task;
 inspect persisted event history; verify task completion and reconnect/restart behavior;
 run `cargo xtask check`. See [testing](TESTING.md) for evidence boundaries.
+
+
+## Owner-authorized device file extension
+
+The owner requested bidirectional files and specific registered bot tasks between two
+Linux Ubuntu/Debian PCs on different networks through the VPS, plus private setup material
+for the destination Codex and publication of code only. Use separate device credentials,
+resumable bounded encrypted transfer and private inboxes; preserve local files/certificates
+in the unrelated PDF project. The work PC can run the existing diagnostic; only the home
+worker has the bounded public-coding DeepSeek route. Mouse/desktop/browser/social posting
+are future requests and are not implemented by receiving a file or submitting task text.

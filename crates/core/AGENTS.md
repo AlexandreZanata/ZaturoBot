@@ -5,6 +5,7 @@ diagnostic contracts, disclosure policy, model evidence, budgets, and pure valid
 It performs no I/O. Persisted times are injected UTC Unix milliseconds.
 
 - `src/lib.rs`: lifecycle, task records, capabilities, and deterministic task validation.
+- `src/files.rs`: device file contracts, bounded quotas, safe names and cipher hashes.
 - `src/model.rs`: explicit public-coding grants, typed model usage/failures, assisted
   results, reservation identities, and pure request/task/day/month budget policy.
 

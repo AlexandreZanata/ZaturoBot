@@ -24,6 +24,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/workers", get(workers))
         .route_layer(middleware::from_fn_with_state(state.clone(), owner_auth));
     Router::new()
+        .merge(crate::files::router(state.clone()))
         .merge(owner_routes)
         .route(
             "/healthz",
@@ -41,7 +42,12 @@ async fn admission(State(state): State<AppState>, request: Request<Body>, next: 
     let Ok(_permit) = state.requests.clone().try_acquire_owned() else {
         return (StatusCode::SERVICE_UNAVAILABLE, "request capacity reached").into_response();
     };
-    match tokio::time::timeout(std::time::Duration::from_secs(10), next.run(request)).await {
+    let seconds = if request.uri().path().starts_with("/v1/device/transfers") {
+        120
+    } else {
+        10
+    };
+    match tokio::time::timeout(std::time::Duration::from_secs(seconds), next.run(request)).await {
         Ok(response) => response,
         Err(_) => (StatusCode::REQUEST_TIMEOUT, "request timed out").into_response(),
     }
@@ -71,7 +77,7 @@ fn failure(status: StatusCode, error: &str) -> Response {
         .into_response()
 }
 
-pub struct ApiFailure(StatusCode, &'static str);
+pub struct ApiFailure(pub(crate) StatusCode, pub(crate) &'static str);
 impl IntoResponse for ApiFailure {
     fn into_response(self) -> Response {
         failure(self.0, self.1)

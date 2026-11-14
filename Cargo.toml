@@ -1,9 +1,9 @@
 [workspace]
 resolver = "3"
-members = ["apps/zaturo-hub", "apps/zaturo-worker", "crates/core", "crates/protocol", "crates/db", "crates/services", "crates/security", "crates/tools", "crates/llm", "crates/orchestrator", "xtask"]
+members = ["apps/zaturo-hub", "apps/zaturo-worker", "crates/core", "crates/protocol", "crates/db", "crates/services", "crates/security", "crates/tools", "crates/llm", "crates/orchestrator", "crates/transfer", "xtask"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.99"
 publish = false
@@ -29,6 +29,9 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 uuid = { version = "1.25", features = ["v4", "serde"] }
 url = "2.5"
+libc = "0.2"
+age = { version = "0.12.1", default-features = false }
+zaturo-transfer = { path = "crates/transfer" }
 zaturo-core = { path = "crates/core" }
 zaturo-protocol = { path = "crates/protocol" }
 zaturo-db = { path = "crates/db" }

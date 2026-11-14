@@ -23,8 +23,10 @@ zaturo-security.workspace = true
 zaturo-tools.workspace = true
 zaturo-llm.workspace = true
 zaturo-orchestrator.workspace = true
+zaturo-transfer.workspace = true
 
 [dev-dependencies]
+sha2.workspace = true
 axum.workspace = true
 tempfile.workspace = true
 zaturo-hub.workspace = true

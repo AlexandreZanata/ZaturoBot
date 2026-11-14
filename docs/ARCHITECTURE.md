@@ -48,3 +48,13 @@ are in their topic documents. The initial API/CLI takes priority over a dashboar
 OpenTatu informed the concise instructions, recipe map, explicit dependency manifest,
 and executable repository checks. Its single-process investigation pipeline and provider
 implementation are reference material, not ZaturoBot requirements or copied behavior.
+
+## Encrypted device relay
+
+`zaturo-transfer` owns streaming age crypto, opaque filesystem spool and bounded device
+HTTP/cache I/O. Core owns transfer contracts/limits; db owns metadata/checkpoint SQL;
+services own quota, idempotency, ownership and delivery transitions. Hub composition binds
+a registry-authenticated device identity to HTTP/WS and serializes disk/DB checkpoints.
+Worker composition checks an independent private inbox every five seconds. Received files
+never enter the model/task execution path. Both PCs use outbound restricted pinned SSH;
+the hub stores ciphertext and public recipients only. See [file transfers](FILE_TRANSFERS.md).

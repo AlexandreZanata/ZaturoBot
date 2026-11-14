@@ -32,3 +32,12 @@ in a released installation. Add an append-only migration and document data trans
 compatibility, expected duration, and rollback/restore implications. Downgrading a binary
 is not automatically a supported schema downgrade. See
 [add-database-migration](recipes/add-database-migration.md).
+
+`crates/db/migrations/0004_hub_transfers.sql` upgrades only hub schema 1 to 4, adding
+file metadata/idempotency, checkpoint/quota indexes and a separate transfer event audit.
+Task, worker and task-event rows are preserved. New databases apply 0001 and 0004 in
+one transaction. Worker schema remains 3. The upgrade is local table/index creation
+with no bulk task rewrite. Stop hub writers and take a verified SQLite backup first.
+A 0.2 hub refuses schema 4; rollback requires restoring the matching pre-upgrade hub
+snapshot and its binary, not merely replacing the executable. Ciphertext spool and
+registry configuration must be reconciled separately if rolling back after new uploads.

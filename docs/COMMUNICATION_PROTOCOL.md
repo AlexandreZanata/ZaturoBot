@@ -61,3 +61,13 @@ Re-registration, lease validation, stable operation identity, and journal reconc
 prevent a new socket from implicitly authorizing stale work. There is no exactly-once
 external-effect guarantee. Future protocol changes require version compatibility tests
 and an explicit rollout/migration decision; do not silently repurpose versioned fields.
+
+## Additive device HTTP API (0.3)
+
+Task WebSocket version 2 is retained. A private multi-device registry replaces the legacy
+single credential when enabled; hello IDs must match the authenticated token's fixed ID.
+The new authenticated `/v1/device/` endpoints support peer public keys, own diagnostics,
+transfer admission/checkpoints and bounded encrypted chunks. JSON remains capped at
+16 KiB on requests; chunk routes permit at most 4 MiB and use a 120-second file deadline.
+Two device HTTP requests run concurrently. See [file transfers](FILE_TRANSFERS.md) for
+ownership, idempotent retries, acknowledgement, limits and expiry behavior.

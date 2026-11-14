@@ -62,3 +62,14 @@ Ignored `.secrets/` contains owner-controlled operational material outside the s
 artifact. Repository documentation walks skip it. The publication gate checks Git-visible
 working files, staged content, and reachable history with redacted failures. Passing
 that heuristic is not a substitute for reviewing the actual staged diff before push.
+
+## Device file boundary
+
+The authorized relay uses independent device tokens, SHA-256 registry entries and a fixed
+identity at WS hello. Native age identities and plaintext remain on endpoints; the hub
+sees filenames, encrypted sizes/hashes and delivery metadata. Transport SSH uses new
+per-device keys restricted to local forwarding to the loopback hub. Owner/admin/provider
+credentials are excluded from work-PC enrollment. Incoming content is inert private data,
+never a task, shell input or LLM context. Quotas, fixed chunks, strict UUID object paths,
+no-follow file opens, local process locks and no-overwrite publication bound the file path.
+See [file contracts and recovery](FILE_TRANSFERS.md); this is not the future general vault.

@@ -10,3 +10,4 @@ ssh-key-*.key.pub
 *.db-wal
 /artifacts/
 /workspaces/
+__pycache__/

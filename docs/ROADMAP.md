@@ -23,6 +23,13 @@ does not implement arbitrary code changes or general personal tasks.
 Gate: prohibited proposals cannot cross policy; errors/restarts cannot spend unboundedly.
 The final integration/activation evidence is recorded in the Phase 2 engineering report.
 
+<!-- feature:device-files status:implemented -->
+## Authorized Phase 2 extension: device files
+
+Independent device credentials, multiple bounded diagnostic workers, encrypted store-and-forward
+files over outbound SSH tunnels, durable chunk checkpoints, and Ubuntu/Debian enrollment.
+See [file transfers](FILE_TRANSFERS.md). Desktop input and account integrations remain planned.
+
 <!-- feature:computer-use status:planned -->
 ## Phase 3: Linux computer use
 
@@ -59,8 +66,9 @@ Gate: secure sessions, accessible controls, owner takeover, and reconnect tests.
 <!-- feature:advanced-autonomy status:planned -->
 ## Phase 8: advanced autonomy
 
-Multiple workers, specialist agents, durable memory, delegation, and provider optimization.
+Specialist agents, durable memory, delegation, and provider optimization. Basic independent
+diagnostic workers are already supported by the authorized device-file extension.
 Gate: a single-worker agent is already reliable and measured before complexity grows.
 
-This pass stops after the explicitly authorized Phase 2 and private installation.
+This pass includes the explicitly authorized Phase 2, device-file extension and private installation.
 Phase 3 computer use and every later feature still require their own scoped request.

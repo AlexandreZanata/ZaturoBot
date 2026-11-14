@@ -100,3 +100,16 @@ blobs. Known sensitive paths/credential forms fail with path/category only. It n
 opens ignored private material or echoes a match. Mutation tests cover staged and
 historical leakage after cleaning the working file. This heuristic complements staged-
 diff review; it cannot prove the absence of arbitrary encoded secrets.
+
+## ADR-0014: Encrypted device relay and scoped enrollment — accepted
+
+The owner authorized bidirectional files between Ubuntu/Debian PCs on different networks,
+with the Oracle VPS as relay, GitHub publication and private destination setup material.
+Use standard age encryption on the sender, recipient-local verified publication, bounded
+VPS ciphertext retention and durable offsets. Files never become model instructions or
+automatic executable tasks. Registry entries bind independent bearer hashes to device IDs
+and public encryption recipients. The destination receives a new restricted SSH identity,
+not the admin key, owner bearer or AI key. Basic multiple diagnostic workers are needed
+for this scope; general multi-agent autonomy remains planned. Keep task protocol version 2;
+the file API is additive HTTP and a separate five-second inbox loop preserves heartbeat
+responsiveness. Desktop, browser and social-account actions are future scope.

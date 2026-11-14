@@ -26,9 +26,13 @@ version definitions. Review upstream license notices before distributing binarie
 - `thiserror` and `anyhow`: typed library failures and composition-root context.
   External error responses expose categories rather than internal strings or secrets.
 - `tracing` and `tracing-subscriber`: structured JSON events and operator-selected log levels.
+- `age`: standard streaming X25519 recipient encryption and authenticated decryption.
+  Native private identities remain on endpoints; no custom encryption construction.
+  Default features are disabled; plugin/SSH identity execution is not enabled.
+- `libc`: the `O_NOFOLLOW` constant for safe Unix file opening; no unsafe code.
 - `tempfile`: isolated test databases and synthetic local state; never production fixtures.
 
 Transitive dependencies are inherited from these adapters, pinned in the lockfile, and
 compiled with the toolchain recorded in `rust-toolchain.toml`. This inventory is not a
-claim that a vulnerability or license audit has been performed. Python 3 is an optional
-benchmark dependency only; the runtime and repository quality gate are Rust-based.
+claim that a vulnerability or license audit has been performed. Python 3 supports optional benchmarks and the Linux enrollment installer; the running
+services and repository quality gate are Rust-based.

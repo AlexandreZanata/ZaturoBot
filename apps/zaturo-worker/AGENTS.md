@@ -10,3 +10,8 @@ reporting. An unknown side effect must never be blindly retried. Read
 [recovery](../../docs/TASK_LIFECYCLE.md) before editing the connection loop.
 Keep the socket responsive while execution runs. Owned jobs must cancel on revocation
 or disconnect; persisted reservations fence replay even after abrupt process death.
+
+`files.rs` runs a separate private inbox loop; `zaturo-transfer` owns crypto and file
+transport. Received bytes are inert and never enter task/model execution. Use a unique
+local native age identity and private per-transfer inbox paths. Work-PC enrollment has
+neither provider nor owner/admin credentials. See [files](../../docs/FILE_TRANSFERS.md).

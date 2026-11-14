@@ -3,7 +3,8 @@
 The owner authorized service activation, Phase 2 implementation, paid DeepSeek calls,
 and publication of code after validation on 2026-11-13. The Oracle hub and this PC's
 worker run as systemd services, independently of the coding-agent session. Actual task
-and validation evidence belongs to the [Phase 2 report](PHASE2_REPORT.md).
+and validation evidence belongs to the [Phase 2 report](PHASE2_REPORT.md) and
+[device file report](FILE_TRANSFER_REPORT.md).
 
 ## Private network path
 
@@ -15,7 +16,8 @@ is required for this topology. Remote direct plaintext HTTP remains rejected by 
 
 The VPS firewall retains deny-incoming policy and only the existing SSH allowance.
 Host-key verification stays enabled. A changed host key requires independent verification.
-The owner-supplied key pair remains in ignored `.secrets/ssh/`; neither key contents
+The owner-supplied admin key pair remains in ignored `.secrets/ssh/`; current service
+tunnels use new per-device restricted keys under private user configuration. Neither key contents
 nor the actual server address appears in public configuration templates.
 
 ## Installed service boundaries
@@ -108,3 +110,21 @@ The earlier PDF retirement remains recorded in the historical
 [reuse report](../deploy/oracle/REUSE_VPS.md). Its encrypted recovery archive and all local
 PDF files/certificates remain preserved. Desktop control, GitHub account automation,
 email/video integrations, and autonomous scheduling are still future phases.
+
+
+## Device file extension (0.3.0)
+
+The owner authorized encrypted device files and Ubuntu/Debian work-PC enrollment. Hub
+schema is now 4; task WebSocket remains version 2 and the worker journal remains 3.
+The hub uses `/etc/zaturo/devices.toml` (`root:zaturo-hub`, 0640) with distinct device
+credential digests and public age recipients. Its bounded ciphertext spool is
+`/var/lib/zaturo-hub/transfers` (0700). `StateDirectoryMode=0700` preserves state privacy
+across restarts. The old schema-1 snapshot and 0.2.0 hub binary remain for rollback.
+
+Both device SSH keys use the separate `zaturo-link` account, restricted to local TCP
+forwarding to the loopback hub. Admin shell access is preserved separately. Strict host
+checking uses a dedicated pinned known-host file. The home worker's model environment
+and model configuration were preserved byte-for-byte; its inbox is independent of AI.
+The home wrapper is `~/.local/bin/zaturo`. The protected work-PC enrollment bundle and
+prompt are ignored private material; neither contains an admin, owner or provider key.
+See [Linux setup](../deploy/device/README.md) and [file contracts](FILE_TRANSFERS.md).

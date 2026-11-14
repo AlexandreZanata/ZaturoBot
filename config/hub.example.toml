@@ -8,3 +8,12 @@ max_queued_tasks = 256
 max_page_size = 100
 lease_seconds = 30
 max_workers = 1
+# Enable these together for registry-authenticated encrypted file relay:
+# devices_file = "/etc/zaturo/devices.toml"
+# transfer_root = "/var/lib/zaturo-hub/transfers"
+# Increase max_workers to the number of independently registered devices (at most 8).
+[transfer_limits]
+max_file_bytes = 2147483648
+max_spool_bytes = 8589934592
+max_pending = 128
+ttl_seconds = 86400

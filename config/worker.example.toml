@@ -8,3 +8,9 @@ capabilities = ["diagnostic.v1"]
 max_concurrent_tasks = 1
 heartbeat_seconds = 5
 reconnect_max_seconds = 30
+# Optional encrypted inbox. Generate an identity with `zaturo-worker identity PATH`.
+# Register only its printed public recipient on the hub; keep the identity private.
+# [files]
+# identity = "/home/owner/.config/zaturobot/transfer.identity"
+# cache = "/home/owner/.local/share/zaturobot/transfer-cache"
+# inbox = "/home/owner/.local/share/zaturobot/inbox"

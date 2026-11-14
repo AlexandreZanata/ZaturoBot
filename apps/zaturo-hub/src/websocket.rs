@@ -20,9 +20,11 @@ pub async fn upgrade(
     headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Response {
-    if !bearer(&headers).is_some_and(|value| state.device.verifies(value)) {
+    let Some(authenticated_id) =
+        bearer(&headers).and_then(|value| state.authenticate_device(value))
+    else {
         return StatusCode::UNAUTHORIZED.into_response();
-    }
+    };
     let Ok(permit) = state.connections.clone().try_acquire_owned() else {
         return StatusCode::TOO_MANY_REQUESTS.into_response();
     };
@@ -30,7 +32,7 @@ pub async fn upgrade(
         .max_frame_size(MAX_MESSAGE_BYTES)
         .on_upgrade(move |socket| async move {
             let _permit = permit;
-            session(state, socket).await;
+            session(state, socket, authenticated_id).await;
         })
         .into_response()
 }
@@ -61,7 +63,7 @@ async fn send(socket: &mut WebSocket, message: ServerMessage) -> bool {
     )
 }
 
-async fn session(state: AppState, mut socket: WebSocket) {
+async fn session(state: AppState, mut socket: WebSocket, authenticated_id: String) {
     let hello = tokio::time::timeout(Duration::from_secs(5), socket.recv()).await;
     let Ok(Some(Ok(Message::Text(text)))) = hello else {
         return;
@@ -74,7 +76,7 @@ async fn session(state: AppState, mut socket: WebSocket) {
     else {
         return;
     };
-    if worker_id != state.config.worker_id {
+    if worker_id != authenticated_id {
         return;
     }
     {

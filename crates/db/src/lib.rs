@@ -3,6 +3,7 @@
 mod journal;
 mod model_budget;
 mod repository;
+mod transfers;
 
 pub use journal::WorkerJournal;
 pub use repository::{HubStore, Repository};
@@ -41,6 +42,12 @@ fn connection(
     let version: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
     if version == 0 {
         connection.execute_batch(&format!("BEGIN IMMEDIATE;\n{migration}\nCOMMIT;"))?;
+    } else if expected_version == 4 && version == 1 {
+        connection.execute_batch(concat!(
+            "BEGIN IMMEDIATE;\n",
+            include_str!("../migrations/0004_hub_transfers.sql"),
+            "\nCOMMIT;"
+        ))?;
     } else if expected_version == 3 && version == 2 {
         connection.execute_batch(concat!(
             "BEGIN IMMEDIATE;\n",

@@ -6,7 +6,9 @@ Repository transactions persist caller-decided state transitions atomically with
 never invent business rules. Core owns quota evaluation; the budget repository supplies
 transactionally read totals and commits its decision.
 
-- `repository.rs`: hub task, event, worker and queue queries; schema version 1.
+- `repository.rs`: hub task, event, worker and queue queries; schema version 4, upgraded from 1.
+- `transfers.rs`: bounded file metadata, durable offsets, quota totals and transfer audit.
+- `migrations/0004_hub_transfers.sql`: hub version 1 to 4, preserving task/worker evidence.
 - `journal.rs`: local intents, one cached diagnostic, and complete assisted evidence.
 - `model_budget.rs`: worker reservations, actual usage, uncertainty and cancellation.
 - `migrations/0003_worker_model_budget.sql`: additive worker version 2 to 3 migration.

@@ -1,5 +1,7 @@
 //! Hub composition and bounded transport. Domain decisions live in services.
 pub mod config;
+mod devices;
+mod files;
 mod http;
 pub mod listener;
 mod websocket;
@@ -21,6 +23,10 @@ pub struct AppState {
     pub owner: Credential,
     pub device: Credential,
     pub config: config::HubConfig,
+    pub devices: Option<Arc<devices::DeviceRegistry>>,
+    pub blobs: Option<zaturo_transfer::blob::BlobStore>,
+    pub file_lock: Arc<tokio::sync::Mutex<()>>,
+    pub file_requests: Arc<Semaphore>,
     pub connections: Arc<Semaphore>,
     pub requests: Arc<Semaphore>,
     pub connected: Arc<Mutex<HashSet<String>>>,
@@ -39,9 +45,24 @@ impl AppState {
         {
             std::fs::create_dir_all(parent)?;
         }
+        let devices = config
+            .devices_file
+            .as_ref()
+            .map(|p| devices::DeviceRegistry::load(p, config.max_workers))
+            .transpose()?
+            .map(Arc::new);
+        let blobs = config
+            .transfer_root
+            .as_ref()
+            .map(|p| zaturo_transfer::blob::BlobStore::open(p))
+            .transpose()?;
         let engine = Arc::new(Engine::open(&config.database, config.limits())?);
         Ok(Self {
             engine,
+            devices,
+            blobs,
+            file_lock: Arc::new(tokio::sync::Mutex::new(())),
+            file_requests: Arc::new(Semaphore::new(2)),
             owner,
             device,
             connections: Arc::new(Semaphore::new(config.max_connections)),
@@ -50,6 +71,13 @@ impl AppState {
             changes: Arc::new(Notify::new()),
             config,
         })
+    }
+    pub fn authenticate_device(&self, token: &str) -> Option<String> {
+        match &self.devices {
+            Some(registry) => registry.authenticate(token),
+            None if self.device.verifies(token) => Some(self.config.worker_id.clone()),
+            None => None,
+        }
     }
 }
 
@@ -70,6 +98,16 @@ pub fn now_ms() -> i64 {
 pub async fn serve(state: AppState) -> Result<()> {
     let listener = tokio::net::TcpListener::bind(state.config.bind).await?;
     tracing::info!(address = %listener.local_addr()?, "hub_started");
+    let cleanup_state = state.clone();
+    let cleanup = tokio::spawn(async move {
+        let mut tick = tokio::time::interval(std::time::Duration::from_secs(60));
+        loop {
+            tick.tick().await;
+            if files::cleanup(&cleanup_state).await.is_err() {
+                tracing::error!("transfer_cleanup_failed");
+            }
+        }
+    });
     let engine = state.engine.clone();
     let changes = state.changes.clone();
     let recovery = tokio::spawn(async move {
@@ -92,6 +130,7 @@ pub async fn serve(state: AppState) -> Result<()> {
         })
         .await;
     recovery.abort();
+    cleanup.abort();
     result?;
     Ok(())
 }

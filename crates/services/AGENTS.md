@@ -12,3 +12,7 @@ operation IDs across retries; the worker's budget journal must reconcile uncerta
 model requests instead of repeating them. Claims must skip unsupported task capabilities
 without starving eligible queued tasks. Test stale messages, migration compatibility,
 failure fencing, disclosure policy and restart behavior before changing recovery.
+
+`transfers.rs` owns file admission/idempotency, ownership, quota reservations, progress,
+delivery and expiry. Infrastructure verifies/writes/fsyncs bytes before checkpointing;
+remove expired bytes before releasing quota. File payloads never become executable tasks.

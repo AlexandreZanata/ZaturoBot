@@ -5,7 +5,7 @@ StartLimitIntervalSec=0
 [Service]
 Type=simple
 EnvironmentFile=%h/.config/zaturobot/tunnel.env
-ExecStart=/usr/bin/ssh -N -T -p ${ZATURO_DEPLOY_SSH_PORT} -i ${ZATURO_DEPLOY_SSH_KEY} -L 127.0.0.1:17878:127.0.0.1:7878 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UpdateHostKeys=no -o ExitOnForwardFailure=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 ${ZATURO_DEPLOY_SSH_USER}@${ZATURO_DEPLOY_SSH_HOST}
+ExecStart=/usr/bin/ssh -N -T -p ${ZATURO_DEPLOY_SSH_PORT} -i ${ZATURO_DEPLOY_SSH_KEY} -L 127.0.0.1:17878:127.0.0.1:7878 -o UserKnownHostsFile=${ZATURO_DEPLOY_KNOWN_HOSTS} -o Compression=no -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UpdateHostKeys=no -o ExitOnForwardFailure=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 ${ZATURO_DEPLOY_SSH_USER}@${ZATURO_DEPLOY_SSH_HOST}
 Restart=always
 RestartSec=5
 TimeoutStopSec=15

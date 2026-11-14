@@ -13,6 +13,9 @@ async fn start_hub(path: &std::path::Path) -> (AppState, String, JoinHandle<()>)
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let config = HubConfig {
+        devices_file: None,
+        transfer_root: None,
+        transfer_limits: Default::default(),
         bind: address,
         client_url: format!("http://{address}"),
         database: path.join("hub.db"),
@@ -34,6 +37,7 @@ async fn start_hub(path: &std::path::Path) -> (AppState, String, JoinHandle<()>)
 
 fn worker_config(path: &std::path::Path, url: String) -> WorkerConfig {
     WorkerConfig {
+        files: None,
         hub_url: url,
         worker_id: "local-worker".into(),
         database: path.join("worker.db"),

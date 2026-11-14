@@ -36,3 +36,22 @@ Do not paste authenticated environment output into issue reports.
 
 Build on a compatible machine, not by compiling other projects on the 1 GB hub.
 The example `MemoryMax=300M` is containment; target-machine validation is still required.
+
+## Authorized device-file relay
+
+The 0.3 profile adds a private device registry and ciphertext spool; it does not open a
+public API port. [File contracts](../../docs/FILE_TRANSFERS.md) describe the limits and
+[the report](../../docs/FILE_TRANSFER_REPORT.md) records actual validation. The public
+SSH Match template is [zaturo-link.sshd.conf](zaturo-link.sshd.conf). Issue a distinct
+restricted SSH key per PC, and register only token digests/public age recipients on the hub.
+Never install endpoint decryption identities or the model provider key on the VPS.
+
+If an existing `AllowUsers` list is present, preserve every existing administrator and
+explicitly add only the new transport account. Validate a prospective configuration in
+a temporary file first, inspect effective settings for both admin and transport users,
+then install atomically, run `sshd -t` again and reload while retaining an authenticated
+admin session. Keep the verified admin key separate. A transport key must pass the hub
+forward test while shell, other destination ports and remote forwarding fail. Removing
+an authorized key does not terminate existing SSH sessions; close that device's session
+when revoking access. Owner approval for this dedicated VPS preparation/deployment is
+recorded separately from the public template; templates do not authorize other hosts.

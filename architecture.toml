@@ -33,13 +33,17 @@ may_depend_on = ["zaturo-core"]
 path = "crates/orchestrator"
 may_depend_on = ["zaturo-core", "zaturo-llm", "zaturo-security"]
 
+[crates.zaturo-transfer]
+path = "crates/transfer"
+may_depend_on = ["zaturo-core", "zaturo-security"]
+
 [crates.zaturo-hub]
 path = "apps/zaturo-hub"
-may_depend_on = ["zaturo-core", "zaturo-protocol", "zaturo-db", "zaturo-services", "zaturo-security"]
+may_depend_on = ["zaturo-core", "zaturo-protocol", "zaturo-db", "zaturo-services", "zaturo-security", "zaturo-transfer"]
 
 [crates.zaturo-worker]
 path = "apps/zaturo-worker"
-may_depend_on = ["zaturo-core", "zaturo-protocol", "zaturo-db", "zaturo-security", "zaturo-tools", "zaturo-llm", "zaturo-orchestrator"]
+may_depend_on = ["zaturo-core", "zaturo-protocol", "zaturo-db", "zaturo-security", "zaturo-tools", "zaturo-llm", "zaturo-orchestrator", "zaturo-transfer"]
 may_dev_depend_on = ["zaturo-hub"]
 
 [crates.xtask]

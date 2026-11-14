@@ -16,6 +16,15 @@ pub struct WorkerConfig {
     pub reconnect_max_seconds: u64,
     #[serde(default)]
     pub models_config: Option<PathBuf>,
+    #[serde(default)]
+    pub files: Option<FilesConfig>,
+}
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FilesConfig {
+    pub identity: PathBuf,
+    pub cache: PathBuf,
+    pub inbox: PathBuf,
 }
 impl WorkerConfig {
     pub fn load(path: &Path) -> Result<Self> {
@@ -59,6 +68,15 @@ impl WorkerConfig {
         );
         for path in [&self.database, &self.workspace_root, &self.artifact_root] {
             ensure!(!path.as_os_str().is_empty(), "local paths are required");
+        }
+        if let Some(files) = &self.files {
+            for path in [&files.identity, &files.cache, &files.inbox] {
+                ensure!(path.is_absolute(), "file transfer paths must be absolute");
+            }
+            ensure!(
+                files.cache != files.inbox,
+                "cache and inbox must be separate"
+            );
         }
         Ok(())
     }

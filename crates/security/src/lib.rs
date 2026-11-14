@@ -44,6 +44,17 @@ pub struct InvalidCredential;
 #[derive(Clone)]
 pub struct Credential([u8; 32]);
 impl Credential {
+    pub fn from_sha256_hex(value: &str) -> Result<Self, InvalidCredential> {
+        if !zaturo_core::valid_sha256(value) {
+            return Err(InvalidCredential);
+        }
+        let mut bytes = [0; 32];
+        for (index, byte) in bytes.iter_mut().enumerate() {
+            *byte = u8::from_str_radix(&value[index * 2..index * 2 + 2], 16)
+                .map_err(|_| InvalidCredential)?;
+        }
+        Ok(Self(bytes))
+    }
     pub fn new(value: &str) -> Result<Self, InvalidCredential> {
         if value.len() < 32 || value.len() > 256 || !value.bytes().all(|b| b.is_ascii_graphic()) {
             return Err(InvalidCredential);

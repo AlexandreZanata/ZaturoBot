@@ -26,3 +26,6 @@ Future work is specified in [computer use](COMPUTER_USE.md),
 [scheduler](SCHEDULER.md). Use [glossary](GLOSSARY.md) for canonical vocabulary.
 
 Each topic has one canonical document. Link to it instead of copying its policy.
+
+[Encrypted device file contracts](FILE_TRANSFERS.md), [verification report](FILE_TRANSFER_REPORT.md),
+and [Linux device enrollment](../deploy/device/README.md) cover the authorized file extension.
