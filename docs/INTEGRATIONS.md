@@ -59,3 +59,13 @@ original generator/extension/upload implementation preserved in its own reposito
 See [YoutubeBot service](YOUTUBE_SERVICE.md). Android USB discovery and controlled private
 capture are implemented separately; see [Android](ANDROID_INTEGRATION.md). Neither is
 an unrestricted model tool. Remaining integrations above retain their planned status.
+
+
+## Authorized semantic computer, BitLupa and social slices
+
+The registered semantic-computer integration uses model-independent Linux and browser
+backends under exact native owner confirmations. The bitlupa bridge reads real stored
+offers; live price-monitoring remains planned. The social Postiz connector supports
+reviewed initial drafts/post/schedule/status operations, not universal network comments
+or account login. See [computer use](COMPUTER_USE.md), [social](SOCIAL_MANAGEMENT.md),
+and ADR-0020.

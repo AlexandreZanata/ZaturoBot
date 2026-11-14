@@ -134,9 +134,14 @@ impl Router {
                 "the selected model requires explicit Global processing authorization",
             ));
         }
+        let max_step = if self.config.provider == "opencode-console" {
+            self.config.budget.max_task_model_calls.min(8)
+        } else {
+            2
+        };
         if zaturo_core::validate_identifier(&context.operation_id).is_err()
             || zaturo_core::validate_identifier(&context.task_id).is_err()
-            || !(1..=2).contains(&context.step)
+            || !(1..=max_step).contains(&context.step)
             || messages.is_empty()
             || messages.len() > 8
         {

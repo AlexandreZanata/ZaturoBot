@@ -24,6 +24,12 @@ impl FeedKind {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct CaptureHint {
+    pub worker: String,
+    pub source: String,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FeedItem {
     pub id: String,
     pub created_at: i64,
@@ -35,10 +41,15 @@ pub struct FeedItem {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub artifact_id: Option<String>,
     pub sensitive: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capture: Option<CaptureHint>,
 }
 impl FeedItem {
     pub fn validates(&self) -> bool {
         !self.sensitive
+            && self.capture.as_ref().is_none_or(|c| {
+                c.source == "desktop" && crate::validate_identifier(&c.worker).is_ok()
+            })
             && !self.id.is_empty()
             && self.id.len() <= 64
             && self.created_at >= 0
@@ -100,6 +111,7 @@ pub struct FeedPage {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ChatAction {
+    ComputerConfirm,
     Assistant,
     Diagnostic,
     YoutubeProfiles,

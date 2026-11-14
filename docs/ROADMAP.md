@@ -116,3 +116,23 @@ Dedicated mobile age recipients and temporary RAM decryption/display reuse the p
 relay. Explicit serial-bound messaging-app navigation records local metadata recipes.
 Physical acceptance on the work PC must be recorded separately; code tests do not prove
 an absent phone, interactive login or destination deployment worked.
+
+
+## Owner-authorized 0.6 computer and social foundation
+
+<!-- feature:semantic-computer status:implemented -->
+Bounded home-worker DeepSeek planning, lease-bound remote semantic steps, explicit exact
+owner confirmations and current-parent executor grants. computer-use-linux and Playwright
+MCP remain independently installed/granted dependencies. Private current-window captures
+can appear temporarily in Hub after an explicitly requested completed task. Full desktop
+isolation, arbitrary OS/shell control and universal application support remain planned.
+
+<!-- feature:social-foundation status:implemented -->
+The Postiz connector supports reviewed initial platforms, exact inert drafts, separately
+approved create/schedule/draft, durable unknown-effect fences and actual status observation.
+Unsupported network schemas/comments remain unavailable; original YoutubeBot stays intact.
+
+<!-- feature:stored-price-search status:implemented -->
+A read-only BitLupa bridge formats actual exact-variant stored offers with provenance,
+payment/freshness and honest value limitations. No active BitLupa collector or X7base
+catalog is invented. Live crawling/recurring price monitoring remain planned.

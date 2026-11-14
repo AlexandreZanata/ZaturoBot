@@ -28,3 +28,6 @@ ledger. Cache a complete reply; uncertain paid calls never repeat. `android_acti
 opens only the messaging app of an explicitly registered/granted USB device and atomically
 saves metadata-only recipes under workspace_root/android-instructions. These local recipes
 are observations, not new permissions. Keep media generation separate from publication.
+
+
+`computer.rs` keeps paid home planning separate from work execution; the work child fetches a fresh parent-bound grant before the local adapter. `desktop_private.rs` captures only the locally fixed window through the private RAM relay. No provider key reaches the work PC.

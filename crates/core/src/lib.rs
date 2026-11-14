@@ -1,4 +1,6 @@
 //! Canonical domain contracts and deterministic task rules.
+mod computer;
+pub use computer::*;
 
 use serde::{Deserialize, Serialize};
 mod activity;

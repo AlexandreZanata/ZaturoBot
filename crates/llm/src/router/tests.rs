@@ -279,3 +279,60 @@ fn canonical_config_rejects_model_changes_and_secret_debug_is_redacted() {
     answer.content = text.into();
     assert!(!format!("{request:?} {answer:?}").contains(text));
 }
+
+#[tokio::test]
+async fn personal_step_capacity_never_expands_the_two_step_coding_route() {
+    let client = Arc::new(FakeClient::new([FakeReply::Answer(response())]));
+    let route = router(config(), client.clone());
+    let budget = Budget::default();
+    let mut coding = context();
+    coding.step = 2;
+    route
+        .complete(&coding, messages(), &budget, &Cancellation::new())
+        .await
+        .unwrap();
+    coding.step = 3;
+    assert_eq!(
+        route
+            .complete(&coding, messages(), &budget, &Cancellation::new())
+            .await
+            .unwrap_err(),
+        Error::InvalidRequest
+    );
+    assert_eq!(client.calls(), 1);
+    assert_eq!(budget.states().len(), 1);
+
+    for configured_calls in [1, 4, 8, 16] {
+        let mut personal: ModelsConfig = toml::from_str(include_str!(
+            "../../../../config/computer-models.example.toml"
+        ))
+        .unwrap();
+        personal.enabled = true;
+        personal.allow_global_processing = true;
+        personal.budget.max_task_model_calls = configured_calls;
+        let client = Arc::new(FakeClient::new([FakeReply::Answer(response())]));
+        let route = router(personal, client.clone());
+        let budget = Budget::default();
+        let mut context = context();
+        context.privacy = PrivacyClass::Personal;
+        context.step = configured_calls.min(8);
+        route
+            .complete(&context, messages(), &budget, &Cancellation::new())
+            .await
+            .unwrap();
+        for forbidden in [0, configured_calls.min(8) + 1] {
+            context.step = forbidden;
+            assert_eq!(
+                route
+                    .complete(&context, messages(), &budget, &Cancellation::new())
+                    .await
+                    .unwrap_err(),
+                Error::InvalidRequest,
+                "configured personal call limit {configured_calls}, step {forbidden}"
+            );
+        }
+        assert_eq!(client.calls(), 1);
+        assert_eq!(budget.states().len(), 1);
+        assert!(budget.states().values().all(|state| *state == "settled"));
+    }
+}

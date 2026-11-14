@@ -16,3 +16,12 @@ version = 1
 path = "prompts/assistant-chat.md"
 variables = []
 output_schema = "prompts/assistant-chat.schema.json"
+
+[[prompts]]
+id = "computer-planner"
+purpose = "Plan bounded semantic actions with independent owner review and real receipts"
+owner = "zaturo-orchestrator"
+version = 1
+path = "prompts/computer-planner.md"
+variables = []
+output_schema = "prompts/computer-planner.schema.json"

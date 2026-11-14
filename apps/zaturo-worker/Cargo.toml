@@ -26,6 +26,7 @@ zaturo-orchestrator.workspace = true
 zaturo-transfer.workspace = true
 zaturo-youtube.workspace = true
 zaturo-android.workspace = true
+zaturo-computer.workspace = true
 
 [dev-dependencies]
 chrono.workspace = true

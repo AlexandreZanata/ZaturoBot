@@ -18,3 +18,6 @@ denial, malformed-output, cancellation, and invented-success regressions in chan
 uses the registered assistant-chat prompt, <=4 clipped ordinary history turns and one call.
 It must never claim actual execution or turn a reply/history/shared note into authorization.
 The existing two-step public-coding diagnostic policy is unchanged.
+
+
+`computer.rs` is the separate bounded Personal/Console semantic planner. At most8 calls, latest clipped observation and compact verified receipts. Require read verification after input/accepted publication. Exact owner approval stays outside model messages; no image or unrestricted shell tool.

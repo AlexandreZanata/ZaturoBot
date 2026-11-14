@@ -24,6 +24,10 @@ stable discovery keys; [architecture.toml](../architecture.toml) is the dependen
   durable resumable client caches, per-transfer inbox publication and checksum verification.
 - `zaturo-android` — `crates/android`: fixed serial-bound ADB discovery/status/capture,
   revocable owner leases, process-group limits and opaque zeroizing screen frames.
+- `zaturo-computer` — `crates/computer`: fixed reviewed semantic MCP/service helpers,
+  bounded local subprocesses, local grants, exact plan digests, observed price formatting
+  and separate zeroizing desktop PNG transport. `deploy/computer` owns reviewed upstream
+  stdio/API transport, external read-only BitLupa compatibility and private setup.
 - `zaturo-youtube` — `crates/youtube`: fixed JSON CLI adapter to the existing Python
   YoutubeBot, explicit scheduling grants, result curation and uncertain-job reconciliation.
 - `zaturo-desktop` — `apps/zaturo-desktop`: Linux Rust/Slint owner hub, daily activity,

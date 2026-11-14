@@ -18,3 +18,8 @@ and store concise evidence summaries rather than private chain-of-thought. Follo
 `zaturo-orchestrator::conversation`. Its plain text final answer is capped at1500 UTF-8
 bytes; the schema records the string form, while the source enforces the byte limit.
 History is separately encoded ordinary data; no reasoning, screen or automatic file context.
+
+`computer-planner` uses at most eight structured Personal/Console calls, one clipped
+semantic observation and compact verified receipts. Exact input/social draft approvals
+remain hub/local policy; model output cannot approve itself. Screenshots, credentials
+and private reasoning are excluded. See [computer use](../docs/COMPUTER_USE.md).

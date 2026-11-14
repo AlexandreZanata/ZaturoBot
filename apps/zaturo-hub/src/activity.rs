@@ -51,9 +51,7 @@ async fn chat(
         e.chat_as(request, &target, &actor, now_ms())
     })
     .await?;
-    if reply.task.is_some() {
-        state.changes.notify_one();
-    }
+    state.changes.notify_waiters();
     Ok(Json(reply))
 }
 async fn services(State(state): State<AppState>) -> Result<Json<serde_json::Value>, ApiFailure> {

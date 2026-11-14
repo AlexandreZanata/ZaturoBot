@@ -19,3 +19,11 @@ classification, a fixed Console endpoint and max_attempts=1. Go remains PublicCo
 never fall back between routes. Both use the same exclusive DeepSeek allowlist and durable
 aggregate budgets. Console requests disable thinking to bound ordinary-chat overhead.
 No screenshots, cookies, automatic file context or provider reasoning in the conversation.
+
+The owner-authorized semantic computer planner uses the separate Personal/Console profile
+with at most eight sequential steps and max_attempts=1. Router step admission is further
+bounded by that profile's max_task_model_calls; it never expands Go's two-step coding
+route. Home-worker planning shares the existing durable aggregate token/call ledger,
+exclusive DeepSeek model and cancellation/deadline checks. Typed executor grants and
+native owner confirmations remain outside model authority. Preserve both the smaller
+configured call limit and the absolute eight-step ceiling; no screenshots enter models.

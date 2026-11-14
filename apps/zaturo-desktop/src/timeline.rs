@@ -128,6 +128,7 @@ mod tests {
             task_id: None,
             artifact_id: None,
             sensitive: false,
+            capture: None,
         }
     }
 

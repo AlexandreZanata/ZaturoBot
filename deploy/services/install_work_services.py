@@ -35,7 +35,13 @@ KNOWN_CAPS = {
     "assistant.chat.v1",
     "youtube.generate.v1",
     "android.messages.v1",
+    "computer.agent.v1",
+    "computer.action.v1",
+    "computer.private.v1",
+    "price.search.v1",
 }
+COMPUTER_HELPERS = ("linux_mcp.py", "browser_mcp.py", "bitlupa_service.py", "social_service.py")
+COMPUTER_PATH_FIELDS = {"python", "scripts_root", "linux_profile", "browser_profile", "bitlupa_project", "bitlupa_database", "social_profile"}
 
 
 def require(condition, message):
@@ -249,6 +255,94 @@ def render_toml(value):
     return result
 
 
+def computer_config(value, installed_root):
+    """Validate local configuration only; never import backend keys or edit its grants."""
+    require(isinstance(value, dict) and {"python", "scripts_root"} <= set(value)
+            and set(value) <= COMPUTER_PATH_FIELDS | {"capture_target"},
+            "unsupported computer configuration fields; credentials and aliases are not accepted")
+    checked = copy.deepcopy(value)
+    for field in COMPUTER_PATH_FIELDS & set(checked):
+        raw = checked[field]
+        require(isinstance(raw, str) and raw and Path(raw).is_absolute()
+                and not any(ord(char) < 32 for char in raw),
+                "computer configuration paths must be explicit absolute local paths")
+        if field != "python":
+            safe_path(Path(raw))
+    require(not any(marker in json.dumps(checked) for marker in ("oc_sk_", "AGE-SECRET-", "-----BEGIN ")),
+            "computer configuration cannot contain credential material")
+    interpreter = Path(checked["python"]).resolve(strict=True)
+    info = interpreter.stat()
+    require(stat.S_ISREG(info.st_mode) and info.st_uid in (0, os.getuid()) and not info.st_mode & 0o022
+            and os.access(interpreter, os.X_OK), "computer interpreter must be a trusted executable")
+    for field in ("linux_profile", "browser_profile", "social_profile"):
+        if field in checked:
+            regular(Path(checked[field]), private=True, read=False)
+    if "bitlupa_project" in checked:
+        project = Path(checked["bitlupa_project"])
+        require(project.is_dir(), "BitLupa requires an existing reviewed project directory")
+    if "bitlupa_database" in checked and Path(checked["bitlupa_database"]).exists():
+        regular(Path(checked["bitlupa_database"]), limit=512 * 1024**2, read=False)
+    target = checked.get("capture_target")
+    if target is not None:
+        require(isinstance(target, dict) and set(target) == {"window_id", "pid", "app_id"}
+                and type(target["window_id"]) is int and 1 <= target["window_id"] <= 9007199254740991
+                and type(target["pid"]) is int and 2 <= target["pid"] <= 4294967295
+                and isinstance(target["app_id"], str) and target["app_id"].strip()
+                and len(target["app_id"].encode()) <= 128
+                and not any(ord(char) < 32 for char in target["app_id"])
+                and len(json.dumps(target).encode()) <= 512,
+                "desktop capture requires one exact locally configured window, process and application")
+    checked["scripts_root"] = str(installed_root)
+    return checked
+
+
+def extend_computer(config, caps, options):
+    # Work-PC setup never provisions a provider key or adds the planning capability.
+    installed = Path(options.home).resolve(strict=True) / ".local/lib/zaturobot/computer"
+    configured = getattr(options, "computer_config", None)
+    existing = config.get("computer")
+    if configured is not None:
+        require(configured.is_absolute(), "--computer-config must be an explicit absolute local path")
+        configured = safe_path(configured)
+        value = tomllib.loads(regular(configured, private=True).decode())
+    else:
+        value = existing
+    requested = any(getattr(options, flag, False) for flag in
+                    ("enable_computer_actions", "enable_computer_capture", "enable_price_search"))
+    if value is None:
+        require(not requested and not any(cap in caps for cap in
+                ("computer.action.v1", "computer.private.v1", "price.search.v1")),
+                "computer grants require an explicit private --computer-config or validated existing computer profile")
+    else:
+        config["computer"] = computer_config(value, installed)
+    if "computer_models_config" in config:
+        path = config["computer_models_config"]
+        require(isinstance(path, str) and Path(path).is_absolute(), "existing computer model profile path must be absolute")
+        regular(safe_path(Path(path)), private=True, read=False)
+    require("computer.agent.v1" not in caps or config.get("computer_models_config"),
+            "existing computer planner requires its original local model configuration")
+    grants = {
+        "computer.action.v1": getattr(options, "enable_computer_actions", False),
+        "computer.private.v1": getattr(options, "enable_computer_capture", False),
+        "price.search.v1": getattr(options, "enable_price_search", False),
+    }
+    computer = config.get("computer", {})
+    for capability, requested in grants.items():
+        if requested or capability in caps:
+            require(bool(computer), "computer grants require a validated local computer profile")
+            if capability == "price.search.v1":
+                require(computer.get("bitlupa_project"), "price search requires an explicit reviewed BitLupa project")
+            elif capability == "computer.private.v1":
+                require(computer.get("linux_profile") and computer.get("capture_target"),
+                        "desktop capture requires a private Linux profile and exact local capture target")
+            else:
+                require(any(computer.get(field) for field in
+                        ("linux_profile", "browser_profile", "social_profile", "bitlupa_project")),
+                        "computer actions require at least one explicitly configured backend")
+            if capability not in caps:
+                caps.append(capability)
+
+
 def update_config(config, youtube, python, options):
     value = copy.deepcopy(config)
     required = {
@@ -264,7 +358,7 @@ def update_config(config, youtube, python, options):
     }
     require(
         required <= set(value)
-        and set(value) <= required | {"files", "models_config", "assistant_models_config", "youtube", "android"},
+        and set(value) <= required | {"files", "models_config", "assistant_models_config", "computer_models_config", "computer", "youtube", "android"},
         "unsupported existing worker configuration; nothing was replaced",
     )
     require(
@@ -395,6 +489,7 @@ def update_config(config, youtube, python, options):
         if options.enable_private_view and "android.private.v1" not in caps:
             caps.append("android.private.v1")
         require(len(devices) <= 8, "too many registered Android devices")
+    extend_computer(value, caps, options)
     require(
         len(caps) <= len(KNOWN_CAPS) and len(caps) == len(set(caps)),
         "invalid service capability combination",
@@ -409,6 +504,10 @@ def update_config(config, youtube, python, options):
         "assistant.chat.v1",
         "youtube.generate.v1",
         "android.messages.v1",
+        "computer.agent.v1",
+        "computer.action.v1",
+        "computer.private.v1",
+        "price.search.v1",
     ]
     value["capabilities"] = [cap for cap in order if cap in caps]
     return value
@@ -634,6 +733,10 @@ def parser():
     )
     result.add_argument("--enable-generation",action="store_true",help="grant typed generation-only batches without publishing")
     result.add_argument("--enable-messages",action="store_true",help="grant opening the registered messaging app without sending SMS")
+    result.add_argument("--computer-config", type=Path, help="explicit private ComputerConfig TOML; backend grants remain separate")
+    result.add_argument("--enable-computer-actions", action="store_true", help="advertise bounded reviewed computer actions; never edits backend input grants")
+    result.add_argument("--enable-computer-capture", action="store_true", help="advertise private capture for the exact locally configured target")
+    result.add_argument("--enable-price-search", action="store_true", help="advertise observed BitLupa price search without a model or purchase")
     result.add_argument(
         "--android-serial", help="explicit USB serial; never selected automatically"
     )
@@ -751,6 +854,13 @@ def install(options):
             0o600,
         ),
     }
+    computer_lib = safe_path(lib / "computer")
+    if computer_lib.exists():
+        require(computer_lib.is_dir() and computer_lib.stat().st_uid == os.getuid(),
+                "existing computer helper destination must be an owner directory")
+    for filename in COMPUTER_HELPERS:
+        helper = safe_path(source / "deploy/computer" / filename)
+        writes[computer_lib / filename] = (regular(helper, limit=256 * 1024), 0o700)
     mcp_source=source/"deploy/mcp/zaturo_mcp.py"
     if mcp_source.exists():
         writes[lib/"zaturo_mcp.py"]=(regular(mcp_source,limit=128*1024),0o700)
@@ -870,6 +980,11 @@ def install(options):
         "generation_granted": updated["youtube"]["allow_generate"],
         "messages_granted": "android.messages.v1" in updated["capabilities"],
         "private_screen_granted": "android.private.v1" in updated["capabilities"],
+        "computer_actions_granted": "computer.action.v1" in updated["capabilities"],
+        "computer_capture_granted": "computer.private.v1" in updated["capabilities"],
+        "price_search_granted": "price.search.v1" in updated["capabilities"],
+        "computer_planner_preserved": "computer.agent.v1" in config["capabilities"],
+        "computer_helpers": list(COMPUTER_HELPERS),
         "mcp_registration": ["codex", "mcp", "add", "zaturobot", "--", "/usr/bin/python3", str(lib/"zaturo_mcp.py"), "--config", str(config_dir/"mcp.toml")] if mcp_source.exists() else None,
         "offline_home": offline,
         "source_revision": enrollment["expected_zaturo_revision"],
@@ -926,7 +1041,8 @@ def install(options):
             or regular(p, limit=128 * 1024**2) != value[0]
             or stat.S_IMODE(p.stat().st_mode) != value[1]
         }
-        if not changes and (offline or options.no_start or schema == 8):
+        computer_mode_current = computer_lib.exists() and stat.S_IMODE(computer_lib.stat().st_mode) == 0o700
+        if not changes and computer_mode_current and (offline or options.no_start or schema == 8):
             if not offline:
                 if options.no_start:
                     stop_worker(worker_path)
@@ -993,6 +1109,7 @@ def install(options):
                 (json.dumps(manifest, indent=2) + "\n").encode(),
             )
             secure_dir(lib)
+            secure_dir(computer_lib)
             for path, (content, mode) in changes.items():
                 atomic_write(path, content, mode)
             if not offline:

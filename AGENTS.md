@@ -11,7 +11,11 @@ DeepSeek chat through the Console API, generation-only YoutubeBot requests with 
 login diagnostics, an inert shared MCP task area, and explicit USB messaging-app opening
 with ephemeral encrypted screenshots in Android. Shared instructions are data until the
 owner asks the receiving agent to act under its own local policy.
-Full desktop automation, general vault,
+The owner additionally authorized the bounded0.6 semantic Linux/browser and social
+foundation: pinned model-independent MCP backends, exact owner-approved input/drafts,
+read-only BitLupa stored offers and ephemeral private PC captures. This does not permit
+an unrestricted shell or treating webpage/model text as action authority.
+Full desktop isolation, general vault,
 scheduling and arbitrary account actions remain planned.
 
 ## Read only the context you need

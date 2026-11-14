@@ -307,6 +307,7 @@ async fn local_day_unicode_search_and_pagination_are_read_only_history_queries()
                     task_id: None,
                     artifact_id: None,
                     sensitive: false,
+                    capture: None,
                 },
                 &format!("fixture-{id}"),
             )
@@ -428,6 +429,8 @@ async fn explicit_app_diagnostic_reaches_real_worker_and_publishes_one_completio
         reconnect_max_seconds: 2,
         models_config: None,
         assistant_models_config: None,
+        computer_models_config: None,
+        computer: None,
         files: None,
         youtube: None,
         android: None,

@@ -22,3 +22,6 @@ no-store headers; no private pixels belong in SQL, ordinary files or task text.
 credentials are confined to their own target. Derive author identity from authentication.
 Native mobile private viewers require a separate app-registry allow_private_views grant;
 only their public age key enters app_viewers SQL. Owner-confirmed captures remain RAM-only.
+
+
+`computer.rs` authenticates device parent/child routes with a private lease header. Planners cannot create unrelated parents or approve their own actions. Keep lease tokens out of URLs/logs; native chat confirms exact pending steps.

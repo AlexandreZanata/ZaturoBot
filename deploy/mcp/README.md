@@ -18,6 +18,10 @@ model key. The compact tool catalog is tested below 5000 JSON bytes; byte size i
 claim about a provider tokenizer. Known chat commands need zero inference calls. See
 [assistant contracts](../../docs/ASSISTANT_AND_SHARED_TASKS.md).
 
+Computer confirmations require the native owner's separate `computer_confirm` action.
+`bot_chat` always uses `assistant`, rejects approval commands and cannot approve its own
+computer inputs or social publications, including through an older MCP adapter.
+
 ## Install on an already configured Linux PC
 
 Use the clean reviewed source revision. The installer reads the existing private

@@ -71,6 +71,8 @@ fn worker(path: &Path, base: &str) -> WorkerConfig {
         reconnect_max_seconds: 2,
         models_config: Some(path.join("injected-models.toml")),
         assistant_models_config: None,
+        computer_models_config: None,
+        computer: None,
     }
 }
 fn model_response(content: &str) -> ModelResponse {

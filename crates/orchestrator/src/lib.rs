@@ -185,3 +185,6 @@ mod tests;
 
 mod conversation;
 pub use conversation::chat;
+
+mod computer;
+pub use computer::{ComputerExecutor, ComputerOutcome, computer_run};

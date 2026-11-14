@@ -1,0 +1,22 @@
+# Explicit bounded semantic computer planner route; separate from the coding-only Go subscription.
+enabled = false
+provider = "opencode-console"
+default_model = "deepseek-v4.1-flash"
+allowed_models = ["deepseek-v4.1-flash"]
+allowed_privacy = ["personal"]
+allow_training_models = false
+allow_global_processing = false
+timeout_seconds = 30
+max_context_bytes = 12288
+max_response_bytes = 8192
+max_output_tokens = 512
+max_attempts = 1
+retry_base_millis = 1000
+concurrent_requests = 1
+
+[budget]
+per_request_tokens = 16384
+per_task_tokens = 98304
+per_day_tokens = 100000
+per_month_tokens = 1000000
+max_task_model_calls = 8

@@ -22,3 +22,6 @@ results permit only exact server-known metadata/summaries, never arbitrary text/
 text grants no tool. `shared.rs` owns inert handoffs and revision contracts. Personal
 conversation context is <=4 ordinary turns/1024 bytes, never private screen content.
 Generation requests do not imply publication. Opening SMS is a separate confirmed action.
+
+
+`computer.rs` owns bounded semantic actions, leases, observations and capture-request recognition. Models never supply approval authority or executable paths.

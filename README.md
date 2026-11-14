@@ -1,14 +1,23 @@
+![ZaturoBot — personal Linux assistant with a private hub and native Linux/Android apps](assets/brand/readme-banner.svg)
+
 # ZaturoBot
+
+[![Repository validation](https://github.com/AlexandreZanata/ZaturoBot/actions/workflows/check.yml/badge.svg)](https://github.com/AlexandreZanata/ZaturoBot/actions/workflows/check.yml)
+[![Linux desktop](https://img.shields.io/badge/Linux-Rust%20%2B%20Slint-E5B900?labelColor=0B0B0D)](apps/zaturo-desktop/README.md)
+[![Android companion](https://img.shields.io/badge/Android-Kotlin-E5B900?labelColor=0B0B0D)](mobile/android/README.md)
+[![Local MCP](https://img.shields.io/badge/MCP-local%20stdio-E5B900?labelColor=0B0B0D)](deploy/mcp/README.md)
 
 A personal Linux assistant with a private coordination hub, outbound workers, and native
 Linux/Android clients. Durable tasks, explicit permissions, bounded execution, and
 interruption recovery form the shared foundation. The hub stays lightweight; models,
 media processing, and authorized USB operations run on a worker.
 
-Version 0.5 adds bounded DeepSeek conversation in both native clients, generation-only
+Version0.6 adds bounded semantic Linux/browser tasks and a social-management foundation.
+It retains bounded DeepSeek conversation in both native clients, generation-only
 YoutubeBot commands, a shared task area with a compact local MCP, and an Android private
 phone viewer. Read [assistant and shared tasks](docs/ASSISTANT_AND_SHARED_TASKS.md) for
-the current contracts. The [0.4 engineering report](docs/NATIVE_SERVICE_REPORT.md) remains
+the current contracts. Read [computer use](docs/COMPUTER_USE.md) and
+[social management](docs/SOCIAL_MANAGEMENT.md) for0.6 setup and precise supported actions. The [0.4 engineering report](docs/NATIVE_SERVICE_REPORT.md) remains
 historical evidence; physical-device/account acceptance is recorded separately.
 
 ## Implemented capabilities
@@ -116,7 +125,7 @@ cargo xtask docs
 cargo xtask secrets
 ```
 
-The 0.5 local gate passed **182 Rust tests and 29 Python helper tests**, plus strict
+The 0.6 local gate passed **217 Rust tests and 89 Python helper tests**, plus strict
 formatting/Clippy, documentation/architecture/registry checks, publication guard, and
 rustdoc. Desktop release and Android debug APK builds provide build evidence; they do
 not replace real Google/video or physical Android acceptance. The six-page

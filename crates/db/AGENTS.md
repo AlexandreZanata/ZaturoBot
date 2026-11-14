@@ -29,3 +29,6 @@ Hub schema7 adds `shared.rs`, inert revision-fenced coordination and app public 
 Worker schema8 adds `assistant_budget.rs`: separate personal-call reservations that share
 global day/month charges with coding. Preserve uncertain charges and all previous tables.
 The new migrations are 0007_hub_shared and 0008_worker_assistant. No screen bytes in SQL.
+
+
+Hub schema9 adds computer_steps in0009_hub_computer.sql. Preserve exact action, parent/child identity and approval state; no screen bytes or provider credentials. Worker schema remains8.

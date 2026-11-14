@@ -3,6 +3,25 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ServiceRequest {
+    ComputerTask {
+        request: String,
+        target_worker: String,
+    },
+    ComputerStep {
+        parent_id: String,
+        sequence: u32,
+        #[serde(rename = "tool_action")]
+        action: crate::ComputerAction,
+        owner_approved: bool,
+    },
+    PriceSearch {
+        query: String,
+    },
+    DesktopPrivateView {
+        session_id: String,
+        recipient: String,
+        owner_confirmed: bool,
+    },
     AssistantChat {
         message: String,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -42,6 +61,35 @@ pub enum ServiceRequest {
 impl ServiceRequest {
     pub fn validates(&self) -> bool {
         match self {
+            Self::ComputerTask {
+                request,
+                target_worker,
+            } => {
+                crate::ordinary_text(request, 2048)
+                    && crate::validate_identifier(target_worker).is_ok()
+            }
+            Self::ComputerStep {
+                parent_id,
+                sequence,
+                action,
+                owner_approved,
+            } => {
+                canonical_operation_id(parent_id)
+                    && (1..=8).contains(sequence)
+                    && action.validates()
+                    && (!action.requires_approval() || *owner_approved)
+            }
+            Self::PriceSearch { query } => crate::ordinary_text(query, 256),
+            Self::DesktopPrivateView {
+                session_id,
+                recipient,
+                owner_confirmed,
+            } => {
+                canonical_operation_id(session_id)
+                    && recipient.starts_with("age1")
+                    && recipient.len() <= 128
+                    && *owner_confirmed
+            }
             Self::AndroidOpenMessages {
                 device_id,
                 owner_confirmed,
@@ -94,6 +142,10 @@ impl ServiceRequest {
     }
     pub fn capability(&self) -> &'static str {
         match self {
+            Self::ComputerTask { .. } => "computer.agent.v1",
+            Self::ComputerStep { .. } => "computer.action.v1",
+            Self::PriceSearch { .. } => "price.search.v1",
+            Self::DesktopPrivateView { .. } => "computer.private.v1",
             Self::AndroidOpenMessages { .. } => "android.messages.v1",
             Self::AssistantChat { .. } => "assistant.chat.v1",
             Self::YoutubeGenerate { .. } => "youtube.generate.v1",
@@ -105,6 +157,10 @@ impl ServiceRequest {
     }
     pub fn name(&self) -> &'static str {
         match self {
+            Self::ComputerTask { .. } => "computer_task",
+            Self::ComputerStep { .. } => "computer_step",
+            Self::PriceSearch { .. } => "price_search",
+            Self::DesktopPrivateView { .. } => "desktop_private_view",
             Self::AndroidOpenMessages { .. } => "android_open_messages",
             Self::AssistantChat { .. } => "assistant_chat",
             Self::YoutubeGenerate { .. } => "youtube_generate",
@@ -119,7 +175,10 @@ impl ServiceRequest {
     pub fn side_effecting(&self) -> bool {
         matches!(
             self,
-            Self::AndroidOpenMessages { .. }
+            Self::DesktopPrivateView { .. }
+                | Self::ComputerTask { .. }
+                | Self::ComputerStep { .. }
+                | Self::AndroidOpenMessages { .. }
                 | Self::YoutubeSubmit { .. }
                 | Self::YoutubeGenerate { .. }
                 | Self::AssistantChat { .. }
@@ -144,20 +203,50 @@ impl ServiceResult {
         if !request.validates()
             || self.operation_id != operation
             || self.action != request.name()
-            || !matches!(self.outcome.as_str(), "completed" | "accepted" | "blocked")
+            || !matches!(
+                self.outcome.as_str(),
+                "completed" | "accepted" | "blocked" | "partial"
+            )
             || self.summary.is_empty()
             || self.summary.len()
-                > if matches!(request, ServiceRequest::AssistantChat { .. }) {
+                > if matches!(
+                    request,
+                    ServiceRequest::AssistantChat { .. }
+                        | ServiceRequest::ComputerTask { .. }
+                        | ServiceRequest::PriceSearch { .. }
+                ) {
                     2048
                 } else {
                     512
                 }
-            || !serde_json::to_vec(self).is_ok_and(|v| v.len() <= 4096)
+            || !serde_json::to_vec(self).is_ok_and(|v| {
+                v.len()
+                    <= if matches!(request, ServiceRequest::ComputerStep { .. }) {
+                        16384
+                    } else if matches!(
+                        request,
+                        ServiceRequest::ComputerTask { .. } | ServiceRequest::PriceSearch { .. }
+                    ) {
+                        8192
+                    } else {
+                        4096
+                    }
+            })
         {
             return false;
         }
-        let ServiceRequest::AndroidPrivateView { session_id, .. } = request else {
-            return true;
+        let session_id = match request {
+            ServiceRequest::AndroidPrivateView { session_id, .. }
+            | ServiceRequest::DesktopPrivateView { session_id, .. } => session_id,
+            ServiceRequest::ComputerStep { .. } => {
+                return self
+                    .data
+                    .get("observation")
+                    .cloned()
+                    .and_then(|v| serde_json::from_value::<crate::ComputerObservation>(v).ok())
+                    .is_some_and(|o| o.validates());
+            }
+            _ => return true,
         };
         if self.outcome != "completed" {
             return false;

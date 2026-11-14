@@ -1,6 +1,6 @@
 # Add services to an already-enrolled work PC
 
-This is an additive **0.3/0.4 → 0.5** update, not another enrollment. Run it as the existing
+This is an additive **0.3/0.4/0.5 → 0.6** update, not another enrollment. Run it as the existing
 Linux owner, never root. Keep the current `work-pc` worker ID, private SSH key and pinned
 host, age identity, worker token, transfer inbox and execution journal. The updater never
 replaces those credentials or removes original YoutubeBot files. The private archive
@@ -53,7 +53,9 @@ python3 /absolute/ZaturoBot/deploy/services/install_work_services.py \
 The default is a read-only plan. Review the pinned revisions, `work-pc` identity,
 capabilities and flags, then repeat with `--apply`. `--enable-scheduling` grants the
 bounded typed scheduled-batch service; **it does not create a video job**. Omitting it
-leaves YouTube read-only. Free chat is not an upload authorization.
+preserves the existing scheduling grant; a worker without that grant stays read-only
+for scheduling. Existing generation, USB, private-view and other reviewed grants are
+also retained rather than reset by an omitted flag. Free chat is not upload authorization.
 
 The normal apply sequence prepares binaries/dependencies while the old worker remains
 available. It builds `zaturo-worker` and `zaturo-desktop` locally using
@@ -105,6 +107,79 @@ Add `--enable-generation` for generation-only YoutubeBot work. This does not gra
 or scheduling. Existing scheduling grants are preserved when present.
 The updater also installs the compact local MCP adapter/profile; use its printed
 credential-free registration command and [MCP instructions](../mcp/README.md).
+
+## Optional computer and stored-price capabilities
+
+The 0.6 updater recognizes all 13 current typed capabilities, including
+`computer.action.v1`, `computer.private.v1`, `price.search.v1` and an already configured
+`computer.agent.v1`. It does not add a computer planner or copy a provider key to the
+work PC. The distinct home worker owns the bounded Console planner; its last observed
+live request returned HTTP402, which remains an external billing/permission blocker.
+The hub must support schema9 computer coordination; the work journal remains schema8.
+See [computer contracts](../../docs/COMPUTER_USE.md) and
+[social contracts](../../docs/SOCIAL_MANAGEMENT.md) before enabling a backend.
+
+Every base update installs the four reviewed fixed Python helpers in
+`~/.local/lib/zaturobot/computer`, a mode0700 directory, without enabling a new computer
+grant. The separate `deploy/computer/install.py` can create disabled private Linux/browser
+profiles; neither helper selects applications, windows, origins, CDP sessions or accounts.
+It does not install OS packages, start a new backend service, enable input/capture or
+perform login. Preserve existing profiles and local state. Actual GUI/AT-SPI/compositor
+readiness and exact runtime artifact/license/package-tree hashes must be verified on
+the work PC according to the computer runbook. Private PC capture is native-X11-only;
+the upstream Wayland/portal capture routes can write temporary PNG files and are refused.
+Semantic Wayland observation/input remains a separate capability-dependent check.
+
+An explicit `--computer-config /absolute/private/computer.toml` supplies a standalone
+mode0600 `ComputerConfig` file, as shown in
+[the example](../../config/computer.example.toml). Its top-level fields are only absolute
+`python`, `scripts_root`, optional `linux_profile`, `browser_profile`, `bitlupa_project`,
+`bitlupa_database`, `social_profile` and the optional `capture_target` table. Do not wrap
+it in another `[computer]` table or put keys, environment contents, browser endpoints or
+model-supplied executables in it. Backend profile pointers must identify existing private
+files. The updater overrides only `scripts_root` with its stable reviewed installation
+directory and preserves every backend profile's contents and independent grants.
+
+Add only the reviewed grants to the normal plan, then repeat with `--apply`:
+
+```bash
+python3 /absolute/ZaturoBot/deploy/services/install_work_services.py \
+  --zaturo-root /absolute/ZaturoBot \
+  --youtube-root /absolute/YoutubeBot \
+  --enrollment /absolute/private/work-services.enrollment.json \
+  --computer-config /absolute/private/computer.toml \
+  --enable-computer-actions \
+  --enable-price-search
+```
+
+`--enable-computer-actions` advertises bounded actions and requires at least one reviewed
+Linux/browser/social/BitLupa backend path. It does not grant backend input or account
+actions. `--enable-price-search` additionally requires the actual reviewed BitLupa project;
+the current source is schema/configuration only, with no collector or enabled collection
+source. Missing data and the untracked base POCO X7 remain explicit blockers; X7 Pro
+must not be substituted. Existing BitLupa source/data stays read-only.
+
+`--enable-computer-capture` separately requires `linux_profile` and an exact locally
+observed `capture_target` with precisely `window_id`, `pid` and `app_id`. The Linux profile
+must independently grant capture; no whole-desktop fallback or automatically selected
+target exists. Images use the ephemeral encrypted native viewer and never model context,
+normal feed history, disk or MCP. Changed window/PID bindings require deliberate local
+refresh. Each actual view remains an explicit owner request with expiry/focus clearing.
+
+Each new flag requires the explicit private configuration or a validated existing worker
+`computer` profile. A base update preserves existing `computer`,
+`computer_models_config` and capability grants, while normalizing only the helper path.
+The planner profile is not created, read into another file or enabled by this updater.
+Absent flags do not revoke previous grants or expand disabled backend permissions.
+Invalid/aliased configuration, symlinks, broad permissions or missing grant prerequisites
+fail before replacing the worker configuration. No account credentials are copied.
+
+Custom input still waits for the exact native-owner confirmation of the observed target
+and snapshot. `/aprovar UUID` or `/recusar UUID` uses the native `computer_confirm` action;
+ordinary assistant/MCP approval text is inert. Shared tasks/files are never autoexecuted.
+Do not test readiness by publishing, uploading, replying to comments, bypassing login or
+retrying an uncertain action. Optional Postiz supports only its six documented platforms
+and reviewed create/schedule/draft flow, not universal account/comment management.
 
 ## Installed paths and preserved state
 

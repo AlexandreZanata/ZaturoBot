@@ -86,3 +86,25 @@ endpoint-encrypted, RAM-only, consume-once and <=60 seconds, including the mobil
 They appear temporarily inside Hub without persistent image history or model access.
 Keep verified metadata-only device recipes on the work PC and report target-PC/physical
 acceptance only after observation. Code publication after validation is authorized.
+
+
+## Explicit owner computer/social extension (0.6)
+
+Owner chat can request bounded custom semantic tasks on the selected Linux PC and exact
+BitLupa stored-price research. Local target/origin/profile grants and current owner review
+remain independent of model text. Input/publication requires an exact observed plan;
+unknown results stop for reconciliation. No general shell, credentials/login bypass or
+model-controlled executable path is introduced. Original repositories and YoutubeBot
+extension/video/upload behavior remain preserved.
+
+Supported social create/schedule/draft uses the reviewed external Postiz API, exact private
+prepared payload and explicit owner confirmation. Account keys stay local; API accepted,
+scheduled and published states are distinct. Unsupported network actions/comments cannot
+be reported as implemented. A configured browser workflow is a separate explicit task,
+not a silent fallback around a denied typed social operation.
+
+Explicitly requested private PC captures use endpoint encryption and transient native Hub
+viewing, without screen pixels in history, SQL or model context. The capture window is
+locally fixed and must remain current/granted; no fallback to the owner's whole desktop.
+The new native/read-only/API foundations require actual target/session/account acceptance;
+fixtures do not establish that an absent desktop/phone/login/provider balance works.

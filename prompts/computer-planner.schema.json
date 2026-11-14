@@ -1,0 +1,1 @@
+{"oneOf":[{"type":"object","required":["type","action"],"properties":{"type":{"const":"action"},"action":{"type":"object"}},"additionalProperties":false},{"type":"object","required":["type","summary"],"properties":{"type":{"const":"finish"},"summary":{"type":"string","maxLength":1500}},"additionalProperties":false}]}

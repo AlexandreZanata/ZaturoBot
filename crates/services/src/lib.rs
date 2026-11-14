@@ -1,5 +1,6 @@
 //! Transactional application use cases shared by transport and CLI composition roots.
 mod activity;
+mod computer;
 mod service_tasks;
 mod shared;
 mod transfers;
@@ -81,7 +82,11 @@ impl Engine {
             || capabilities.iter().any(|capability| {
                 !matches!(
                     capability.as_str(),
-                    "diagnostic.v1"
+                    "computer.agent.v1"
+                        | "computer.action.v1"
+                        | "computer.private.v1"
+                        | "price.search.v1"
+                        | "diagnostic.v1"
                         | "assistant.chat.v1"
                         | "youtube.generate.v1"
                         | "agent.diagnostic.v1"
@@ -393,6 +398,9 @@ impl Engine {
                 return Err(Error::Conflict("task deadline expired".into()));
             }
             revoke(&mut task);
+            if action != ControlAction::Resume {
+                computer::cancel_children(repository, task_id, now)?;
+            }
             transition(repository, &mut task, next, now, message)?;
             Ok(task)
         })
@@ -499,6 +507,13 @@ fn transition(
             task.state.as_str(),
             next.as_str()
         )));
+    }
+    if matches!(
+        task.service,
+        Some(zaturo_core::ServiceRequest::ComputerTask { .. })
+    ) && (next.is_terminal() || next == TaskState::Paused)
+    {
+        computer::cancel_children(repository, &task.id, now)?;
     }
     task.state = next;
     task.updated_at = now;

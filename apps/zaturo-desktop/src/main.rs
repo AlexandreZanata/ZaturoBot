@@ -16,6 +16,15 @@ use zaturo_desktop::{
     api::{ChatRequest, FeedItem, HubClient, Worker},
     config::DesktopConfig,
 };
+fn capture_clock() -> u64 {
+    static CLOCK: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+    CLOCK
+        .get_or_init(std::time::Instant::now)
+        .elapsed()
+        .as_millis()
+        .try_into()
+        .unwrap_or(u64::MAX)
+}
 #[derive(Parser)]
 #[command(version, about = "ZaturoBot native Linux hub and chat client")]
 struct Cli {
@@ -258,6 +267,21 @@ fn refresh(
     let worker_rows = workers.into_iter().map(worker_row).collect::<Vec<_>>();
     let filter_key = filter.cache_key();
     show_state(ui, generation, expected, move |ui| {
+        if ui.get_page() != "hub"
+            || ui
+                .get_requested_capture_until()
+                .parse::<u64>()
+                .ok()
+                .is_none_or(|deadline| capture_clock() > deadline)
+        {
+            ui.set_requested_capture_task("".into());
+        }
+        let requested = ui.get_requested_capture_task();
+        let capture = page
+            .items
+            .iter()
+            .find(|i| i.task_id.as_deref() == Some(requested.as_str()) && !requested.is_empty())
+            .and_then(|i| i.capture.clone());
         let tail = mode.force_tail || (!mode.append && ui.get_following_tail());
         let filter_changed = ui.select_feed_filter(filter_key);
         if let Some(items) = ui.merge_page(page, mode.append, mode.reset || filter_changed) {
@@ -280,6 +304,13 @@ fn refresh(
         ui.set_connection_state("Hub conectado".into());
         ui.set_busy(false);
         ui.set_status_message("Histórico sincronizado com seu hub privado.".into());
+        if let Some(capture) = capture
+            && ui.get_page() == "hub"
+        {
+            ui.set_requested_capture_task("".into());
+            ui.set_capture_worker(capture.worker.into());
+            ui.invoke_capture_computer();
+        }
         if let Some(services) = services {
             ui.set_services_summary(services.into());
         }
@@ -489,7 +520,17 @@ fn main() -> Result<()> {
                     let outcome = (|| -> Result<()> {
                         let token = current.token()?;
                         let client = HubClient::new(&current, &token)?;
-                        runtime.block_on(client.send(&request))?;
+                        let reply = runtime.block_on(client.send(&request))?;
+                        let capture_task =
+                            if zaturo_core::requested_computer_capture(&request.message) {
+                                reply
+                                    .get("task")
+                                    .and_then(|t| t.get("id"))
+                                    .and_then(serde_json::Value::as_str)
+                                    .map(str::to_owned)
+                            } else {
+                                None
+                            };
                         let mut filters = filters;
                         filters.day = Local::now().format("%Y-%m-%d").to_string();
                         filters.kind.clear();
@@ -498,13 +539,22 @@ fn main() -> Result<()> {
                         let day = filters.day.clone();
                         let accepted_key = request.idempotency_key.clone();
                         let accepted = (request.action.is_none()
-                            || request.action.as_deref() == Some("assistant"))
+                            || matches!(
+                                request.action.as_deref(),
+                                Some("assistant" | "computer_confirm")
+                            ))
                         .then(|| request.message.clone());
                         show_state(
                             weak.clone(),
                             thread_generation.clone(),
                             generation,
                             move |ui| {
+                                if let Some(id) = capture_task {
+                                    ui.set_requested_capture_task(id.into());
+                                    ui.set_requested_capture_until(
+                                        capture_clock().saturating_add(360_000).to_string().into(),
+                                    );
+                                }
                                 if accepted
                                     .as_ref()
                                     .is_some_and(|message| ui.get_composer() == message.as_str())
@@ -856,13 +906,20 @@ fn main() -> Result<()> {
                 ui.set_chat_request_key(key.clone().into());
                 ui.set_chat_request_message(message.clone().into());
                 ui.set_chat_request_target(target.into());
+                let action = if message.trim().starts_with("/aprovar ")
+                    || message.trim().starts_with("/recusar ")
+                {
+                    "computer_confirm"
+                } else {
+                    "assistant"
+                };
                 let command = Command::Send {
                     generation: expected,
                     request: ChatRequest {
                         message,
                         idempotency_key: key,
                         target_worker: Some(ui.get_worker_target().to_string()),
-                        action: Some("assistant".into()),
+                        action: Some(action.into()),
                     },
                     filters: filters(&ui, 0),
                 };
@@ -983,6 +1040,18 @@ fn main() -> Result<()> {
     {
         let viewer = private_viewer.clone();
         let weak = ui.as_weak();
+        ui.on_capture_computer(move||{if let Some(ui)=weak.upgrade(){
+            let worker=ui.get_capture_worker().to_string();
+            if zaturo_core::validate_identifier(&worker).is_err(){return}
+            viewer.close();ui.set_private_desktop(true);ui.set_page("hub".into());
+            ui.set_private_image(slint::Image::default());ui.set_private_image_visible(false);ui.set_private_running(true);
+            ui.set_private_status("Captura privada da janela autorizada no computador; sem histórico nem envio à IA.".into());
+            if !viewer.start_computer(worker){ui.set_private_running(false);ui.set_private_status("Captura não confirmada. Verifique o perfil local e a conexão.".into());}
+        }});
+    }
+    {
+        let viewer = private_viewer.clone();
+        let weak = ui.as_weak();
         ui.on_start_private(move || {
             if let Some(ui) = weak.upgrade() {
                 if !ui.get_private_confirmed() {
@@ -1003,6 +1072,7 @@ fn main() -> Result<()> {
                     return;
                 }
                 viewer.close();
+                ui.set_private_desktop(device == "desktop");
                 ui.set_private_confirmed(false);
                 ui.set_private_image(slint::Image::default());
                 ui.set_private_image_visible(false);
@@ -1046,6 +1116,7 @@ fn main() -> Result<()> {
                     ui.set_private_image_visible(false);
                     ui.set_private_running(false);
                     ui.set_private_confirmed(false);
+                    ui.set_requested_capture_task("".into());
                 }
             }
             EventResult::Propagate
@@ -1061,7 +1132,8 @@ fn main() -> Result<()> {
             move || {
                 if let Some(ui) = weak.upgrade() {
                     if ui.get_private_running()
-                        && (ui.get_page() != "private"
+                        && ((ui.get_page() != "private"
+                            && !(ui.get_private_desktop() && ui.get_page() == "hub"))
                             || !ui.window().is_visible()
                             || ui.window().is_minimized())
                     {

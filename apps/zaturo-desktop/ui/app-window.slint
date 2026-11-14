@@ -145,6 +145,11 @@ export component AppWindow inherits Window {
     in-out property<string> private-watch:"0";
     in-out property<bool> private-confirmed:false;
     in property<bool> private-running:false;
+    in-out property<bool> private-desktop:false;
+    in-out property<string> requested-capture-task;
+    in-out property<string> requested-capture-until;
+    in-out property<string> capture-worker;
+    callback capture-computer();
     in property<image> private-image;
     in property<bool> private-image-visible:false;
     in property<string> private-status:"Visualização privada sem histórico, OCR ou envio à IA.";
@@ -231,6 +236,13 @@ export component AppWindow inherits Window {
                             Text {text:root.online ? "As conversas e atualizações aparecem aqui." : "Abra Ajustes para conectar seu aplicativo.";font-size:13px;color:#A6A6B0;horizontal-alignment:center;}
                         }
                     }
+                    if root.page=="hub" && root.private-desktop && (root.private-running || root.private-image-visible): Rectangle {height:220px;background:#17171B;border-width:1px;border-color:#303036;border-radius:14px;
+                        HorizontalLayout {padding:12px;spacing:12px;
+                            if root.private-image-visible: Image {source:root.private-image;image-fit:contain;horizontal-stretch:1;}
+                            if !root.private-image-visible: Text {text:root.private-status;color:#A6A6B0;wrap:word-wrap;horizontal-stretch:1;}
+                            FlatButton {label:"Fechar captura";icon:root.icon-close;clicked=>{root.close-private();}}
+                        }
+                    }
                     if root.page=="hub": Rectangle {height:96px;background:#17171B;border-width:1px;border-color:#303036;border-radius:14px;
                         VerticalLayout {padding:12px;spacing:7px;
                             HorizontalLayout {spacing:10px;
@@ -295,6 +307,8 @@ export component AppWindow inherits Window {
                                 FlatButton {label:"Perfis do YouTube";icon:root.icon-youtube;enabled:!root.sending;clicked=>{root.service-action("youtube_profiles");}}
                                 FlatButton {label:"Dispositivos Android";icon:root.icon-phone;enabled:!root.sending;clicked=>{root.service-action("android_devices");}}
                             }
+                            FlatButton {label:"Ver tela do computador";icon:root.icon-shield;clicked=>{root.capture-worker=root.worker-target;root.capture-computer();}}
+                            Text {text:"Tarefas: /computador seguido do pedido. Preços: /precos MODELO. Confirmações: /aprovar ID ou /recusar ID.";font-size:12px;color:#A6A6B0;wrap:word-wrap;}
                             Text {text:root.services-summary;font-size:14px;color:#D9D9E0;wrap:word-wrap;}
                             Text {text:"Contas do YouTube são conectadas no computador de execução.\nDispositivos Android precisam de autorização USB e seleção explícita.";font-size:12px;color:#A6A6B0;wrap:word-wrap;}
                         }

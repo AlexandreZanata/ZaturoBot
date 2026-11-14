@@ -17,6 +17,12 @@ pub(crate) fn notice(task: &Task) -> FeedItem {
     let label = if task
         .service_result
         .as_ref()
+        .is_some_and(|r| r.outcome == "partial")
+    {
+        "Execução parcial"
+    } else if task
+        .service_result
+        .as_ref()
         .is_some_and(|r| r.outcome == "blocked")
     {
         "Ação não executada"
@@ -63,6 +69,24 @@ pub(crate) fn notice(task: &Task) -> FeedItem {
         task_id: Some(task.id.clone()),
         artifact_id: None,
         sensitive: false,
+        capture: match &task.service {
+            Some(ServiceRequest::ComputerTask {
+                request,
+                target_worker,
+            }) if task.state == TaskState::Completed
+                && task
+                    .service_result
+                    .as_ref()
+                    .is_some_and(|r| r.outcome == "completed" || r.outcome == "partial")
+                && zaturo_core::requested_computer_capture(request) =>
+            {
+                Some(zaturo_core::CaptureHint {
+                    worker: target_worker.clone(),
+                    source: "desktop".into(),
+                })
+            }
+            _ => None,
+        },
     }
 }
 pub(crate) fn task_notice(repository: &Repository<'_>, task: &Task) -> Result<()> {
@@ -118,7 +142,11 @@ impl Engine {
             let mut selected_target=target.clone();
             let mut service=None;
             let action=match request.action {
+                Some(ChatAction::ComputerConfirm)=>{if let zaturo_core::ChatIntent::ComputerApproval{id,allow}=zaturo_core::chat_intent(&request.message){response=crate::computer::approve(r,&id,allow,&self.limits,now)?;}else{response="Confirmação inválida. Use a ação exata exibida no aplicativo nativo.".into();}None},
                 Some(ChatAction::Assistant)=>match zaturo_core::chat_intent(&request.message) {
+                    zaturo_core::ChatIntent::ComputerApproval{..}=>{response="A confirmação deve ser enviada pela interface nativa do proprietário; a IA e o MCP não podem aprovar suas próprias ações.".into();None},
+                    zaturo_core::ChatIntent::Computer{request:goal}=>{selected_target=default_worker.to_owned();service=Some(ServiceRequest::ComputerTask{request:goal,target_worker:target.clone()});Some(ChatAction::Assistant)},
+                    zaturo_core::ChatIntent::PriceSearch{query}=>{service=Some(ServiceRequest::PriceSearch{query});Some(ChatAction::Assistant)},
                     zaturo_core::ChatIntent::Shared{instructions}=>{
                         let entry=crate::shared::create_record(r,&zaturo_core::SharedCreate{idempotency_key:request.idempotency_key.clone(),target_worker:target.clone(),title:"Pedido do chat".into(),instructions,transfer_ids:vec![]},actor,now)?;
                         response=format!("Instrução salva na área compartilhada de {}. No outro Codex, peça para consultar a última tarefa. Ela não será executada automaticamente.",entry.target_worker);None
@@ -145,22 +173,24 @@ impl Engine {
                     ChatAction::AndroidOpenMessages=>{service=Some(ServiceRequest::AndroidOpenMessages{device_id:"owner-phone".into(),owner_confirmed:true});},
                     ChatAction::AndroidDevices=>{service=Some(ServiceRequest::AndroidDevices);},
                     ChatAction::Assistant=>{},
+                    ChatAction::ComputerConfirm=>return Err(Error::Invalid("confirmation cannot create a task".into())),
                 }
-                if let Some(service)=service {task.kind=TaskKind::Service;task.max_attempts=1;task.timeout_seconds=60;task.service=Some(service);}
+                if let Some(service)=service {task.kind=TaskKind::Service;task.max_attempts=1;task.timeout_seconds=if matches!(service,ServiceRequest::ComputerTask{..}){300}else{60};task.service=Some(service);}
                 let capability=task.service.as_ref().map(|s|s.capability()).unwrap_or("diagnostic.v1");
                 let worker=r.worker(&selected_target)?;
                 // Legacy explicit service buttons retain their durable offline queue semantics.
-                let unsupported=matches!(request.action,Some(ChatAction::Assistant | ChatAction::AndroidOpenMessages)) && worker.as_ref().is_none_or(|w|!w.capabilities.iter().any(|c|c==capability));
-                if unsupported {
-                    response=format!("O computador {selected_target} ainda não anunciou a funcionalidade {capability}. A ação não foi executada. Atualize ou conecte o worker pelo Codex desse computador.");None
+                let mut unsupported=if matches!(request.action,Some(ChatAction::Assistant | ChatAction::AndroidOpenMessages)) && worker.as_ref().is_none_or(|w|!w.capabilities.iter().any(|c|c==capability)){Some((selected_target.clone(),capability))}else{None};
+                if unsupported.is_none() && let Some(ServiceRequest::ComputerTask{target_worker,..})=&task.service && r.worker(target_worker)?.is_none_or(|w|!w.capabilities.iter().any(|c|c=="computer.action.v1")){unsupported=Some((target_worker.clone(),"computer.action.v1"));}
+                if let Some((missing_worker,missing_capability))=unsupported {
+                    response=format!("O computador {missing_worker} ainda não anunciou a funcionalidade {missing_capability}. A ação não foi executada. Atualize ou conecte o worker pelo Codex desse computador.");None
                 } else {
                     response=if worker.as_ref().is_some_and(|w|now.saturating_sub(w.last_seen_at)>30000){"O computador está sem contato recente. A tarefa ficou na fila persistente e será enviada quando ele reconectar.".into()}else if matches!(task.service,Some(ServiceRequest::YoutubeGenerate{..})){"Solicitação de geração enviada. O PC verificará os logins antes de criar os vídeos. Publicar ou agendar exige uma ação separada.".into()}else{"Solicitação enviada ao worker. O resultado aparecerá neste histórico.".into()};
                     Some(crate::create_record(r,task,now,&self.limits)?)
                 }
             }else{None};
-            let owner=FeedItem{id:Uuid::new_v4().to_string(),created_at:now,kind:FeedKind::Chat,role:"owner".into(),text:request.message.clone(),task_id:task.as_ref().map(|t|t.id.clone()),artifact_id:None,sensitive:false};
+            let owner=FeedItem{id:Uuid::new_v4().to_string(),created_at:now,kind:FeedKind::Chat,role:"owner".into(),text:request.message.clone(),task_id:task.as_ref().map(|t|t.id.clone()),artifact_id:None,sensitive:false,capture:None};
             r.insert_feed(&owner,&format!("chat:{}:owner",request.idempotency_key))?;
-            let message=FeedItem{id:Uuid::new_v4().to_string(),created_at:now.saturating_add(1),kind:FeedKind::Chat,role:"assistant".into(),text:response,task_id:task.as_ref().map(|t|t.id.clone()),artifact_id:None,sensitive:false};
+            let message=FeedItem{id:Uuid::new_v4().to_string(),created_at:now.saturating_add(1),kind:FeedKind::Chat,role:"assistant".into(),text:response,task_id:task.as_ref().map(|t|t.id.clone()),artifact_id:None,sensitive:false,capture:None};
             r.insert_feed(&message,&format!("chat:{}:reply",request.idempotency_key))?;
             let reply=ChatReply{message,task};r.save_chat(&request.idempotency_key,&request,&reply)?;Ok(reply)
         })
@@ -251,6 +281,7 @@ impl Engine {
                 task_id: Some(task.id),
                 artifact_id: None,
                 sensitive: false,
+                capture: None,
             };
             r.save_service_state(&update.operation_id, &update.state, now)?;
             r.insert_feed(&item, &key)?;

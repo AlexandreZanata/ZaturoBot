@@ -187,3 +187,38 @@ age identity protected by Keystore, register only its public key under an explic
 scope and decrypt with kage. No new plaintext endpoint, phone permission or image SQL/file
 is introduced. Explicit fixed messaging-app navigation records only verified local recipes.
 Runtime verification and remote-PC/device limitations belong to the acceptance evidence.
+
+
+## ADR-0020: Semantic computer use and explicit social drafts - accepted
+
+The owner explicitly requested Linux/browser control from native chat, a BitLupa research
+example, social-management foundations, private computer screenshots and GitHub branding.
+Reuse Zaturo's durable hub/worker/provider/native layers. Choose pinned computer-use-linux
+(MIT) for AT-SPI/window semantics and Microsoft Playwright MCP (Apache-2.0) for a dedicated
+browser; do not embed OpenClaw's duplicate gateway or an unrestricted coding/REPL harness.
+Personal inference remains exclusive DeepSeek Console and never receives screenshots.
+
+Planning stays on the home worker with its existing provider key and separate bounded
+profile/ledger. The work PC executes exact typed child steps under its current parent
+lease, local grants, target/snapshot binding and emergency stop. A model cannot approve
+input or publication: native owner commands confirm the exact observed element/draft.
+Device endpoints cannot create unrelated/paid parent tasks. Pausing/ending/expiring the
+parent revokes children. Unknown external effects are not automatically retried.
+
+The social connector uses Postiz's documented API and its external scheduler, not a new
+hub scheduler. Inert local drafts, exact hashes/previews and private JSON intent records
+preserve uncertainty. Unsupported platform/comment operations remain unsupported. A200
+acceptance does not establish publication; independent status evidence is required.
+
+BitLupa currently has schema/catalogs but no enabled collector/API/database. Preserve its
+original repository and use a narrow read-only external-database compatibility adapter.
+Its fixed SELECTs are an external-schema transport exception to the hub/worker SQL rule:
+all Zaturo persistence, policy and approval SQL remains in zaturo-db. No original private
+migration is copied into public fixtures, no live collector is fabricated, and X7base
+never silently resolves to X7Pro. This is stored-offer search, not completed monitoring.
+
+Private PC capture reuses the endpoint-encrypted consume-once RAM relay and locally fixed
+window grant. Only an explicit nonnegated owner request can add a completion capture hint;
+native clients auto-request it only for their current in-memory pending task while visible.
+An old feed hint can request a new current-window view, never a historical proof. OS/
+renderer erasure and same-user app restrictions are not claims of a complete sandbox.

@@ -145,7 +145,7 @@ pub(crate) async fn run(
         .map_err(|_| FailureCode::ReconciliationRequired)?;
     Ok(result)
 }
-fn failure(error: &Error) -> (&'static str, &'static str) {
+pub(crate) fn failure(error: &Error) -> (&'static str, &'static str) {
     match error {
         Error::Authentication => (
             "provider_authentication",
@@ -173,9 +173,9 @@ fn failure(error: &Error) -> (&'static str, &'static str) {
         ),
     }
 }
-struct AssistantBudget {
-    journal: Arc<WorkerJournal>,
-    limits: zaturo_core::ModelBudgetLimits,
+pub(crate) struct AssistantBudget {
+    pub(crate) journal: Arc<WorkerJournal>,
+    pub(crate) limits: zaturo_core::ModelBudgetLimits,
 }
 impl BudgetPort for AssistantBudget {
     fn reserve<'a>(&'a self, reservation: &'a ModelReservation) -> FutureResult<'a, ()> {

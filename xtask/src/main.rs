@@ -42,22 +42,24 @@ fn main() -> Result<()> {
             let mut docs = vec!["doc", "--workspace", "--no-deps"];
             docs.extend_from_slice(lock_arg);
             run(root, &docs)?;
-            let helpers = Command::new("python3")
-                .args([
-                    "-m",
-                    "unittest",
-                    "discover",
-                    "-s",
-                    "deploy/services",
-                    "-p",
-                    "test_*.py",
-                    "-q",
-                ])
-                .current_dir(root)
-                .status()
-                .context("Python 3 is required for the deployment-helper fixtures")?;
-            if !helpers.success() {
-                bail!("deployment-helper fixtures failed with {helpers}");
+            for directory in ["deploy/services", "deploy/computer"] {
+                let helpers = Command::new("python3")
+                    .args([
+                        "-m",
+                        "unittest",
+                        "discover",
+                        "-s",
+                        directory,
+                        "-p",
+                        "test_*.py",
+                        "-q",
+                    ])
+                    .current_dir(root)
+                    .status()
+                    .context("Python 3 is required for the deployment-helper fixtures")?;
+                if !helpers.success() {
+                    bail!("deployment-helper fixtures failed in {directory} with {helpers}");
+                }
             }
         }
         _ => bail!("unknown command {command:?}; use check, arch, docs, or secrets"),

@@ -171,6 +171,7 @@ impl Engine {
                     task_id: None,
                     artifact_id: Some(t.id.clone()),
                     sensitive: false,
+                    capture: None,
                 };
                 r.insert_feed(&item, &format!("file:{}:delivered", t.id))?;
             }

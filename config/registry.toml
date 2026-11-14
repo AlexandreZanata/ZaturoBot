@@ -97,7 +97,7 @@ examples = ["config/worker.example.toml"]
 [[configurations]]
 name = "ModelsConfig"
 source = "crates/llm/src/config.rs"
-examples = ["config/models.example.toml", "config/assistant-models.example.toml"]
+examples = ["config/models.example.toml", "config/assistant-models.example.toml", "config/computer-models.example.toml"]
 
 [[migrations]]
 path = "crates/db/migrations/0004_hub_transfers.sql"
@@ -158,4 +158,46 @@ status = "implemented"
 [[features]]
 id = "mobile-private-view"
 phase = 7
+status = "implemented"
+
+[[migrations]]
+path = "crates/db/migrations/0009_hub_computer.sql"
+documentation = "docs/MIGRATIONS.md"
+
+[[configurations]]
+name = "ComputerConfig"
+source = "crates/computer/src/lib.rs"
+examples = ["config/computer.example.toml"]
+
+[[integrations]]
+id = "semantic-computer"
+status = "implemented"
+source = "crates/computer/src/lib.rs"
+documentation = "docs/COMPUTER_USE.md"
+
+[[integrations]]
+id = "bitlupa"
+status = "implemented"
+source = "deploy/computer/bitlupa_service.py"
+documentation = "docs/COMPUTER_USE.md"
+
+[[integrations]]
+id = "social"
+status = "implemented"
+source = "deploy/computer/social_service.py"
+documentation = "docs/SOCIAL_MANAGEMENT.md"
+
+[[features]]
+id = "semantic-computer"
+phase = 3
+status = "implemented"
+
+[[features]]
+id = "social-foundation"
+phase = 5
+status = "implemented"
+
+[[features]]
+id = "stored-price-search"
+phase = 5
 status = "implemented"

@@ -38,3 +38,6 @@ The explicit assistant chat mode routes bounded owner commands or Personal/Conso
 Preserve a RAM idempotency key after uncertain send responses. The shared page is inert
 coordination, not an executor; keep summary queries small and load bodies on demand.
 Shared notes/attachments and model replies never grant local execution permissions.
+
+
+A completion capture hint is metadata, not a saved image. Only a current local pending owner request may auto-start its one private PC view; old hints request a fresh current window. Clear on focus/visibility/tab/expiry, never persist pixels.

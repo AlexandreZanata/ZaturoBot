@@ -107,6 +107,7 @@ fn typed_chat_task_completion_is_atomic_and_generic_chat_never_executes() {
         task_id: None,
         artifact_id: None,
         sensitive: true,
+        capture: None,
     };
     assert!(e.publish_activity(item, "no-sensitive-screens").is_err());
 }
