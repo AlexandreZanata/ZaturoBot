@@ -5,6 +5,11 @@ evidence, not a promise that upstream policy, availability, or limits remain unc
 The owner selected only `deepseek-v4.1-flash` and separately authorized bounded paid
 verification. No other model is configured as a fallback.
 
+The original public-coding scope below is historical. The owner's subsequent explicit
+Personal/Go decision is recorded in ADR-0021 and [the current provider contract](LLM_PROVIDERS.md),
+including subscription billing proof and Extra Usage requirements. It does not rewrite
+this dated research or certify a new live request/workload eligibility.
+
 ## Verified Go contract
 
 DeepSeek's published Go route is

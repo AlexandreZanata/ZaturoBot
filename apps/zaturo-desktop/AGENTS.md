@@ -34,7 +34,7 @@ explicit native-position bridge and verify both actual mouse interaction and pix
 The `chat_scroll_smoke` example uses only synthetic rows in an isolated Xvfb display.
 Ship the icon subset's Apache-2.0 license and notice with standalone binaries.
 
-The explicit assistant chat mode routes bounded owner commands or Personal/Console text.
+The explicit assistant chat mode routes bounded owner commands or Personal/Go text under the explicit local opt-in.
 Preserve a RAM idempotency key after uncertain send responses. The shared page is inert
 coordination, not an executor; keep summary queries small and load bodies on demand.
 Shared notes/attachments and model replies never grant local execution permissions.

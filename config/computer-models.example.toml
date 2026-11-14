@@ -1,6 +1,7 @@
-# Explicit bounded semantic computer planner route; separate from the coding-only Go subscription.
+# Explicit owner-authorized personal Go route; no Console credit fallback.
 enabled = false
-provider = "opencode-console"
+provider = "opencode-go"
+allow_personal_go = true
 default_model = "deepseek-v4.1-flash"
 allowed_models = ["deepseek-v4.1-flash"]
 allowed_privacy = ["personal"]

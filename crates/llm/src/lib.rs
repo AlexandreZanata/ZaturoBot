@@ -9,8 +9,8 @@ mod router;
 pub use cancellation::Cancellation;
 pub use config::{DEEPSEEK_MODEL, ModelsConfig};
 pub use contract::{
-    BudgetPort, CallContext, Error, FutureResult, LlmClient, Message, MessageRole, ModelRequest,
-    ModelResponse, PrivacyClass,
+    BillingSource, BudgetPort, CallContext, Error, FutureResult, LlmClient, Message, MessageRole,
+    ModelBilling, ModelRequest, ModelResponse, PrivacyClass,
 };
 pub use opencode::{GO_CHAT_ENDPOINT, OpenCodeGoClient};
 pub use router::{Clock, Router, SystemClock};

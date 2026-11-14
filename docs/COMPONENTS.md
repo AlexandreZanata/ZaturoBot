@@ -17,7 +17,9 @@ stable discovery keys; [architecture.toml](../architecture.toml) is the dependen
   App configuration structs validate operational settings at their composition roots.
 - `zaturo-tools` — `crates/tools`: the registered deterministic diagnostic executor.
 - `zaturo-llm` — `crates/llm`: provider-independent requests, strict model/privacy
-  routing, bounded OpenCode Go transport, cancellation, and synthetic fake client.
+  routing, bounded OpenCode Go transport, explicit Personal opt-in and typed subscription
+  billing proof, cancellation, and synthetic fake client. Go diagnostics and Personal
+  chat/planning share durable aggregate budgets while retaining distinct classifications.
 - `zaturo-orchestrator` — `crates/orchestrator`: strict structured proposals, bounded
   diagnostic planning, policy/executor ports, evidence-based completion, and no shell.
 - `zaturo-transfer` — `crates/transfer`: streaming age encryption, bounded opaque spool,

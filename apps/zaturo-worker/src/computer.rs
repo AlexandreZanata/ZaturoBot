@@ -114,7 +114,7 @@ async fn run(
                     }
                 }
             } else {
-                result.summary="O planejamento de computador não tem um perfil Console habilitado no worker da IA. A rota Go e as chaves dos outros computadores permanecem separadas.".into();
+                result.summary="O planejamento de computador não tem um perfil pessoal Go autorizado no worker da IA. Verifique o perfil local do computador da IA.".into();
             }
         }
         ServiceRequest::ComputerStep {
@@ -319,12 +319,16 @@ mod tests {
     }
     fn answer(proposal: Value) -> FakeReply {
         FakeReply::Answer(ModelResponse {
+            billing: Some(zaturo_llm::ModelBilling {
+                source: zaturo_llm::BillingSource::Go,
+                allowance_microusd: Some(0),
+            }),
             model: zaturo_llm::DEEPSEEK_MODEL.into(),
             content: proposal.to_string(),
             usage: zaturo_core::ModelUsage {
                 input_tokens: 20,
                 output_tokens: 20,
-                cost_microusd: None,
+                cost_microusd: Some(0),
             },
             finish_reason: "stop".into(),
             duration_ms: 1,

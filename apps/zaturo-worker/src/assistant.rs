@@ -1,4 +1,4 @@
-//! One bounded Console chat call. It cannot invoke tools or promote text to authorization.
+//! One bounded owner-authorized personal chat call. It cannot invoke tools or promote text to authorization.
 use crate::{config::WorkerConfig, now_ms};
 use std::sync::Arc;
 use zaturo_core::{
@@ -20,17 +20,21 @@ pub fn load(config: &WorkerConfig) -> anyhow::Result<Option<Arc<Router>>> {
         .map_err(|_| anyhow::anyhow!("invalid assistant model profile"))?;
     models.validate()?;
     anyhow::ensure!(
-        models.provider == "opencode-console"
+        models.is_personal_route()
             && models.allowed_privacy == [PrivacyClass::Personal]
             && models.max_attempts == 1,
-        "assistant requires explicit Console personal route without retry"
+        "assistant requires explicit personal route without retry"
     );
     if !models.enabled {
         return Ok(None);
     }
     let key = std::env::var("OPENCODE_GO_API_KEY")
         .map_err(|_| anyhow::anyhow!("assistant provider key unavailable"))?;
-    let client = Arc::new(OpenCodeGoClient::new_console(&models, key)?);
+    let client = Arc::new(if models.provider == "opencode-go" {
+        OpenCodeGoClient::new(&models, key)?
+    } else {
+        OpenCodeGoClient::new_console(&models, key)?
+    });
     Ok(Some(Arc::new(Router::new(models, client)?)))
 }
 pub async fn execute(
@@ -103,7 +107,7 @@ pub(crate) async fn run(
         ServiceIntent::Reconcile => return Err(FailureCode::ReconciliationRequired),
         ServiceIntent::Execute => {}
     }
-    let mut result=ServiceResult{operation_id:operation.clone(),action:request.name().into(),outcome:"blocked".into(),summary:"A IA de conversa não está configurada neste worker. O Codex deve ativar o perfil Console; a rota de código Go permanece separada.".into(),data:serde_json::json!({"code":"assistant_unavailable"})};
+    let mut result=ServiceResult{operation_id:operation.clone(),action:request.name().into(),outcome:"blocked".into(),summary:"A IA de conversa não está configurada neste worker. Ative o perfil pessoal Go autorizado no computador da IA.".into(),data:serde_json::json!({"code":"assistant_unavailable"})};
     if let Some(router) = router {
         let budget = AssistantBudget {
             journal: journal.clone(),
@@ -121,7 +125,7 @@ pub(crate) async fn run(
             Ok(response) if zaturo_core::ordinary_text(&response.content, 1500) => {
                 result.outcome = "completed".into();
                 result.summary = response.content;
-                result.data = serde_json::json!({"model":response.model,"usage":response.usage,"model_calls":response.model_calls});
+                result.data = serde_json::json!({"model":response.model,"usage":response.usage,"model_calls":response.model_calls,"billing":response.billing});
             }
             Ok(_) => {
                 result.summary="A resposta da IA excedeu o contrato de texto seguro. Nenhuma ação foi executada.".into();
@@ -149,7 +153,7 @@ pub(crate) fn failure(error: &Error) -> (&'static str, &'static str) {
     match error {
         Error::Authentication => (
             "provider_authentication",
-            "O provedor recusou a chave ou a permissão da API Console. Verifique a configuração privada no computador; não envie a chave no chat.",
+            "O provedor recusou a chave ou a permissão da rota de IA configurada. Verifique a configuração privada no computador; não envie a chave no chat.",
         ),
         Error::Budget => (
             "budget_exceeded",
@@ -165,7 +169,11 @@ pub(crate) fn failure(error: &Error) -> (&'static str, &'static str) {
         ),
         Error::Rejected(402) => (
             "provider_balance",
-            "A API Console não tem saldo ou permissão de cobrança disponível. Verifique o Console; o plano Go de código não será usado como alternativa.",
+            "A franquia ou a permissão do plano configurado não está disponível. Verifique a assinatura, os limites e as permissões no OpenCode; nenhuma rota alternativa será usada.",
+        ),
+        Error::BillingSource => (
+            "provider_billing_unverified",
+            "O provedor não confirmou consumo incluído no plano Go com cobrança adicional zero. A tarefa parou; verifique os limites do plano e mantenha Extra Usage desativado. Nenhuma rota alternativa será usada.",
         ),
         _ => (
             "provider_unavailable",
@@ -281,12 +289,16 @@ mod tests {
         let path = temp.path().join("worker.db");
         let journal = Arc::new(WorkerJournal::open(&path).unwrap());
         let fake = Arc::new(FakeClient::new([FakeReply::Answer(ModelResponse {
+            billing: Some(zaturo_llm::ModelBilling {
+                source: zaturo_llm::BillingSource::Go,
+                allowance_microusd: Some(0),
+            }),
             model: zaturo_llm::DEEPSEEK_MODEL.into(),
             content: "Resposta sintética, nenhuma ação executada.".into(),
             usage: ModelUsage {
                 input_tokens: 10,
                 output_tokens: 10,
-                cost_microusd: None,
+                cost_microusd: Some(0),
             },
             finish_reason: "stop".into(),
             duration_ms: 1,
@@ -299,6 +311,8 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(first.outcome, "completed");
+        assert_eq!(first.data["billing"]["source"], "go");
+        assert_eq!(first.data["usage"]["cost_microusd"], 0);
         let reopened = Arc::new(WorkerJournal::open(&path).unwrap());
         let second = run(&task, reopened, Some(router), &Cancellation::new())
             .await

@@ -74,6 +74,7 @@ Global-processing permission, a fixed verified provider endpoint, and independen
 checks. Private code, accounts, documents, screenshots, and general personal automation
 remain outside this route. Official evidence is dated in
 [the provider research](OPENCODE_GO_RESEARCH.md); it is not a permanent privacy promise.
+ADR-0021 adds an explicit Personal/Go use case without changing this diagnostic contract.
 
 ## ADR-0011: Durable model reservation ledger — accepted
 
@@ -166,7 +167,10 @@ Tab draft/search retention remains process-memory-only. API, model policy, crede
 worker grants, screenshot protection and the private-view lifecycle are unchanged.
 
 
-## ADR-0019: Bounded personal chat, inert shared tasks and private mobile images - accepted
+## ADR-0019: Bounded personal chat, inert shared tasks and private mobile images - accepted; routing superseded by ADR-0021
+
+The following records the original route decision. ADR-0021 supersedes its Console-only
+personal routing; the shared-task, generation and private-view contracts remain accepted.
 
 The owner explicitly expanded the native service slice. Reuse the existing durable task
 transport, authenticated apps, YoutubeBot actors and RAM private-view relay. Known owner
@@ -189,7 +193,10 @@ is introduced. Explicit fixed messaging-app navigation records only verified loc
 Runtime verification and remote-PC/device limitations belong to the acceptance evidence.
 
 
-## ADR-0020: Semantic computer use and explicit social drafts - accepted
+## ADR-0020: Semantic computer use and explicit social drafts - accepted; routing superseded by ADR-0021
+
+ADR-0021 supersedes only the Personal/Console route below; the bounded backend,
+independent grants, evidence and social draft decisions remain accepted.
 
 The owner explicitly requested Linux/browser control from native chat, a BitLupa research
 example, social-management foundations, private computer screenshots and GitHub branding.
@@ -222,3 +229,33 @@ window grant. Only an explicit nonnegated owner request can add a completion cap
 native clients auto-request it only for their current in-memory pending task while visible.
 An old feed hint can request a new current-window view, never a historical proof. OS/
 renderer erasure and same-user app restrictions are not claims of a complete sandbox.
+
+
+## ADR-0021: Explicit Personal Go subscription route - accepted
+
+The owner explicitly requests the Go API for native chat and computer planning, following
+OpenTatu's connection pattern and without additional Console credits. This supersedes the
+Console-only portions of ADR-0019/0020. Preserve Personal classification rather than calling
+personal traffic public coding. Go Personal requires allow_personal_go=true (defaultfalse),
+allowed_privacy=[personal], max_attempts=1, Global consent and only deepseek-v4.1-flash.
+The existing public-coding diagnostic remains two-step; Personal planning is bounded by
+min(max_task_model_calls,8), ordinary chat one call, and the shared durable aggregate ledger.
+
+The read-only reference is [OpenTatu at05e8bb3](https://github.com/AlexandreZanata/OpenTatu/tree/05e8bb33b9256eff35d5b6bc05ca8dee067a35c3).
+Reuse its Go endpoint/Bearer environment pattern, not its Muse Spark models, training
+consent, 900-second timeout or error handling. ZaturoBot identifies itself and uses its own
+stable conversation session. Current provider documentation describes coding-agent-style
+traffic; this is the owner's explicit local workload decision, not a new provider promise
+of arbitrary-personal eligibility, quota circumvention or an OpenCode impersonation.
+
+Personal Go acceptance requires typed billing_source go/go-plus and reported actual cost
+zero. Allowance consumption remains separate; a missing charge is not zero. Keep Extra
+Usage disabled: the provider can otherwise use balance after plan limits. A post-response
+check cannot prevent/refund a charge if provider settings change. The supplied account
+screenshot shows Extra Usage off and zero credit at that time; neither local opt-in nor
+that image proves future billing. No Console fallback, top-up or automatic charged retry.
+
+Preserve historical Console HTTP402 evidence. It describes the former route, not the new
+Go route's prerequisite or live success. Record actual Go/native/task/billing acceptance
+separately after observing it; fixtures do not establish the owner's live subscription,
+accounts or target PC. See [the provider contract](LLM_PROVIDERS.md).

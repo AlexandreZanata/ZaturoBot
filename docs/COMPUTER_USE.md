@@ -59,7 +59,10 @@ themselves; string filtering alone is not the authorization boundary.
 
 The home worker advertises `computer.agent.v1` and uses its separate
 [computer model profile](../config/computer-models.example.toml). It plans through the
-existing Console transport and durable spend ledger. The work PC advertises
+owner-authorized Go transport and durable spend ledger. Its Personal classification
+requires explicit allow_personal_go=true, one attempt and subscription billing proof;
+the coding diagnostic remains separate. No Console fallback or credit purchase is used.
+The work PC advertises
 `computer.action.v1` and executes independently configured local adapters. Planner and
 executor are distinct worker identities; no provider key is copied to the work PC.
 Direct price search uses `price.search.v1`; private desktop frames use
@@ -251,9 +254,12 @@ GetImage and an in-memory PNG encoder. No actual X11 capture has been accepted o
 owner's host or work PC. The upstream's broader screenshot readiness does not prove
 availability of this stricter private capture route.
 
-The previous owner-authorized Console live check returned HTTP402 (balance/billing
-permission unavailable). This remains an external prerequisite for model-planned custom
-tasks; no coding-only Go fallback, model switch, automatic retry or top-up is used.
+The earlier Console live check returned HTTP402 (balance/billing permission unavailable).
+That is preserved historical evidence; ADR-0021 now selects explicit Personal/Go for this
+planner, so Console balance is no longer its prerequisite. Keep provider Extra Usage off,
+accept only proved Go/go-plus with zero reported balance charge, and observe the actual
+Go task path before claiming live success. Client receipt checks cannot undo a charge if
+upstream billing settings change. No model switch, automatic retry or top-up is used.
 Read-only typed price searches and existing services keep their independent requirements.
 See [social management](SOCIAL_MANAGEMENT.md), [assistant/shared coordination](ASSISTANT_AND_SHARED_TASKS.md),
 [native clients](NATIVE_CLIENTS.md) and [sensitive screens](ANDROID_SENSITIVE_SCREENS.md).

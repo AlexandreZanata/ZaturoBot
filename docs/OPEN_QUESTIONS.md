@@ -10,8 +10,10 @@ and reversible. Security-critical activation waits for explicit evidence and aut
   API remains a separate scoped decision; no public control endpoint is opened.
 - Q03 — Provider eligibility: resolved for the bounded public-coding diagnostic by
   ADR-0010 and dated official research. Only deepseek-v4.1-flash is allowed; paid smoke
-  verification is expressly authorized. ADR-0019 separately authorizes bounded owner conversation through Console, not Go.
-  Unattended general workloads and other data categories remain unresolved.
+  verification is expressly authorized. ADR-0021 supersedes ADR-0019/0020 routing with
+  explicit Personal/Go opt-in for bounded owner conversation/computer planning. Provider
+  workload eligibility and current subscription/billing evidence remain independent;
+  unrestricted unattended workloads and other data categories are not authorized.
 - Q04 — Notebook capability: identify CPU, storage, display/server availability, and
   GPU/video encoder support before desktop/video adoption. No GPU assumptions are made.
 - Q05 — Unattended unlock: choose a vault key-management and recovery policy; automatic

@@ -8,6 +8,8 @@ It performs no I/O. Persisted times are injected UTC Unix milliseconds.
 - `src/files.rs`: device file contracts, bounded quotas, safe names and cipher hashes.
 - `src/model.rs`: explicit public-coding grants, typed model usage/failures, assisted
   results, reservation identities, and pure request/task/day/month budget policy.
+  Personal Go stays classified Personal under its explicit provider opt-in; do not weaken
+  the separate public-coding diagnostic disclosure contract or infer free billing.
 
 Never infer a disclosure grant from owner text or model output. Keep legacy diagnostic
 JSON readable when extending optional evidence. Extend transition and acceptance tests

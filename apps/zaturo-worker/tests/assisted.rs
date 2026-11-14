@@ -77,6 +77,7 @@ fn worker(path: &Path, base: &str) -> WorkerConfig {
 }
 fn model_response(content: &str) -> ModelResponse {
     ModelResponse {
+        billing: None,
         model: DEEPSEEK_MODEL.into(),
         content: content.into(),
         usage: ModelUsage {

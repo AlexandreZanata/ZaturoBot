@@ -13,6 +13,10 @@ interruption recovery form the shared foundation. The hub stays lightweight; mod
 media processing, and authorized USB operations run on a worker.
 
 Version0.6 adds bounded semantic Linux/browser tasks and a social-management foundation.
+Version0.6.1 routes explicitly authorized personal chat and computer planning through
+OpenCode Go, following OpenTatu's connection pattern with ZaturoBot's own identity.
+Only DeepSeek V4.1 Flash is allowed; accepted personal replies require reported Go
+allowance billing and zero additional charge. Keep provider Extra Usage disabled.
 It retains bounded DeepSeek conversation in both native clients, generation-only
 YoutubeBot commands, a shared task area with a compact local MCP, and an Android private
 phone viewer. Read [assistant and shared tasks](docs/ASSISTANT_AND_SHARED_TASKS.md) for
@@ -125,13 +129,13 @@ cargo xtask docs
 cargo xtask secrets
 ```
 
-The 0.6 local gate passed **217 Rust tests and 89 Python helper tests**, plus strict
+The 0.6.1 local gate passed **225 Rust tests and 89 Python helper tests**, plus strict
 formatting/Clippy, documentation/architecture/registry checks, publication guard, and
 rustdoc. Desktop release and Android debug APK builds provide build evidence; they do
 not replace real Google/video or physical Android acceptance. The six-page
 [system design PDF](output/pdf/zaturobot-system-design.pdf) was rendered and reviewed.
 
-Current results are in the [0.4 report](docs/NATIVE_SERVICE_REPORT.md). Earlier
+Historical native-service results are in the [0.4 report](docs/NATIVE_SERVICE_REPORT.md). Earlier
 [foundation](docs/ENGINEERING_REPORT.md) and [Phase 2](docs/PHASE2_REPORT.md) reports
 remain historical evidence. The 100-task local foundation benchmark observed 8.30 MiB
 idle hub RSS and 9.11 MiB peak RSS; it is not an Oracle capacity guarantee for 0.4.

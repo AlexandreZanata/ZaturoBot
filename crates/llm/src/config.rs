@@ -1,4 +1,4 @@
-use crate::{Error, PrivacyClass};
+use crate::{BillingSource, Error, ModelResponse, PrivacyClass};
 use serde::Deserialize;
 use zaturo_core::ModelBudgetLimits;
 
@@ -12,6 +12,8 @@ pub struct ModelsConfig {
     pub default_model: String,
     pub allowed_models: Vec<String>,
     pub allowed_privacy: Vec<PrivacyClass>,
+    #[serde(default)]
+    pub allow_personal_go: bool,
     pub allow_training_models: bool,
     pub allow_global_processing: bool,
     pub timeout_seconds: u64,
@@ -24,6 +26,28 @@ pub struct ModelsConfig {
     pub budget: ModelBudgetLimits,
 }
 impl ModelsConfig {
+    pub fn privacy(&self) -> PrivacyClass {
+        if self.provider == "opencode-console" || self.allow_personal_go {
+            PrivacyClass::Personal
+        } else {
+            PrivacyClass::PublicCoding
+        }
+    }
+    pub fn is_personal_route(&self) -> bool {
+        self.privacy() == PrivacyClass::Personal
+    }
+    pub(crate) fn validate_billing(&self, response: &ModelResponse) -> Result<(), Error> {
+        if self.provider == "opencode-go"
+            && self.is_personal_route()
+            && (response.usage.cost_microusd != Some(0)
+                || !response.billing.as_ref().is_some_and(|billing| {
+                    matches!(billing.source, BillingSource::Go | BillingSource::GoPlus)
+                }))
+        {
+            return Err(Error::BillingSource);
+        }
+        Ok(())
+    }
     pub fn validate(&self) -> Result<(), Error> {
         if !matches!(self.provider.as_str(), "opencode-go" | "opencode-console")
             || self.default_model != DEEPSEEK_MODEL
@@ -33,17 +57,13 @@ impl ModelsConfig {
                 "only the owner-selected DeepSeek model is allowed",
             ));
         }
-        let privacy = if self.provider == "opencode-console" {
-            PrivacyClass::Personal
-        } else {
-            PrivacyClass::PublicCoding
-        };
-        if self.allowed_privacy != [privacy]
+        if (self.allow_personal_go && self.provider != "opencode-go")
+            || self.allowed_privacy != [self.privacy()]
             || self.allow_training_models
-            || (self.provider == "opencode-console" && self.max_attempts != 1)
+            || (self.is_personal_route() && self.max_attempts != 1)
         {
             return Err(Error::InvalidConfig(
-                "only public coding data and non-training routes are supported",
+                "privacy classification, explicit personal Go grant, or single-attempt policy is invalid",
             ));
         }
         if !(1..=60).contains(&self.timeout_seconds)

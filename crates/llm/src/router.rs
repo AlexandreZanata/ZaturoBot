@@ -1,6 +1,6 @@
 use crate::{
     BudgetPort, CallContext, Cancellation, Error, LlmClient, Message, ModelRequest, ModelResponse,
-    ModelsConfig, PrivacyClass,
+    ModelsConfig,
 };
 use std::{
     sync::Arc,
@@ -119,14 +119,11 @@ impl Router {
         if !self.config.enabled {
             return Err(Error::Disabled);
         }
-        let privacy = if self.config.provider == "opencode-console" {
-            PrivacyClass::Personal
-        } else {
-            PrivacyClass::PublicCoding
-        };
-        if context.privacy != privacy || !self.config.allowed_privacy.contains(&context.privacy) {
+        if context.privacy != self.config.privacy()
+            || !self.config.allowed_privacy.contains(&context.privacy)
+        {
             return Err(Error::Denied(
-                "explicit public-coding disclosure is required",
+                "request privacy must match its explicitly configured route",
             ));
         }
         if !self.config.allow_global_processing {
@@ -134,7 +131,7 @@ impl Router {
                 "the selected model requires explicit Global processing authorization",
             ));
         }
-        let max_step = if self.config.provider == "opencode-console" {
+        let max_step = if self.config.is_personal_route() {
             self.config.budget.max_task_model_calls.min(8)
         } else {
             2
@@ -204,6 +201,7 @@ impl Router {
         {
             return Err(Error::InvalidResponse);
         }
+        self.config.validate_billing(response)?;
         Ok(())
     }
     async fn backoff(

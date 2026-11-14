@@ -84,8 +84,8 @@ fixed metadata and server-known summaries. See [native clients](NATIVE_CLIENTS.m
 `zaturo-computer` adapts fixed reviewed local Python/MCP/API helpers. Core owns bounded
 semantic actions and observations; db's schema9 owns exact parent/child step records;
 services enforce current leases, sequence limits, independent owner confirmation and
-revocation. The home worker's separate Console planner retains the provider key and
-paid ledger; the work worker receives only permitted actions and bounded semantic data.
+revocation. The home worker's explicit Personal/Go planner retains the provider key and
+durable usage ledger; the work worker receives only permitted actions and bounded semantic data.
 No screenshot enters that path. Computer private views share the existing encrypted RAM
 relay, local fixed-window grant and native expiry/focus lifecycle. See
-[computer contracts](COMPUTER_USE.md), [social](SOCIAL_MANAGEMENT.md) and ADR-0020.
+[computer contracts](COMPUTER_USE.md), [social](SOCIAL_MANAGEMENT.md) and ADR-0020/0021.

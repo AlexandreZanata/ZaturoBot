@@ -15,7 +15,9 @@ wire references. It intentionally exposes only four stable tools:
 List summaries before reading a body. There are no full-history dumps, image/base64 tool
 results, provider prompts on each tool call, generic shell, automatic file execution or
 model key. The compact tool catalog is tested below 5000 JSON bytes; byte size is not a
-claim about a provider tokenizer. Known chat commands need zero inference calls. See
+claim about a provider tokenizer. Known chat commands need zero inference calls. Other chat uses the home worker's explicit
+Personal/Go opt-in and existing budgets; the MCP adapter receives no provider key, cannot
+select a model/route or turn on credit fallback. Go live billing remains separate evidence. See
 [assistant contracts](../../docs/ASSISTANT_AND_SHARED_TASKS.md).
 
 Computer confirmations require the native owner's separate `computer_confirm` action.

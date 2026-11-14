@@ -113,8 +113,11 @@ credential-free registration command and [MCP instructions](../mcp/README.md).
 The 0.6 updater recognizes all 13 current typed capabilities, including
 `computer.action.v1`, `computer.private.v1`, `price.search.v1` and an already configured
 `computer.agent.v1`. It does not add a computer planner or copy a provider key to the
-work PC. The distinct home worker owns the bounded Console planner; its last observed
-live request returned HTTP402, which remains an external billing/permission blocker.
+work PC. The distinct home worker owns the bounded Personal/Go planner under explicit
+allow_personal_go opt-in, the same exclusive DeepSeek model and durable budgets. The old
+Console402 is historical, not a current Go requirement. Observe the actual Go route and
+subscription billing separately; keep Extra Usage off and never add Console credits or
+copy a provider key merely to enable work-PC actions.
 The hub must support schema9 computer coordination; the work journal remains schema8.
 See [computer contracts](../../docs/COMPUTER_USE.md) and
 [social contracts](../../docs/SOCIAL_MANAGEMENT.md) before enabling a backend.

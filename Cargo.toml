@@ -3,7 +3,7 @@ resolver = "3"
 members = ["apps/zaturo-hub", "apps/zaturo-worker", "crates/core", "crates/protocol", "crates/db", "crates/services", "crates/security", "crates/tools", "crates/llm", "crates/orchestrator", "crates/transfer", "crates/android", "crates/youtube", "crates/computer", "apps/zaturo-desktop", "xtask"]
 
 [workspace.package]
-version = "0.6.0"
+version = "0.6.1"
 edition = "2024"
 rust-version = "1.99"
 publish = false

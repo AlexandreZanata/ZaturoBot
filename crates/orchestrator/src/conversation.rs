@@ -12,7 +12,7 @@ pub async fn chat(
     cancel: &Cancellation,
 ) -> Result<ModelResponse, Error> {
     if context.privacy != PrivacyClass::Personal
-        || router.config().provider != "opencode-console"
+        || !router.config().is_personal_route()
         || router.config().max_attempts != 1
         || !zaturo_core::ordinary_text(message, 2048)
         || history.len() > 4
@@ -67,12 +67,16 @@ mod tests {
     }
     fn answer() -> ModelResponse {
         ModelResponse {
+            billing: Some(zaturo_llm::ModelBilling {
+                source: zaturo_llm::BillingSource::Go,
+                allowance_microusd: Some(0),
+            }),
             model: zaturo_llm::DEEPSEEK_MODEL.into(),
             content: "Posso explicar os comandos disponíveis.".into(),
             usage: zaturo_core::ModelUsage {
                 input_tokens: 20,
                 output_tokens: 8,
-                cost_microusd: None,
+                cost_microusd: Some(0),
             },
             finish_reason: "stop".into(),
             duration_ms: 1,

@@ -70,7 +70,7 @@ pub async fn computer_run(
     executor: &dyn ComputerExecutor,
     cancel: &Cancellation,
 ) -> Result<ComputerOutcome, Error> {
-    if router.config().provider != "opencode-console"
+    if !router.config().is_personal_route()
         || context.privacy != PrivacyClass::Personal
         || router.config().max_attempts != 1
         || !zaturo_core::ordinary_text(goal, 2048)
@@ -285,12 +285,16 @@ mod tests {
     }
     fn response(v: serde_json::Value) -> FakeReply {
         FakeReply::Answer(ModelResponse {
+            billing: Some(zaturo_llm::ModelBilling {
+                source: zaturo_llm::BillingSource::Go,
+                allowance_microusd: Some(0),
+            }),
             model: zaturo_llm::DEEPSEEK_MODEL.into(),
             content: v.to_string(),
             usage: zaturo_core::ModelUsage {
                 input_tokens: 20,
                 output_tokens: 20,
-                cost_microusd: None,
+                cost_microusd: Some(0),
             },
             finish_reason: "stop".into(),
             duration_ms: 1,

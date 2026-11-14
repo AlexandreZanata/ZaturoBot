@@ -1,84 +1,121 @@
 # Model providers and routing
 
-Phase 2 introduces a provider-independent client, a bounded router, and an OpenCode Go
-adapter. The owner's current model policy allows only `deepseek-v4.1-flash`; there is
-no model fallback. [Official-source research](OPENCODE_GO_RESEARCH.md) owns the dated
-endpoint, authentication, usage, workload, and privacy evidence.
+`zaturo-llm` owns provider transport, bounded requests, privacy/model admission and the
+budget port; `zaturo-orchestrator` owns structured planning. Typed execution, local grants
+and native owner approval stay independent. Only `deepseek-v4.1-flash` is eligible.
+The owner's latest explicit instruction selects Go for personal chat/computer planning
+(ADR-0021), superseding the earlier Console-only routing. No model or Console fallback.
 
-`zaturo-llm` owns transport and model routing. `zaturo-orchestrator` owns the structured
-proposal loop. Typed tool execution and policy authorization remain separate. Tests
-use a fake model or synthetic loopback HTTP responses. A fake client is not a production
-provider, and normal CI never uses the owner's paid account.
+Tests use fake models or synthetic localhost HTTP responses; no production credential or
+paid provider request belongs in a test. A fake response does not prove live subscription,
+billing, account login or actual destination-PC acceptance.
 
-## Configuration and activation
+## Configuration and data classification
 
-`ModelsConfig` is canonical in `crates/llm/src/config.rs`; the safe
-[example](../config/models.example.toml) is disabled. The worker optionally loads a
-model-config path and receives the API key through its protected local environment.
-The hub never receives the provider key. Enabling the example alone is insufficient:
-the exact model allowlist, coding purpose, explicit public-coding classification,
-owner-authorized Global processing, request limits, and durable budget admission must
-all pass before an outbound request. Training models and sensitive data are denied.
+`ModelsConfig` in `crates/llm/src/config.rs` is canonical. Its `allow_personal_go` opt-in
+defaults false. The [coding example](../config/models.example.toml) retains
+`allowed_privacy=["public_coding"]` and a two-step diagnostic contract. Existing coding
+profiles are not silently converted to personal traffic.
 
-The Go route accepts only `public_coding`. This is an explicit owner assertion, not a
-content detector. The separately authorized Console exception below accepts `personal`.
-Do not submit secrets merely because a request has a label: the API cannot infer privacy
-from filenames, source repositories, or model names.
+The separate [chat](../config/assistant-models.example.toml) and
+[computer](../config/computer-models.example.toml) examples select `opencode-go`, explicitly
+set `allow_personal_go=true`, and require exactly `allowed_privacy=["personal"]` with
+`max_attempts=1`. They remain disabled and require explicit Global processing consent.
+The opt-in records the owner's route decision; it does not label personal data as public
+coding, change provider terms, or authorize screenshots/credentials. A missing/mismatched
+classification, unapproved model, training consent, deadline or budget fails closed.
 
-## Bounded request contract
+The home worker uses its existing protected `OPENCODE_GO_API_KEY`; the hub and work PC
+receive no provider key. A worker profile alone does not configure provider Extra Usage
+or establish actual plan eligibility. Legacy Console transport remains explicit
+compatibility support, not an automatically selected backup or a requirement to buy credit.
 
-A request carries operation/session/request identity, an explicitly authorized purpose, classified
-messages, a configured output limit, and a reservation. Context bytes, response bytes,
-request duration, attempts, and concurrent requests are bounded. Secret-safe errors
-expose categories, not arbitrary provider response bodies or authenticated headers.
-The stable provider session identifies the task conversation across its bounded planning
-steps; every attempt has a distinct durable reservation identity. Go coding remains
-limited to two steps. Console admits at most the smaller of eight steps and its configured
-`max_task_model_calls`; step zero and a higher step are rejected before reserving or sending.
+## Fixed Go connection and reference scope
 
-A response carries bounded text, the selected model, token usage, and optional provider
-charge data. The router rejects an unexpected model or malformed usage. The integer
-micro-dollar field records only provider-reported `usage.cost`, rounded upward. It never
-substitutes Go allowance consumption for a monetary charge. Unavailable dollar data
-stays absent rather than becoming an invented price or zero. The current budget
-admission is token/call based; a separate dollar-denominated spending cap is not claimed.
+The endpoint is `https://opencode.ai/inference/go/openai/v1/chat/completions`, with Bearer
+authentication, ZaturoBot's own product user agent and a stable `x-opencode-session` for
+its conversation. The [official Go documentation](https://opencode.ai/docs/console/go/)
+describes direct clients and coding-agent-style traffic. It does not expressly promise
+arbitrary-personal workload eligibility. Record the owner's accepted local use honestly;
+do not impersonate OpenCode or claim a new provider permission.
 
-## Bounded Personal Console exception
+The read-only reference is [OpenTatu commit05e8bb3](https://github.com/AlexandreZanata/OpenTatu/tree/05e8bb33b9256eff35d5b6bc05ca8dee067a35c3),
+particularly its provider implementation, configuration pointers and connection record.
+Reuse only the verified endpoint/header/key-environment pattern. Do not copy its Muse
+Spark roles, training permission, 900-second timeout, broad output handling or accounting
+that treats allowance use as a monetary charge. ZaturoBot retains its bounded transport,
+secret-safe errors and exclusive DeepSeek allowlist. The earlier
+[Go research](OPENCODE_GO_RESEARCH.md) remains dated Phase2 evidence, read with ADR-0021.
 
-The owner additionally authorized ordinary text chat and semantic computer planning through
-`opencode-console`, classified `personal`, using the same exclusive
-`deepseek-v4.1-flash` allowlist. They have separate disabled-by-default profiles and retain
-explicit Global processing authorization. There is no fallback between Console and the
-coding-only Go route. Console has one attempt per call, disables thinking and never sends
-screenshots, cookies, automatic file context or provider reasoning.
+## Request bounds and durable budgets
 
-Ordinary [assistant chat](ASSISTANT_AND_SHARED_TASKS.md) remains a single text-only call.
-The separate [computer profile](../config/computer-models.example.toml) supports up to eight
-model calls/semantic actions, with latest bounded observations and compact receipts. A
-smaller configured call/token budget or an earlier deadline stops it sooner. Planning
-runs on the home worker; executor grants, native owner confirmation and independent
-post-action verification stay outside model authority. A model completion cannot create
-permission or replace actual execution evidence.
+Every call carries task/operation/request identities, explicit classification, bounded
+messages/output and a reservation. Personal chat is one tool-free call with at most four
+clipped ordinary context turns. The semantic planner uses latest bounded observations and
+compact receipts, at most the smaller of eight steps and configured
+`max_task_model_calls`. Step zero or a higher step is rejected before reserve/send.
+PublicCoding Go diagnostics remain limited to two steps. No reasoning, screen pixels,
+cookies or automatic file context enters personal inference; thinking is disabled.
 
-Both Personal use cases reserve and settle through the existing worker journal and
-aggregate UTC-day/month token/call limits. Changing a route or profile does not create a
-new allowance, clear uncertain usage, or permit a model switch. The last bounded live
-Console check returned HTTP402; this external balance/billing prerequisite is not covered
-by fake-provider acceptance tests or silently bypassed.
+The worker journal reserves token/call capacity before dispatch and checks request/task/
+UTC-day/UTC-month totals transactionally. Personal and coding journals share aggregate
+admission; another profile/route never creates a fresh allowance or clears debt. Unknown
+or interrupted requests retain their reservations across restart. The existing token/call
+caps remain local limits, not a live reading of the subscription's remaining allowance.
 
-## Budgeting, retry, and interruption
+Retries require an explicitly eligible error/backoff on their original bounded route.
+Personal requests have one attempt. Malformed usage, cancellation or lost responses keep
+the unknown reservation charged for reconciliation. When a response has known parsed
+usage, the Router settles that usage durably before applying the subscription billing
+acceptance rule. A known billing-source/charge mismatch blocks reply content and further
+planning after accounting; it is not relabelled an unknown charge. Neither outcome
+permits automatic retry or fallback. A matching cached complete result may be reported
+without another model call.
 
-The worker's SQLite journal reserves tokens and model-call capacity before dispatch.
-Request, task, UTC-day, and UTC-month limits are checked transactionally. Settle validated
-usage against the reservation. Pending or uncertain attempts remain charged across
-restart. A provider overrun is retained as debt and blocks further affected calls.
+## Subscription evidence and additional-credit boundary
 
-Retries are limited to explicitly classified retryable responses and capped backoff;
-timeouts, lost responses, cancellation after send, or an interrupted paid request never
-prove that nothing was charged. A repeated reservation cannot silently send the same
-request again. Uncertain execution stops for reconciliation. Stored complete assisted
-results can be replayed to the hub without another model call.
+Go Personal acceptance requires typed `billing_source` equal to `go` or `go-plus`, and
+reported `usage.cost` zero. `ModelUsage.cost_microusd` continues to represent actual
+balance charge. `ModelResponse.billing` contains optional `ModelBilling` evidence: source
+and `allowance_microusd`. The latter is plan consumption, not another charge, refund,
+remaining balance or local spending allowance. Missing billing-source/cost is not inferred as
+subscription/free use. Unknown, balance, BYOK/free or positive-charge evidence cannot
+satisfy the Personal Go acceptance rule. The
+[official inference cost contract](https://opencode.ai/docs/console/api/inference/#cost)
+defines those provider fields separately.
 
-Actual verification evidence belongs to [the Phase 2 report](PHASE2_REPORT.md).
-Beyond the explicitly authorized Personal/Console slice, future provider adapters, data
-categories, vision and general agent workloads still require new contracts and tests.
+Billing metadata is parsed into normalized response/report data in RAM. Ordinary chat
+receipts retain this safe metadata in the existing service-result JSON; no new SQL
+allowance ledger is introduced, and historical results need not contain it. Existing actual usage,
+reservation and uncertainty persistence remains intact. Receipt validation can stop later
+calls and refuse a misleading success, but cannot undo a charge after a request was sent.
+
+Keep provider **Extra Usage disabled** for the owner's no-additional-credit requirement.
+The [provider's beyond-limit policy](https://opencode.ai/docs/console/go/#usage-beyond-limits)
+allows balance fallback when that option is on. Endpoint selection and local response
+checks are insufficient to prevent that server-side fallback if settings later change.
+The supplied account screenshot showed Extra Usage off/$0 at that time; it is neither a
+live account monitor nor proof of a future request. No top-up, credit purchase, balance
+fallback, quota circumvention or alternative model is authorized.
+
+## Historical evidence and live Go acceptance (2026-11-14)
+
+The prior explicitly authorized Console attempt returned HTTP402. Keep that result as
+historical evidence in [the assistant record](ASSISTANT_AND_SHARED_TASKS.md); Console
+balance is no longer a prerequisite for the newly selected Personal Go route. The
+[Phase2 report](PHASE2_REPORT.md) retains its separate earlier coding-route evidence.
+
+One owner-authorized normal chat request completed through the deployed hub and updated
+home worker using the fixed Go client. The provider returned `deepseek-v4.1-flash`,
+`billing_source=go`, `usage.cost=0`, 337 input tokens and 6 output tokens in one model call.
+The worker settled the durable reservation, retained subscription allowance separately,
+and published the real reply in the ordinary feed consumed by both native clients.
+The live result was "IA Go conectada." No Console fallback or credit purchase occurred.
+
+The home-worker0.6.1 update preserved the existing key, coding profile and earlier ledger
+rows under a consistent private backup. Both personal model profiles select Go; worker
+schema8 and compatible hub schema9 remain unchanged. Provider routing is on the worker,
+so this fix requires no Android or desktop UI update. This does not establish physical
+phone/work-PC GUI acceptance or a real social publication. Beyond this explicitly
+authorized slice, new models, data categories, vision and general agent workloads require
+their own contracts and tests.

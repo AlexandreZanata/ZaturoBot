@@ -14,10 +14,11 @@ bounded final answer, before producing a successful orchestration report.
 `cargo test -p zaturo-orchestrator` uses only fake model/executor/budget fixtures. Include
 denial, malformed-output, cancellation, and invented-success regressions in changes.
 
-`conversation.rs` is a separate bounded Personal/Console text-only path. It has no tools,
+`conversation.rs` is a separate bounded Personal/Go text-only path under explicit opt-in.
+It has no tools,
 uses the registered assistant-chat prompt, <=4 clipped ordinary history turns and one call.
 It must never claim actual execution or turn a reply/history/shared note into authorization.
 The existing two-step public-coding diagnostic policy is unchanged.
 
 
-`computer.rs` is the separate bounded Personal/Console semantic planner. At most8 calls, latest clipped observation and compact verified receipts. Require read verification after input/accepted publication. Exact owner approval stays outside model messages; no image or unrestricted shell tool.
+`computer.rs` is the separate bounded Personal/Go semantic planner under explicit opt-in. At most8 calls, latest clipped observation and compact verified receipts. Require read verification after input/accepted publication. Exact owner approval stays outside model messages; no image or unrestricted shell tool.

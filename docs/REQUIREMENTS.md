@@ -68,8 +68,9 @@ The owner requested conversational AI from both native apps, low-context MCP too
 an area shared with the other PC's Codex, typed video generation with precise login errors,
 and real private USB-phone images in the Android chat. Use only deepseek-v4.1-flash.
 Known explicit commands skip inference; other owner messages use a separately configured
-Personal/Console route, one bounded call with clipped ordinary context and the existing
-private provider credential. The coding Go route remains exclusive to PublicCoding.
+Personal/Go route under the owner's explicit opt-in (ADR-0021), one bounded call with
+clipped ordinary context and the existing private provider credential. Public-coding
+diagnostics retain their separate classification and two-step contract.
 Never automatically disclose files, cookies, screenshots or provider reasoning.
 
 Shared instructions, comments and transfer references are inert persistent coordination.
@@ -108,3 +109,22 @@ viewing, without screen pixels in history, SQL or model context. The capture win
 locally fixed and must remain current/granted; no fallback to the owner's whole desktop.
 The new native/read-only/API foundations require actual target/session/account acceptance;
 fixtures do not establish that an absent desktop/phone/login/provider balance works.
+
+
+## Explicit owner Personal Go route change (ADR-0021)
+
+The owner directs native conversation and computer-action planning to the Go subscription
+API used by the read-only OpenTatu reference, without additional Console credits. Keep
+only deepseek-v4.1-flash, Personal classification, explicit allow_personal_go=true, Global
+processing consent, one attempt and the existing durable budgets. This supersedes only
+the earlier Console-only routing decision, not task/approval/privacy boundaries. Personal
+planning is capped by min(max_task_model_calls,8); the coding diagnostic remains two-step.
+
+Accept a Personal Go response only with reported billing_source go/go-plus and actual
+balance cost zero. Keep optional allowance consumption distinct from monetary charge;
+missing cost/billing proof fails closed. Provider Extra Usage must remain disabled to
+prevent its server-side pay-as-you-go fallback. An acceptance check cannot reverse a
+charge after send. No Console fallback, credit purchase or top-up is authorized.
+The supplied account screenshot showing Extra Usage off/$0 is a point-in-time setting,
+not proof of a later request. Record new live acceptance only after actual observation;
+preserve the historical Console402 without treating it as a current Go prerequisite.

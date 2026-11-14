@@ -167,7 +167,9 @@ synthetic credentials/accounts only. No Postiz deployment, real consent, publica
 comment, media upload or actual work-PC screenshot is implied by these tests.
 
 The destination still needs an actual compatible Postiz service, configured accounts and
-local permissions. The last bounded DeepSeek Console check returned HTTP402; that is
-also an external prerequisite for model-planned social tasks. Do not silently switch to
-the coding-only Go route or claim successful AI/account acceptance. Direct existing
+local permissions. Model planning now uses explicit Personal/Go under ADR-0021, with
+subscription billing proof and provider Extra Usage off. Historical Console402 is not a
+current Go prerequisite, and no new live Go/account success is implied. Do not fall back
+to Console credits or another model; a receipt check cannot reverse a provider charge.
+Direct existing
 YoutubeBot commands retain their separate typed/local grants and actual job observers.

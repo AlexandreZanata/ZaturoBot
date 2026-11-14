@@ -24,20 +24,22 @@ tools. Only the current owner message and at most four clipped ordinary previous
 phone images and private reasoning are excluded. The complete feed stays in the hub;
 only this small context tail is selected for inference.
 
-Only `deepseek-v4.1-flash` is configured. The existing PublicCoding/Go diagnostic remains
-separate. General conversation uses the fixed Console Chat Completions endpoint with
-explicit Personal/Global authorization, one attempt and disabled thinking. No automatic
-route/model fallback. The example profile limits output to 384 tokens; the transport and
-reply contracts independently bound bytes. Input reservations conservatively use bytes
-plus overhead, not an exact tokenizer. Both ledgers count toward UTC-day/month admission;
-unknown calls remain charged across restart. Route limits apply to aggregate usage.
+Only `deepseek-v4.1-flash` is configured. The PublicCoding/Go diagnostic remains separate.
+The owner's latest route instruction (ADR-0021) selects the fixed Go Chat Completions
+endpoint for general conversation with Personal classification, allow_personal_go=true,
+Global consent, one attempt and disabled thinking. The opt-in defaults false in the type;
+the separate personal example explicitly opts in but remains disabled until configured.
+It does not disguise personal requests as coding or fall back to Console/another model.
+The example limits output to384 tokens; transport/reply contracts independently bound
+bytes. Input reservations use conservative bytes plus overhead, not an exact tokenizer.
+Both ledgers count toward aggregate UTC-day/month admission; unknown calls remain charged.
 
-[OpenCode Go](https://opencode.ai/docs/console/go/) documents coding-agent traffic;
-[Console inference](https://opencode.ai/docs/console/api/inference/) documents the separate
-paid API. Console balance/model permission is required and is not inferred from a Go
-subscription. [DeepSeek thinking mode](https://api-docs.deepseek.com/guides/thinking_mode/)
-documents the non-thinking parameter. Evidence checked 2026-11-14; actual activation
-requires the private worker profile and an explicitly authorized bounded live check.
+Personal Go accepts only subscription billing_source go/go-plus with reported actual cost
+zero; optional allowance consumption is separate. Keep provider Extra Usage off so limits
+do not fall back to account credit. Response checks cannot undo a charge already incurred
+if upstream settings change. No Console balance/top-up is required or authorized for this
+route. The former Console402 is historical evidence below, not proof of current Go failure
+or success. Read [provider policy and source evidence](LLM_PROVIDERS.md) before activation.
 No real provider call belongs in a test.
 
 ## Video generation and honest readiness
@@ -110,10 +112,24 @@ One explicitly authorized bounded Console request reached the provider through t
 normal durable task/worker budget path. The provider returned HTTP402 (balance/billing
 permission unavailable). Chat accurately reports that blocker; a successful DeepSeek
 conversation is **not** claimed. The call was not automatically retried or switched to Go.
-Console billing permission/balance remains an external prerequisite, not a code-test failure.
+That was the former route's external prerequisite. ADR-0021 now supersedes Console-only
+personal routing with explicit Personal/Go; it does not erase this402 or turn the old
+attempt into a successful Go/native conversation. New live billing/task evidence remains
+separate and must be observed before reporting acceptance.
 
 The existing work PC was reachable, but its actual read-only USB inventory returned zero
 devices and its advertised worker was still the older service version. The new work-PC
 upgrade is an owner-requested receiving-Codex handoff; delivery does not prove installation.
 Actual Google/ChatGPT readiness, generation and the intended phone's messaging/screenshot
 acceptance remain to be observed there after the additive update and physical USB setup.
+
+## Personal Go acceptance (0.6.1, 2026-11-14)
+
+Under the owner's new explicit Go selection, one normal durable chat request returned
+"IA Go conectada." from `deepseek-v4.1-flash`. The provider reported `billing_source=go`,
+zero balance charge and separate subscription allowance; the journal settled one call
+and the real reply appeared in the shared native feed. Existing credentials, aggregate
+limits and historical Console402 reservations were preserved. See
+[provider evidence](LLM_PROVIDERS.md#historical-evidence-and-live-go-acceptance-2026-11-14).
+Both private personal profiles now select Go. This backend-only correction requires no
+client UI update and makes no claim of new physical phone or work-PC account acceptance.

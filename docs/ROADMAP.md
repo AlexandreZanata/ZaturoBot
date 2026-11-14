@@ -102,7 +102,7 @@ integrate it with this hub. Real Google consent and channel actions remain user-
 ## Owner-authorized bounded assistant extension
 
 <!-- feature:assistant-chat status:implemented -->
-Typed zero-model commands and separate bounded DeepSeek Console personal conversation,
+Typed zero-model commands and explicit-opt-in bounded DeepSeek Go personal conversation,
 with limited ordinary context, durable spend/uncertainty and honest service readiness.
 Generation-only YoutubeBot work does not imply publication or general computer use.
 
@@ -136,3 +136,14 @@ Unsupported network schemas/comments remain unavailable; original YoutubeBot sta
 A read-only BitLupa bridge formats actual exact-variant stored offers with provenance,
 payment/freshness and honest value limitations. No active BitLupa collector or X7base
 catalog is invented. Live crawling/recurring price monitoring remain planned.
+
+
+## Owner-authorized Personal Go routing update
+
+ADR-0021 supersedes the earlier Console-only selection for chat/computer planning.
+The existing model integration adds explicit allow_personal_go opt-in, retains Personal
+classification and one attempt, and checks subscription billing proof separately from
+allowance use. Go coding diagnostics keep two steps; Personal planning keeps its smaller
+configured budget and eight-step cap. Console402 remains historical evidence. One normal live chat completed with Go billing
+and zero reported balance charge; see the provider record. Keep Extra Usage disabled; no
+new credit, fallback model or expanded account/desktop grant follows from this routing change.

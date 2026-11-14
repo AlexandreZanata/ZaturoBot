@@ -34,6 +34,8 @@ pub enum Error {
     InvalidResponse,
     #[error("provider response exceeded its byte limit")]
     ResponseTooLarge,
+    #[error("provider did not prove included Go billing with zero additional charge")]
+    BillingSource,
     #[error("durable model budget denied the request")]
     Budget,
     #[error("previous model request requires reconciliation")]
@@ -108,11 +110,31 @@ pub struct ModelRequest {
     pub max_output_tokens: u32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum BillingSource {
+    Go,
+    #[serde(rename = "go-plus")]
+    GoPlus,
+    Balance,
+    Byok,
+    Free,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ModelBilling {
+    pub source: BillingSource,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowance_microusd: Option<u64>,
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct ModelResponse {
     pub model: String,
     pub content: String,
     pub usage: ModelUsage,
+    pub billing: Option<ModelBilling>,
     pub finish_reason: String,
     pub duration_ms: u64,
     pub model_calls: u32,
@@ -124,6 +146,7 @@ impl fmt::Debug for ModelResponse {
             .field("model", &self.model)
             .field("content", &"[REDACTED]")
             .field("usage", &self.usage)
+            .field("billing", &self.billing)
             .field("finish_reason", &self.finish_reason)
             .finish()
     }
