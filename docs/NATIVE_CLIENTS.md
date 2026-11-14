@@ -58,8 +58,8 @@ ordinary/sensitive-feed boundaries, the model route, and the private-view lifecy
 
 Free text is stored honestly as a request. Explicit diagnostic, YouTube-profile and USB
 inventory actions create typed tasks. Arbitrary text is not treated as permission to
-execute a shell or an unsupported operation. The existing public-coding model route stays
-separate; account documents and phone screens are never automatically sent to it.
+execute a shell or an unsupported operation. The public-coding model route stays separate. The owner-authorized 0.5 assistant uses
+the distinct bounded Personal/Console route described in [assistant/shared contracts](ASSISTANT_AND_SHARED_TASKS.md); account files and phone screens are never automatic model context.
 
 ## Authentication and transports
 
@@ -81,8 +81,12 @@ The initial Android app supports chat, daily history, service actions, worker st
 its private SSH transport. Normal photo cards reference encrypted file-transfer UUIDs;
 the desktop can display a verified bounded PNG already received in its private inbox.
 An unavailable local attachment is labeled pending; it is not fetched as plaintext from
-the VPS. Android has no native age private-screen viewer in this slice and receives no
-private-view binding. APK build and JVM transport tests are not real-device acceptance.
+the VPS. Android 0.4 had no private-screen decoder. Version 0.5 adds a separately granted native
+viewer with a dedicated Keystore-protected age identity and only a public hub registration.
+The image appears temporarily inside Hub, outside persistent timeline data, and clears on
+focus loss/navigation/stop/expiry. Relative server TTL plus a local monotonic deadline
+prevents network delay or phone clock skew from extending display time. APK/JVM/emulator
+checks are not acceptance of a particular physical work-PC phone.
 
 ## Private desktop screen panel
 
@@ -117,3 +121,5 @@ and metadata-only `GET /v1/artifacts/{uuid}` use application authentication. Pri
 use `/v1/private-views` and worker-bound `/v1/device/private-views` routes. Owner-admin
 and device endpoints retain their independent boundaries. Types in core/activity.rs,
 core/service.rs and source validators are canonical; documentation is not another schema.
+
+The shared area and explicit assistant chat mode are documented in [assistant/shared contracts](ASSISTANT_AND_SHARED_TASKS.md). Private phone actions remain separate confirmed controls.

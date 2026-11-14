@@ -13,6 +13,7 @@ fn project(root: &Path) -> YoutubeConfig {
         python: "/usr/bin/python3".into(),
         project_root: root.to_owned(),
         allow_schedule: false,
+        allow_generate: false,
     }
 }
 fn op() -> String {
@@ -176,4 +177,67 @@ async fn configured_interpreter_symlink_keeps_venv_style_invocation() {
         .execute(&op(), &ServiceRequest::YoutubeProfiles)
         .await
         .unwrap();
+}
+
+#[tokio::test]
+async fn generation_needs_a_separate_local_grant_and_never_selects_scheduled_upload() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut config = project(temp.path());
+    let request = ServiceRequest::YoutubeGenerate {
+        channel: "channel".into(),
+        count: 4,
+    };
+    let operation = op();
+    assert_eq!(
+        YoutubeClient::new(config.clone())
+            .unwrap()
+            .execute(&operation, &request)
+            .await
+            .unwrap_err(),
+        Error::PolicyDenied
+    );
+    assert!(!temp.path().join("calls.jsonl").exists());
+    config.allow_generate = true;
+    let client = YoutubeClient::new(config).unwrap();
+    let accepted = client.execute(&operation, &request).await.unwrap();
+    assert_eq!(accepted.outcome, "accepted");
+    let calls = fs::read_to_string(temp.path().join("calls.jsonl")).unwrap();
+    assert!(calls.contains("approved-generation"));
+    assert!(!calls.contains("approved-schedule"));
+    fs::write(temp.path().join("mode"), "generation-completed").unwrap();
+    let completed = client.reconcile(&operation, &request).await.unwrap();
+    assert_eq!(completed.outcome, "completed");
+    assert_eq!(completed.data["generated_count"], 4);
+    assert_eq!(completed.data["scheduled_count"], 0);
+    assert!(completed.summary.contains("Não foram publicados"));
+}
+#[tokio::test]
+async fn readiness_distinguishes_actual_logout_from_unknown_state_without_forwarding_raw_errors() {
+    for (mode, missing) in [("generation-login", true), ("generation-unknown", false)] {
+        let temp = tempfile::tempdir().unwrap();
+        let mut config = project(temp.path());
+        config.allow_generate = true;
+        let client = YoutubeClient::new(config).unwrap();
+        let request = ServiceRequest::YoutubeGenerate {
+            channel: "channel".into(),
+            count: 1,
+        };
+        let operation = op();
+        client.execute(&operation, &request).await.unwrap();
+        fs::write(temp.path().join("mode"), mode).unwrap();
+        let result = client.reconcile(&operation, &request).await.unwrap();
+        assert_eq!(result.outcome, "blocked");
+        assert!(
+            !serde_json::to_string(&result)
+                .unwrap()
+                .contains("SYNTHETIC_RAW")
+        );
+        if missing {
+            assert!(result.summary.contains("Google e ChatGPT"));
+            assert!(result.summary.contains("não está logada"));
+        } else {
+            assert!(result.summary.contains("Não foi possível confirmar"));
+            assert!(!result.summary.contains("não está logada"));
+        }
+    }
 }

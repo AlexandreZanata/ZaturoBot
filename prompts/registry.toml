@@ -7,3 +7,12 @@ version = 1
 path = "prompts/diagnostic-planner.md"
 variables = []
 output_schema = "prompts/diagnostic-planner.schema.json"
+
+[[prompts]]
+id = "assistant-chat"
+purpose = "Answer bounded owner conversation without tools or invented execution"
+owner = "zaturo-orchestrator"
+version = 1
+path = "prompts/assistant-chat.md"
+variables = []
+output_schema = "prompts/assistant-chat.schema.json"

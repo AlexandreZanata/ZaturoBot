@@ -41,14 +41,17 @@ pub fn start(
                     let client = &client;
                     async move {
                         let operation = job.operation_id;
-                        let ServiceRequest::YoutubeSubmit {
-                            channel,
-                            account,
-                            count,
-                            ..
-                        } = job.request
-                        else {
-                            return;
+                        let (channel, account, count, mode) = match job.request {
+                            ServiceRequest::YoutubeSubmit {
+                                channel,
+                                account,
+                                count,
+                                ..
+                            } => (channel, Some(account), count, "schedule"),
+                            ServiceRequest::YoutubeGenerate { channel, count } => {
+                                (channel, None, count, "generate")
+                            }
+                            _ => return,
                         };
                         let local = journal.clone();
                         let id = operation.clone();
@@ -75,7 +78,8 @@ pub fn start(
                             }
                         };
                         if status.channel != channel
-                            || status.account != account
+                            || account.is_some_and(|a| status.account != a)
+                            || status.mode != mode
                             || status.count != count
                         {
                             tracing::warn!("youtube_job_status_binding_mismatch");

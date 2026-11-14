@@ -51,6 +51,7 @@ fn worker_config(path: &std::path::Path, url: String) -> WorkerConfig {
         heartbeat_seconds: 1,
         reconnect_max_seconds: 2,
         models_config: None,
+        assistant_models_config: None,
     }
 }
 

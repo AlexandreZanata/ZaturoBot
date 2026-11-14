@@ -366,3 +366,76 @@ async fn unchanged_screen_watch_ends_without_an_image() {
             .ends_with(".png")
     }));
 }
+
+#[tokio::test]
+async fn opening_messages_is_a_fixed_serial_bound_owner_action_without_capture_or_sending() {
+    let _fixture = EXECUTABLE_FIXTURES.lock().await;
+    let temp = tempfile::tempdir().unwrap();
+    let script=FIXTURE.replace("elif args[:3]==['-s','USB_SYNTHETIC_01','shell']:","elif args==['-s','USB_SYNTHETIC_01','shell','am','start','-W','-a','android.intent.action.MAIN','-c','android.intent.category.LAUNCHER','--selector','-a','android.intent.action.MAIN','-c','android.intent.category.APP_MESSAGING']:\n print('Status: ok')\nelif args[:3]==['-s','USB_SYNTHETIC_01','shell']:");
+    let adb = AdbClient::new(&fake(temp.path(), &script)).unwrap();
+    let mut registered = registration();
+    registered.capabilities = vec![
+        AndroidCapability::DeviceStatus,
+        AndroidCapability::OpenMessages,
+    ];
+    let manager = SessionManager::new(vec![registered.clone()]).unwrap();
+    let lease = manager
+        .acquire("owner-phone", AndroidControlActor::Owner, 30, 1000)
+        .unwrap();
+    adb.open_messages(&registered, &lease, 1000).await.unwrap();
+    assert!(matches!(
+        adb.capture(&registered, &lease, 1000).await,
+        Err(Error::PermissionDenied)
+    ));
+    manager.release(&lease).unwrap();
+    assert_eq!(
+        adb.open_messages(&registered, &lease, 1000)
+            .await
+            .unwrap_err(),
+        Error::PermissionDenied
+    );
+    let calls = fs::read_to_string(temp.path().join("arguments.jsonl")).unwrap();
+    assert!(calls.contains("APP_MESSAGING"));
+    assert!(!calls.contains("screencap"));
+    assert!(!calls.contains("SENDTO"));
+    assert!(!calls.contains("keyevent"));
+    let resolver = script.replace(
+        "print('Status: ok')",
+        "print('Status: ok\\nActivity: android/com.android.internal.app.ResolverActivity')",
+    );
+    let adb = AdbClient::new(&fake(temp.path(), &resolver)).unwrap();
+    let lease = manager
+        .acquire("owner-phone", AndroidControlActor::Owner, 30, 1000)
+        .unwrap();
+    assert_eq!(
+        adb.open_messages(&registered, &lease, 1000)
+            .await
+            .unwrap_err(),
+        Error::CommandFailed
+    );
+}
+#[tokio::test]
+async fn messages_navigation_stops_when_the_owner_lease_expires() {
+    let _fixture = EXECUTABLE_FIXTURES.lock().await;
+    let temp = tempfile::tempdir().unwrap();
+    let script=FIXTURE.replace("elif args[:3]==['-s','USB_SYNTHETIC_01','shell']:","elif args==['-s','USB_SYNTHETIC_01','shell','am','start','-W','-a','android.intent.action.MAIN','-c','android.intent.category.LAUNCHER','--selector','-a','android.intent.action.MAIN','-c','android.intent.category.APP_MESSAGING']:\n import time\n time.sleep(10)\n print('Status: ok')\nelif args[:3]==['-s','USB_SYNTHETIC_01','shell']:");
+    let adb = AdbClient::new(&fake(temp.path(), &script)).unwrap();
+    let mut registered = registration();
+    registered
+        .capabilities
+        .push(AndroidCapability::OpenMessages);
+    let manager = SessionManager::new(vec![registered.clone()]).unwrap();
+    let lease = manager
+        .acquire("owner-phone", AndroidControlActor::Owner, 1, 0)
+        .unwrap();
+    assert_eq!(
+        tokio::time::timeout(
+            Duration::from_secs(2),
+            adb.open_messages(&registered, &lease, 0)
+        )
+        .await
+        .unwrap()
+        .unwrap_err(),
+        Error::PermissionDenied
+    );
+}

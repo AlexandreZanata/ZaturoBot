@@ -122,6 +122,22 @@ export component AppWindow inherits Window {
     in property<bool> has-more:false;
     in property<[FeedRow]> events;
     in property<[WorkerRow]> workers;
+    in property<[WorkerRow]> shared-tasks;
+    in-out property<string> shared-title;
+    in-out property<string> shared-instructions;
+    in-out property<string> shared-detail;
+    in-out property<string> shared-note;
+    in-out property<string> shared-selected-id;
+    in-out property<int> shared-selected-revision:0;
+    in-out property<string> shared-selected-state;
+    in-out property<string> shared-note-key;
+    changed shared-note=>{root.shared-note-key="";}
+    in-out property<string> shared-request-key;
+    in-out property<string> chat-request-key;
+    in-out property<string> chat-request-message;
+    in-out property<string> chat-request-target;
+    changed shared-title=>{root.shared-request-key="";}
+    changed shared-instructions=>{root.shared-request-key="";}
     in property<string> services-summary:"Conecte o hub para consultar os serviços.";
     in-out property<bool> preview-open:false;
     in property<image> preview-image;
@@ -142,6 +158,7 @@ export component AppWindow inherits Window {
     in-out property<int> scroll-revision:0;
     in-out property<length> scroll-base-y;
     in-out property<length> scroll-base-height;
+    callback shared-refresh;callback shared-create;callback shared-reply;callback shared-open(string);
     callback start-private;callback close-private;callback refresh;callback filters-changed;
     callback send-message;callback diagnostic;callback save-connection;callback service-action(string);
     callback load-more;callback open-artifact(string);callback hub-opened;callback settle-scroll;
@@ -179,6 +196,7 @@ export component AppWindow inherits Window {
                     NavItem {icon:root.icon-chat;label:"Hub";selected:root.page=="hub";clicked=>{root.close-private();root.open-hub();}}
                     NavItem {icon:root.icon-services;label:"Serviços";selected:root.page=="services";clicked=>{root.close-private();root.page="services";}}
                     NavItem {icon:root.icon-terminal;label:"Computadores";selected:root.page=="workers";clicked=>{root.close-private();root.page="workers";}}
+                    NavItem {icon:root.icon-folder;label:"Área compartilhada";selected:root.page=="shared";clicked=>{root.close-private();root.page="shared";root.shared-refresh();}}
                     NavItem {icon:root.icon-folder;label:"Arquivos";selected:root.page=="files";clicked=>{root.close-private();root.page="files";}}
                     NavItem {icon:root.icon-shield;label:"Tela privada";selected:root.page=="private";clicked=>{root.page="private";}}
                     Rectangle {vertical-stretch:1;}
@@ -190,9 +208,9 @@ export component AppWindow inherits Window {
             Rectangle {horizontal-stretch:1;
                 VerticalLayout {padding-left:24px;padding-right:24px;padding-top:18px;padding-bottom:12px;spacing:12px;
                     HorizontalLayout {height:44px;spacing:12px;
-                        Text {text:root.page=="hub" ? "Conversas e atividades" : root.page=="services" ? "Serviços" : root.page=="workers" ? "Computadores" : root.page=="files" ? "Arquivos" : root.page=="private" ? "Tela privada" : "Ajustes";font-size:23px;font-weight:700;color:#FFFFFF;vertical-alignment:center;horizontal-stretch:1;}
+                        Text {text:root.page=="hub" ? "Conversas e atividades" : root.page=="services" ? "Serviços" : root.page=="workers" ? "Computadores" : root.page=="files" ? "Arquivos" : root.page=="private" ? "Tela privada" : root.page=="shared" ? "Área compartilhada" : "Ajustes";font-size:23px;font-weight:700;color:#FFFFFF;vertical-alignment:center;horizontal-stretch:1;}
                         if root.busy: Spinner {width:20px;height:20px;}
-                        FlatButton {label:"Atualizar";icon:root.icon-sync;clicked=>{root.refresh();}}
+                        FlatButton {label:"Atualizar";icon:root.icon-sync;clicked=>{if root.page=="shared" {root.shared-refresh();}else {root.refresh();}}}
                     }
                     if root.page=="hub": HorizontalLayout {height:40px;spacing:10px;
                         Image {source:root.icon-calendar;width:21px;image-fit:contain;colorize:#A6A6B0;}
@@ -220,6 +238,30 @@ export component AppWindow inherits Window {
                                 IconButton {label:"Enviar mensagem";icon:root.icon-send;primary:true;enabled:root.composer!="" && !root.sending;clicked=>{root.send-message();}}
                             }
                             Text {text:"As solicitações ficam no histórico. Ações respeitam as permissões do computador.";font-size:10px;color:#777780;}
+                        }
+                    }
+                    if root.page=="shared": HorizontalLayout {spacing:16px;vertical-stretch:1;
+                        ScrollView {horizontal-stretch:1;horizontal-scrollbar-policy:always-off;
+                            VerticalLayout {spacing:12px;padding:8px;alignment:start;
+                                Text {text:"Tarefas para o computador selecionado";color:#FFFFFF;font-size:17px;font-weight:650;wrap:word-wrap;}
+                                Text {text:"O Codex consulta e executa quando você pedir, respeitando as permissões locais.";color:#A6A6B0;font-size:12px;wrap:word-wrap;}
+                                for item in root.shared-tasks: Rectangle {background:#17171B;border-radius:12px;border-width:1px;border-color:#303036;height:box.preferred-height;
+                                    box:=VerticalLayout {padding:14px;spacing:10px;
+                                        Text {text:item.detail;color:#FFFFFF;wrap:word-wrap;}
+                                        FlatButton {label:"Ler instruções";icon:root.icon-folder;enabled:!root.busy;clicked=>{root.shared-open(item.id);}}
+                                    }
+                                }
+                            }
+                        }
+                        VerticalLayout {horizontal-stretch:1;spacing:12px;
+                            Text {text:"Nova tarefa";color:#FFFFFF;font-size:17px;font-weight:650;}
+                            LineEdit {text<=>root.shared-title;placeholder-text:"Título";}
+                            TextEdit {text<=>root.shared-instructions;height:150px;wrap:word-wrap;}
+                            FlatButton {label:"Salvar tarefa";icon:root.icon-send;primary:true;enabled:!root.busy;clicked=>{root.shared-create();}}
+                            Text {text:"Instruções e respostas";color:#E5B900;font-size:13px;}
+                            TextEdit {text:root.shared-detail;read-only:true;wrap:word-wrap;vertical-stretch:1;}
+                            LineEdit {text<=>root.shared-note;placeholder-text:"Resposta para esta tarefa";enabled:root.shared-selected-id!=""&&root.shared-selected-state!="done";}
+                            FlatButton {label:"Enviar resposta";icon:root.icon-send;enabled:!root.busy&&root.shared-selected-id!=""&&root.shared-selected-state!="done";clicked=>{root.shared-reply();}}
                         }
                     }
                     if root.page=="settings": Rectangle {vertical-stretch:1;background:#17171B;border-width:1px;border-color:#303036;border-radius:14px;

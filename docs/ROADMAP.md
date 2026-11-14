@@ -91,9 +91,28 @@ passive history reading retains its anchor. Android presentation version: 0.4.1.
 Serial-bound USB state, controlled owner screenshot/finite visual-change watch and
 short-lived age-encrypted RAM delivery to the desktop private viewer. No OTP OCR, SMS
 semantic harvesting, automatic sign-in or lock/secure-screen bypass. Physical USB acceptance
-remains opt-in; Android mobile private-image rendering is not implemented in this slice.
+remains deployment-specific; the separately authorized 0.5 mobile viewer is listed below.
 
 <!-- feature:youtube-service status:implemented -->
 The existing YoutubeBot video/extension/upload pipeline is preserved in its own repository;
 a fixed typed service adapter, independent heavy job units and actual completion notices
 integrate it with this hub. Real Google consent and channel actions remain user-interactive.
+
+
+## Owner-authorized bounded assistant extension
+
+<!-- feature:assistant-chat status:implemented -->
+Typed zero-model commands and separate bounded DeepSeek Console personal conversation,
+with limited ordinary context, durable spend/uncertainty and honest service readiness.
+Generation-only YoutubeBot work does not imply publication or general computer use.
+
+<!-- feature:shared-coordination status:implemented -->
+Authenticated inert shared tasks, revisioned comments and encrypted transfer references,
+with four compact MCP stdio tools. A receiving Codex acts on its owner's request, not by
+polling instructions as permission. This is not autonomous multi-agent execution.
+
+<!-- feature:mobile-private-view status:implemented -->
+Dedicated mobile age recipients and temporary RAM decryption/display reuse the private
+relay. Explicit serial-bound messaging-app navigation records local metadata recipes.
+Physical acceptance on the work PC must be recorded separately; code tests do not prove
+an absent phone, interactive login or destination deployment worked.

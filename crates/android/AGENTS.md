@@ -21,3 +21,8 @@ FD before CLOEXEC and cause Linux ETXTBSY. Keep within-test takeover/cancellatio
 concurrency and deadlines intact; do not add production retries to hide fixture races.
 See [Android integration](../../docs/ANDROID_INTEGRATION.md) and
 [sensitive screens](../../docs/ANDROID_SENSITIVE_SCREENS.md).
+
+`open_messages` is the separately authorized fixed MAIN/APP_MESSAGING operation with an
+owner lease and OpenMessages device grant. It never sends a message, selects a contact,
+reads SMS storage, types, unlocks or accepts USB consent. Device instructions are local
+metadata only and mark verified operations honestly. Private captures still use age/RAM.

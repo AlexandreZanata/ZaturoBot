@@ -21,3 +21,10 @@ remove expired bytes before releasing quota. File payloads never become executab
 filters; terminal tasks publish stable notices. `service_tasks.rs` validates typed service
 evidence. Accepted video jobs produce an initiation notice; only actual job observations
 produce final completion. Private results require the exact metadata-only core contract.
+
+`shared.rs` owns inert shared-task capacity/idempotency/optimistic revisions. Authenticated
+provenance is a transport input, never request content. `chat_as` atomically records the
+owner message and bounded command/handoff; only explicit assistant mode invokes personal
+chat. Known commands skip inference. Recent conversation context excludes acknowledgements,
+service data and every sensitive frame. Unsupported worker capabilities produce an honest
+reply rather than a fabricated execution. Generation does not imply publication.

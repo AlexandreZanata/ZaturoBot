@@ -22,3 +22,9 @@ uses its existing Python project and separate fixed resource units. `private_vie
 requires an exact hub grant and registered owner USB lease, encrypts raw PNG in memory
 and uploads only ephemeral ciphertext. It never stores screenshots in its journal or
 file cache. Keep the exclusive public-coding model route and diagnostic tool policy intact.
+
+`assistant.rs` composes the distinct Console text-only orchestrator and personal budget
+ledger. Cache a complete reply; uncertain paid calls never repeat. `android_actions.rs`
+opens only the messaging app of an explicitly registered/granted USB device and atomically
+saves metadata-only recipes under workspace_root/android-instructions. These local recipes
+are observations, not new permissions. Keep media generation separate from publication.

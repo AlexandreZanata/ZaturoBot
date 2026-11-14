@@ -81,7 +81,7 @@ impl WorkerJournal {
     }
     pub fn pending_service_jobs(&self, limit: u32) -> Result<Vec<PendingServiceJob>, Error> {
         let c = self.connection.lock().map_err(|_| Error::Poisoned)?;
-        let mut s=c.prepare("SELECT operation_id,request_json,result_json,last_notified_state FROM service_operations WHERE json_extract(request_json,'$.action')='youtube_submit' AND json_extract(result_json,'$.outcome')='accepted' AND (last_notified_state IS NULL OR last_notified_state NOT IN ('completed','failed','uncertain')) ORDER BY last_polled_at,operation_id LIMIT ?1")?;
+        let mut s=c.prepare("SELECT operation_id,request_json,result_json,last_notified_state FROM service_operations WHERE json_extract(request_json,'$.action') IN ('youtube_submit','youtube_generate') AND json_extract(result_json,'$.outcome')='accepted' AND (last_notified_state IS NULL OR last_notified_state NOT IN ('completed','failed','uncertain')) ORDER BY last_polled_at,operation_id LIMIT ?1")?;
         let rows = s.query_map([limit.min(20)], |r| {
             Ok((
                 r.get::<_, String>(0)?,
@@ -111,7 +111,7 @@ impl WorkerJournal {
             return Err(Error::OperationConflict);
         }
         let c = self.connection.lock().map_err(|_| Error::Poisoned)?;
-        let changed = c.execute("UPDATE service_operations SET last_polled_at=MAX(last_polled_at+1,?2) WHERE operation_id=?1 AND json_extract(request_json,'$.action')='youtube_submit' AND json_extract(result_json,'$.outcome')='accepted' AND (last_notified_state IS NULL OR last_notified_state NOT IN ('completed','failed','uncertain'))",params![operation,now])?;
+        let changed = c.execute("UPDATE service_operations SET last_polled_at=MAX(last_polled_at+1,?2) WHERE operation_id=?1 AND json_extract(request_json,'$.action') IN ('youtube_submit','youtube_generate') AND json_extract(result_json,'$.outcome')='accepted' AND (last_notified_state IS NULL OR last_notified_state NOT IN ('completed','failed','uncertain'))",params![operation,now])?;
         if changed != 1 {
             return Err(Error::OperationConflict);
         }
@@ -125,7 +125,7 @@ impl WorkerJournal {
             return Err(Error::OperationConflict);
         }
         let c = self.connection.lock().map_err(|_| Error::Poisoned)?;
-        let changed = c.execute("UPDATE service_operations SET last_notified_state=?2,updated_at=?3 WHERE operation_id=?1 AND json_extract(request_json,'$.action')='youtube_submit' AND json_extract(result_json,'$.outcome')='accepted' AND (last_notified_state IS NULL OR last_notified_state NOT IN ('completed','failed','uncertain') OR last_notified_state=?2)",params![operation,state,now])?;
+        let changed = c.execute("UPDATE service_operations SET last_notified_state=?2,updated_at=?3 WHERE operation_id=?1 AND json_extract(request_json,'$.action') IN ('youtube_submit','youtube_generate') AND json_extract(result_json,'$.outcome')='accepted' AND (last_notified_state IS NULL OR last_notified_state NOT IN ('completed','failed','uncertain') OR last_notified_state=?2)",params![operation,state,now])?;
         if changed != 1 {
             return Err(Error::OperationConflict);
         }

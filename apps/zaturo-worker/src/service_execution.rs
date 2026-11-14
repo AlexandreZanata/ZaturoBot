@@ -106,9 +106,13 @@ async fn execute_task(
                     operation_id: operation.clone(),
                     action: request.name().into(),
                     outcome: "completed".into(),
-                    summary: format!(
-                        "Observed {count} Android device(s); discovery does not grant screen or input access."
-                    ),
+                    summary: if count == 0 {
+                        "O ADB do computador não encontrou dispositivos Android. Verifique o cabo USB, a depuração e a autorização presencial do aparelho; nenhuma captura foi feita.".into()
+                    } else {
+                        format!(
+                            "O ADB encontrou {count} dispositivo(s) Android. A lista não concede acesso à tela nem a mensagens."
+                        )
+                    },
                     data: serde_json::json!({"devices":devices,"total":count,"truncated":false}),
                 };
                 while serde_json::to_vec(&result)
@@ -126,7 +130,8 @@ async fn execute_task(
                 }
                 result
             }
-            ServiceRequest::YoutubeProfiles
+            ServiceRequest::YoutubeGenerate { .. }
+            | ServiceRequest::YoutubeProfiles
             | ServiceRequest::YoutubeRuns { .. }
             | ServiceRequest::YoutubeSubmit { .. }
             | ServiceRequest::YoutubeStatus { .. } => {
@@ -236,6 +241,7 @@ mod tests {
             python: "/usr/bin/python3".into(),
             project_root: root.to_owned(),
             allow_schedule: true,
+            allow_generate: false,
         }
     }
     fn submit() -> ServiceRequest {

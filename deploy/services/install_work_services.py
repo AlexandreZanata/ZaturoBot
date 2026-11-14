@@ -32,6 +32,9 @@ KNOWN_CAPS = {
     "youtube.submit.v1",
     "android.devices.v1",
     "android.private.v1",
+    "assistant.chat.v1",
+    "youtube.generate.v1",
+    "android.messages.v1",
 }
 
 
@@ -261,7 +264,7 @@ def update_config(config, youtube, python, options):
     }
     require(
         required <= set(value)
-        and set(value) <= required | {"files", "models_config", "youtube", "android"},
+        and set(value) <= required | {"files", "models_config", "assistant_models_config", "youtube", "android"},
         "unsupported existing worker configuration; nothing was replaced",
     )
     require(
@@ -305,15 +308,22 @@ def update_config(config, youtube, python, options):
         )
     require(files["inbox"] != files["cache"], "invalid existing transfer directories")
     # Do not serialize or change the age identity, worker.env, SSH key or models configuration.
+    generation_granted=bool(getattr(options,"enable_generation",False) or value.get("youtube",{}).get("allow_generate",False))
+    scheduling_granted=bool(options.enable_scheduling or value.get("youtube",{}).get("allow_schedule",False))
     value["youtube"] = {
         "python": str(python),
         "project_root": str(youtube),
-        "allow_schedule": bool(options.enable_scheduling),
+        "allow_schedule": scheduling_granted,
+        "allow_generate": generation_granted,
     }
     caps = [c for c in value["capabilities"] if not c.startswith("youtube.")]
     caps.append("youtube.read.v1")
-    if options.enable_scheduling:
+    if scheduling_granted:
         caps.append("youtube.submit.v1")
+    if generation_granted:
+        caps.append("youtube.generate.v1")
+    if getattr(options,"enable_messages",False):
+        require(options.android_serial,"opening messages requires an explicitly supplied USB serial")
     if options.enable_private_view:
         require(
             options.android_serial,
@@ -375,6 +385,9 @@ def update_config(config, youtube, python, options):
                 and "sensitive_screen_view" not in device["capabilities"]
             ):
                 device["capabilities"].append("sensitive_screen_view")
+        if getattr(options,"enable_messages",False):
+            if "open_messages" not in device["capabilities"]:device["capabilities"].append("open_messages")
+            if "android.messages.v1" not in caps:caps.append("android.messages.v1")
         if options.enable_private_view:
             android["allow_sensitive_views"] = True
         if "android.devices.v1" not in caps:
@@ -393,6 +406,9 @@ def update_config(config, youtube, python, options):
         "youtube.submit.v1",
         "android.devices.v1",
         "android.private.v1",
+        "assistant.chat.v1",
+        "youtube.generate.v1",
+        "android.messages.v1",
     ]
     value["capabilities"] = [cap for cap in order if cap in caps]
     return value
@@ -413,7 +429,7 @@ def database_version(path):
     regular(path, private=True, limit=8 * 1024**3, read=False)
     with sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=5) as database:
         version = database.execute("PRAGMA user_version").fetchone()[0]
-        require(version in (2, 3, 6), "worker journal schema is unsupported")
+        require(version in (2, 3, 6, 8), "worker journal schema is unsupported")
         require(
             database.execute("PRAGMA quick_check").fetchone()[0] == "ok",
             "worker journal failed quick_check",
@@ -616,6 +632,8 @@ def parser():
         action="store_true",
         help="grant typed scheduled batches; does not submit a job",
     )
+    result.add_argument("--enable-generation",action="store_true",help="grant typed generation-only batches without publishing")
+    result.add_argument("--enable-messages",action="store_true",help="grant opening the registered messaging app without sending SMS")
     result.add_argument(
         "--android-serial", help="explicit USB serial; never selected automatically"
     )
@@ -733,6 +751,10 @@ def install(options):
             0o600,
         ),
     }
+    mcp_source=source/"deploy/mcp/zaturo_mcp.py"
+    if mcp_source.exists():
+        writes[lib/"zaturo_mcp.py"]=(regular(mcp_source,limit=128*1024),0o700)
+        writes[config_dir/"mcp.toml"]=(render_toml({"hub_url":desktop_config["hub_url"],"env_file":str(app_path)}),0o600)
     icon_notices = source / "apps/zaturo-desktop/assets/material-symbols-rounded"
     if icon_notices.exists():
         notice_destination = home / ".local/share/zaturobot/licenses/material-symbols-rounded"
@@ -901,7 +923,7 @@ def install(options):
             or regular(p, limit=128 * 1024**2) != value[0]
             or stat.S_IMODE(p.stat().st_mode) != value[1]
         }
-        if not changes and (offline or options.no_start or schema == 6):
+        if not changes and (offline or options.no_start or schema == 8):
             if not offline:
                 if options.no_start:
                     stop_worker(worker_path)

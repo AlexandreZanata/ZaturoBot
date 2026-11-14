@@ -182,3 +182,6 @@ fn sum_usage(first: &ModelUsage, second: &ModelUsage) -> Result<ModelUsage, Erro
 
 #[cfg(test)]
 mod tests;
+
+mod conversation;
+pub use conversation::chat;

@@ -10,8 +10,8 @@ and reversible. Security-critical activation waits for explicit evidence and aut
   API remains a separate scoped decision; no public control endpoint is opened.
 - Q03 — Provider eligibility: resolved for the bounded public-coding diagnostic by
   ADR-0010 and dated official research. Only deepseek-v4.1-flash is allowed; paid smoke
-  verification is expressly authorized. General non-coding/unattended workloads, new
-  data categories, and any retention-policy reliance beyond its date remain unresolved.
+  verification is expressly authorized. ADR-0019 separately authorizes bounded owner conversation through Console, not Go.
+  Unattended general workloads and other data categories remain unresolved.
 - Q04 — Notebook capability: identify CPU, storage, display/server availability, and
   GPU/video encoder support before desktop/video adoption. No GPU assumptions are made.
 - Q05 — Unattended unlock: choose a vault key-management and recovery policy; automatic
@@ -34,5 +34,6 @@ Resolved for the authorized slice: nativeLinuxRust/Slint, AndroidKotlin, distinc
 endpoint-encrypted ephemeral desktop phone views, and reuse of YoutubeBot's existing core.
 Still pending: physical registered-phone acceptance/unlock behavior, actual Google consent
 on the destination OS, migration conflict resolution if destination data already exists,
-and any later Android mobile private-screen decoder/full semantic SMS event adapter.
+and physical acceptance of the new mobile private-screen viewer. A full semantic SMS
+event adapter remains absent.
 No owner account action or real code content is assumed from a fake-device build test.

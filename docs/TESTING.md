@@ -96,3 +96,17 @@ Keystore connection and actual layout. Record it only after observed success; an
 APK build, unit-test pass or older physical run does not establish acceptance of a newer
 UI revision. Existing API/authentication, model and ephemeral private-view tests remain
 required because presentation changes must preserve those boundaries.
+
+
+## Assistant and shared-area extension
+
+The 0.5 gate adds aggregate coding/personal budget admission and uncertainty across
+restart, preserved schema upgrades, bounded conversation context, typed zero-model
+commands, shared-area revision/idempotency/authentication fences and compact stdio MCP.
+Fake YoutubeBot/ADB fixtures distinguish generation from scheduling and test precise
+login/USB states. Native app-viewer tests bind public keys to authenticated identities,
+enforce one-time encrypted content and exclude private frames from history.
+Android JVM fixtures cover standard-age interoperability, wrong recipients, tampering,
+and bounded decoding; opt-in age CLI interoperability uses synthetic files only.
+A live Console check is separate, owner-authorized and charged through the normal worker
+ledger. No fixture substitutes for physical work-PC USB/browser acceptance.

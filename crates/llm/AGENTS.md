@@ -13,3 +13,9 @@ requests retain their durable reservation. No real provider call belongs in a te
 
 Run `cargo test -p zaturo-llm` with synthetic clients and local HTTP fixtures. Actual
 production credentials are composition-root inputs, never configuration defaults.
+
+The owner-authorized personal chat exception uses only `opencode-console` with Personal
+classification, a fixed Console endpoint and max_attempts=1. Go remains PublicCoding only;
+never fall back between routes. Both use the same exclusive DeepSeek allowlist and durable
+aggregate budgets. Console requests disable thinking to bound ordinary-chat overhead.
+No screenshots, cookies, automatic file context or provider reasoning in the conversation.

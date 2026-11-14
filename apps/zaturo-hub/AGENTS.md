@@ -17,3 +17,8 @@ owner APIs or submit paid tasks. See [files](../../docs/FILE_TRANSFERS.md).
 `activity.rs` composes persisted ordinary chat/feed. `private_views.rs` is separate bounded
 RAM-only recipient-encrypted delivery with one worker grant, expiry, consume-once and
 no-store headers; no private pixels belong in SQL, ordinary files or task text.
+
+`shared.rs` exposes inert task summaries/details and revision-fenced updates; device
+credentials are confined to their own target. Derive author identity from authentication.
+Native mobile private viewers require a separate app-registry allow_private_views grant;
+only their public age key enters app_viewers SQL. Owner-confirmed captures remain RAM-only.

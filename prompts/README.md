@@ -13,3 +13,8 @@ A prompt change needs synthetic rendering/response fixtures and a behavioral eva
 for policy boundary regressions. Keep expected structured output explicit, bound context,
 and store concise evidence summaries rather than private chain-of-thought. Follow
 [change-agent-prompt](../docs/recipes/change-agent-prompt.md).
+
+`assistant-chat` is the separate tool-free Personal/Console conversational prompt owned by
+`zaturo-orchestrator::conversation`. Its plain text final answer is capped at1500 UTF-8
+bytes; the schema records the string form, while the source enforces the byte limit.
+History is separately encoded ordinary data; no reasoning, screen or automatic file context.

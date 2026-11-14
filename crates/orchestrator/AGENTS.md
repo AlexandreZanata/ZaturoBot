@@ -13,3 +13,8 @@ bounded final answer, before producing a successful orchestration report.
 
 `cargo test -p zaturo-orchestrator` uses only fake model/executor/budget fixtures. Include
 denial, malformed-output, cancellation, and invented-success regressions in changes.
+
+`conversation.rs` is a separate bounded Personal/Console text-only path. It has no tools,
+uses the registered assistant-chat prompt, <=4 clipped ordinary history turns and one call.
+It must never claim actual execution or turn a reply/history/shared note into authorization.
+The existing two-step public-coding diagnostic policy is unchanged.

@@ -100,9 +100,11 @@ pub struct FeedPage {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ChatAction {
+    Assistant,
     Diagnostic,
     YoutubeProfiles,
     AndroidDevices,
+    AndroidOpenMessages,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

@@ -7179,7 +7179,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xtask"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -7230,7 +7230,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-android"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "rustix 1.1.6",
  "sha2 0.10.9",
@@ -7244,7 +7244,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-core"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "chrono",
  "serde",
@@ -7253,7 +7253,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-db"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "rusqlite",
  "serde",
@@ -7265,7 +7265,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-desktop"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -7290,7 +7290,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-hub"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -7313,7 +7313,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-llm"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "axum",
  "futures-util",
@@ -7328,7 +7328,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-orchestrator"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -7342,7 +7342,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-protocol"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -7351,7 +7351,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-security"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "sha2 0.10.9",
  "subtle",
@@ -7362,7 +7362,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-services"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "serde_json",
  "tempfile",
@@ -7374,7 +7374,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-tools"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "serde_json",
  "zaturo-core",
@@ -7382,7 +7382,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-transfer"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "age",
  "anyhow",
@@ -7401,7 +7401,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-worker"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -7433,7 +7433,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-youtube"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "rustix 1.1.6",
  "serde",

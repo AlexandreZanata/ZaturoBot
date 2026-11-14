@@ -74,6 +74,10 @@ pub enum FailureCode {
     BudgetExceeded,
     ReconciliationRequired,
     ExecutionFailed,
+    AndroidDisconnected,
+    AndroidAuthorizationRequired,
+    AndroidUnavailable,
+    AndroidBusy,
 }
 impl FailureCode {
     pub fn as_str(self) -> &'static str {
@@ -84,6 +88,10 @@ impl FailureCode {
             Self::BudgetExceeded => "budget_exceeded",
             Self::ReconciliationRequired => "reconciliation_required",
             Self::ExecutionFailed => "execution_failed",
+            Self::AndroidDisconnected => "android_disconnected",
+            Self::AndroidAuthorizationRequired => "android_authorization_required",
+            Self::AndroidUnavailable => "android_unavailable",
+            Self::AndroidBusy => "android_busy",
         }
     }
 }

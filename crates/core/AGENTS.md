@@ -17,3 +17,8 @@ with behavioral changes. Do not define wire envelopes, SQL, or authentication he
 `service.rs` owns explicit allowlisted service requests and capped results. Private-screen
 results permit only exact server-known metadata/summaries, never arbitrary text/pixels.
 `android.rs` owns explicit USB registration/state/grant contracts; no hardware I/O here.
+
+`intent.rs` recognizes only explicit bounded owner commands; unknown, negated or conditional
+text grants no tool. `shared.rs` owns inert handoffs and revision contracts. Personal
+conversation context is <=4 ordinary turns/1024 bytes, never private screen content.
+Generation requests do not imply publication. Opening SMS is a separate confirmed action.

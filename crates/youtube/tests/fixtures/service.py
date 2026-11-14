@@ -14,6 +14,12 @@ def run(index):return {'id':'run-'+str(index),'title':'á'*150,'topic':'t'*300,'
 if args==['profiles']:
  output={'schema_version':1,'profiles':[{'id':'channel','name':'Synthetic channel','channel_id':'UC_SYNTHETIC','account_id':'account','browser_configured':False,'unknown_secret':'SYNTHETIC_EXTRA_MUST_NOT_LEAK'}],'unknown_secret':'SYNTHETIC_EXTRA_MUST_NOT_LEAK'}
 elif args[0]=='runs':output={'schema_version':1,'channel':arg('--channel'),'runs':[run(n) for n in range(int(arg('--limit')))]}
+elif args[0]=='generate':
+ assert '--approved-generation' in args and '--approved-schedule' not in args
+ identifier=arg('--operation-id');count=int(arg('--count'))
+ output={'schema_version':1,'operation_id':identifier,'state':'accepted','mode':'generate','channel':arg('--channel'),'account':'account','count':count,'created_at':1,'updated_at':2,'summary':'SYNTHETIC_RAW_GENERATION_ERROR_DO_NOT_FORWARD','result':{'scheduled_count':0,'generated_count':0,'failed_count':0,'runs':[]}}
+ (root/'job.json').write_text(json.dumps(output))
+ if mode=='lost-response':sys.exit(1)
 elif args[0]=='submit':
  assert '--approved-schedule' in args
  identifier=arg('--operation-id');count=int(arg('--count'))
@@ -25,6 +31,11 @@ elif args[0]=='status':
  if mode in ['completed','failed','uncertain']:
   output['state']=mode
   output['result']={'scheduled_count':output['count'] if mode=='completed' else 0,'failed_count':output['count'] if mode=='failed' else 0,'runs':[run(n) for n in range(output['count'])] if mode=='completed' else []}
+ if mode=='generation-login':output.update(state='failed',error_code='login_required',readiness={'google':'login_required','chatgpt':'login_required'})
+ if mode=='generation-unknown':output.update(state='failed',error_code='readiness_unknown',readiness={'google':'ready','chatgpt':'unknown'})
+ if mode=='generation-completed':
+  values=[{**run(n),'state':'ready','slot':'','video_id':''} for n in range(output['count'])]
+  output.update(state='completed',result={'scheduled_count':0,'generated_count':output['count'],'failed_count':0,'runs':values})
  if mode=='wrong-operation':output['operation_id']='00000000-0000-0000-0000-000000000001'
  if mode=='dishonest-completion':output['state']='completed'
 else:raise RuntimeError('unexpected fixed verb')

@@ -16,8 +16,10 @@ struct Entry {
     can_submit: bool,
     #[serde(default)]
     viewer_device: Option<String>,
+    #[serde(default)]
+    allow_private_views: bool,
 }
-pub struct AppRegistry(Vec<(String, Credential, bool, Option<String>)>);
+pub struct AppRegistry(Vec<(String, Credential, bool, Option<String>, bool)>);
 impl AppRegistry {
     pub fn load(path: &Path) -> Result<Self> {
         let meta = fs::symlink_metadata(path)?;
@@ -48,13 +50,14 @@ impl AppRegistry {
                 Credential::from_sha256_hex(&entry.token_sha256)?,
                 entry.can_submit,
                 entry.viewer_device,
+                entry.allow_private_views,
             ));
         }
         Ok(Self(entries))
     }
     pub fn permits(&self, token: &str, write: bool) -> bool {
         let mut permitted = false;
-        for (_, key, submit, _) in &self.0 {
+        for (_, key, submit, _, _) in &self.0 {
             permitted |= key.verifies(token) && (!write || *submit);
         }
         permitted
@@ -62,9 +65,21 @@ impl AppRegistry {
 }
 
 impl AppRegistry {
+    pub fn identity(&self, token: &str, write: bool) -> Option<String> {
+        self.0
+            .iter()
+            .find(|(_, key, submit, _, _)| key.verifies(token) && (!write || *submit))
+            .map(|(id, _, _, _, _)| id.clone())
+    }
+    pub fn native_viewer(&self, token: &str) -> Option<String> {
+        self.0
+            .iter()
+            .find(|(_, key, submit, _, allow)| key.verifies(token) && *submit && *allow)
+            .map(|(id, _, _, _, _)| format!("app:{id}"))
+    }
     pub fn viewer(&self, token: &str) -> Option<String> {
         let mut viewer = None;
-        for (_, key, _, device) in &self.0 {
+        for (_, key, _, device, _) in &self.0 {
             if key.verifies(token) {
                 viewer = device.clone();
             }

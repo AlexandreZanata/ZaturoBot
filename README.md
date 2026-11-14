@@ -5,11 +5,11 @@ Linux/Android clients. Durable tasks, explicit permissions, bounded execution, a
 interruption recovery form the shared foundation. The hub stays lightweight; models,
 media processing, and authorized USB operations run on a worker.
 
-Version 0.4 adds native clients, persistent daily chat/activity, a typed YoutubeBot
-service adapter, and Android USB foundations. These are specific implemented slices,
-not unrestricted computer control or general account automation. Read the
-[0.4 engineering report](docs/NATIVE_SERVICE_REPORT.md) for validation, rollout status,
-and remaining physical-device/account acceptance.
+Version 0.5 adds bounded DeepSeek conversation in both native clients, generation-only
+YoutubeBot commands, a shared task area with a compact local MCP, and an Android private
+phone viewer. Read [assistant and shared tasks](docs/ASSISTANT_AND_SHARED_TASKS.md) for
+the current contracts. The [0.4 engineering report](docs/NATIVE_SERVICE_REPORT.md) remains
+historical evidence; physical-device/account acceptance is recorded separately.
 
 ## Implemented capabilities
 
@@ -21,14 +21,18 @@ and remaining physical-device/account acceptance.
   private VPS relay. Workers save verified files without executing them or sending them
   to a model.
 - A Rust/Slint Linux desktop and native Kotlin Android companion with persistent chat,
-  day/type/search filters, worker status, and explicit supported actions. Ordinary chat
-  is recorded honestly; arbitrary text does not authorize a shell or an unsupported task.
+  day/type/search filters, worker status, and bounded text conversation. Known explicit
+  commands dispatch typed work without inference; model replies cannot execute actions.
+- A four-tool local MCP and revisioned shared task board for owner-requested coding-agent
+  handoffs. Received instructions and file references are inert until locally authorized.
 - A fixed YoutubeBot JSON service boundary with durable operation fencing, independent
   heavy-job units, and actual completion notices. The existing extension, recorder,
-  generation, and upload pipeline remains in its own project.
+  generation, and upload pipeline remains in its own project. Generation-only requests
+  check actual browser login evidence and never authorize publication.
 - Serial-bound Android USB status and finite private screenshot/change-watch requests.
-  Sensitive image viewing is desktop-only and uses short-lived endpoint-encrypted RAM
-  delivery, separate from normal files/feed/history. This is not an SMS semantic detector.
+  Desktop and Android private viewers use short-lived endpoint-encrypted RAM delivery,
+  separate from normal files/feed/history. Explicit messaging-app opening requires a
+  separate local grant. This is not an SMS semantic detector.
 
 Engineering artifacts are English; owner interface copy defaults to Brazilian Portuguese.
 Start with [AGENTS.md](AGENTS.md) when changing code and the
@@ -100,7 +104,7 @@ YoutubeBot uses the reviewed revision and passing CI linked in the
 [0.4 report](docs/NATIVE_SERVICE_REPORT.md). Google/ChatGPT sign-in and exact channel
 verification remain interactive. No live generation/upload is claimed by a fixture test.
 Private phone viewing requires the registered USB phone, an explicit grant, and an
-already unlocked permitted screen; for SMS viewing, its SMS app must already be open.
+already unlocked permitted screen. Opening its messaging app is a separate confirmed action.
 There is no OCR, OTP extraction, automatic sign-in, or lock/secure-window bypass.
 
 ## Validate and review
@@ -112,7 +116,7 @@ cargo xtask docs
 cargo xtask secrets
 ```
 
-The latest local gate passed **149 Rust tests and 21 Python helper tests**, plus strict
+The 0.5 local gate passed **182 Rust tests and 27 Python helper tests**, plus strict
 formatting/Clippy, documentation/architecture/registry checks, publication guard, and
 rustdoc. Desktop release and Android debug APK builds provide build evidence; they do
 not replace real Google/video or physical Android acceptance. The six-page

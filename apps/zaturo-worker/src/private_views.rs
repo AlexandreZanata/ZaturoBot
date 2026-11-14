@@ -78,7 +78,7 @@ async fn run(
         Some(
             adb.capture(device, &lease, now_ms())
                 .await
-                .map_err(|_| FailureCode::ExecutionFailed)?,
+                .map_err(classify)?,
         )
     } else {
         adb.watch(
@@ -117,6 +117,12 @@ async fn run(
         .private_frame(session_id, cipher)
         .await
         .map_err(|_| FailureCode::ExecutionFailed)?;
+    let recipe_root = config.workspace_root.join("android-instructions");
+    let observed = device.clone();
+    let _ = tokio::task::spawn_blocking(move || {
+        crate::android_actions::record_capture(&recipe_root, &observed, now_ms())
+    })
+    .await;
     Ok(ServiceResult {
         operation_id: work.task.operation_id.clone(),
         action: "android_private_view".into(),
@@ -124,4 +130,14 @@ async fn run(
         summary: zaturo_core::PRIVATE_VIEW_READY_SUMMARY.into(),
         data: serde_json::json!({"session_id":session_id,"delivery":"ephemeral_encrypted_memory","max_view_seconds":60}),
     })
+}
+
+fn classify(error: zaturo_android::Error) -> FailureCode {
+    match error {
+        zaturo_android::Error::Disconnected => FailureCode::AndroidDisconnected,
+        zaturo_android::Error::Unauthorized => FailureCode::AndroidAuthorizationRequired,
+        zaturo_android::Error::Busy => FailureCode::AndroidBusy,
+        zaturo_android::Error::PermissionDenied => FailureCode::PolicyDenied,
+        _ => FailureCode::AndroidUnavailable,
+    }
 }

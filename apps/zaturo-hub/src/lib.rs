@@ -7,6 +7,7 @@ mod files;
 mod http;
 pub mod listener;
 mod private_views;
+mod shared;
 mod websocket;
 
 use anyhow::{Result, ensure};

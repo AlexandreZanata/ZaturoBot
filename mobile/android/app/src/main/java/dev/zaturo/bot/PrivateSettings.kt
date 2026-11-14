@@ -12,8 +12,8 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /** Tokens/SSH enrollment are stored as one AES-GCM blob protected by Android Keystore. */
-class PrivateSettings(context: Context) {
-    private val prefs = context.getSharedPreferences("private_connection", Context.MODE_PRIVATE)
+class PrivateSettings(context: Context, namespace: String = "private_connection") {
+    private val prefs = context.getSharedPreferences(namespace, Context.MODE_PRIVATE)
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply {load(null)}
         val existing = store.getKey(ALIAS, null)

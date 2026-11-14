@@ -38,14 +38,23 @@ impl SessionLease {
         &self.0.device
     }
     pub fn authorize_sensitive(&self, device: &RegisteredAndroidDevice, now: i64) -> Result<()> {
+        self.authorize(device, now, AndroidCapability::SensitiveScreenView)
+    }
+    pub fn authorize_messages(&self, device: &RegisteredAndroidDevice, now: i64) -> Result<()> {
+        self.authorize(device, now, AndroidCapability::OpenMessages)
+    }
+    fn authorize(
+        &self,
+        device: &RegisteredAndroidDevice,
+        now: i64,
+        capability: AndroidCapability,
+    ) -> Result<()> {
         if self.0.actor != AndroidControlActor::Owner
             || self.0.device != *device
             || now < 0
             || now >= self.0.expires_at
             || *self.0.revoked.borrow()
-            || !device
-                .capabilities
-                .contains(&AndroidCapability::SensitiveScreenView)
+            || !device.capabilities.contains(&capability)
         {
             return Err(Error::PermissionDenied);
         }

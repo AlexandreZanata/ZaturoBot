@@ -70,6 +70,7 @@ fn worker(path: &Path, base: &str) -> WorkerConfig {
         heartbeat_seconds: 1,
         reconnect_max_seconds: 2,
         models_config: Some(path.join("injected-models.toml")),
+        assistant_models_config: None,
     }
 }
 fn model_response(content: &str) -> ModelResponse {

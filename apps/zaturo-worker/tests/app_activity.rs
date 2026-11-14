@@ -427,6 +427,7 @@ async fn explicit_app_diagnostic_reaches_real_worker_and_publishes_one_completio
         heartbeat_seconds: 1,
         reconnect_max_seconds: 2,
         models_config: None,
+        assistant_models_config: None,
         files: None,
         youtube: None,
         android: None,
@@ -529,4 +530,120 @@ async fn explicit_app_diagnostic_reaches_real_worker_and_publishes_one_completio
         page.items
     );
     worker.abort();
+}
+
+#[tokio::test]
+async fn shared_api_binds_worker_targets_and_authenticated_authors() {
+    let hub = Hub::start().await;
+    let url = format!("{}/v1/shared/tasks", hub.base);
+    let request = serde_json::json!({"idempotency_key":"shared-http","target_worker":"work-pc","title":"Synthetic handoff","instructions":"Inspect this fixture only after the owner asks.","transfer_ids":[]});
+    assert_eq!(
+        hub.client
+            .post(&url)
+            .json(&request)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        401
+    );
+    assert_eq!(
+        hub.client
+            .post(&url)
+            .bearer_auth(READ)
+            .json(&request)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        401
+    );
+    assert_eq!(
+        hub.client
+            .post(&url)
+            .bearer_auth(HOME)
+            .json(&request)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        403
+    );
+    let created: zaturo_core::SharedEntry = hub
+        .client
+        .post(&url)
+        .bearer_auth(WRITE)
+        .json(&request)
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(created.author, "app:write-app");
+    assert_eq!(
+        hub.client
+            .get(format!("{url}/{}", created.id))
+            .bearer_auth(HOME)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        404
+    );
+    let tasks: Vec<zaturo_core::SharedSummary> = hub
+        .client
+        .get(&url)
+        .bearer_auth(WORK)
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(tasks.len(), 1);
+    let update = serde_json::json!({"idempotency_key":"claim-http","expected_revision":1,"state":"claimed","note":"Owner requested fixture inspection."});
+    let changed: zaturo_core::SharedEntry = hub
+        .client
+        .post(format!("{url}/{}/updates", created.id))
+        .bearer_auth(WORK)
+        .json(&update)
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(changed.revision, 2);
+    let stale = serde_json::json!({"idempotency_key":"second-claim","expected_revision":1,"state":"claimed","note":"Stale writer cannot overwrite."});
+    assert_eq!(
+        hub.client
+            .post(format!("{url}/{}/updates", created.id))
+            .bearer_auth(WRITE)
+            .json(&stale)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        409
+    );
+    let detail: zaturo_core::SharedDetail = hub
+        .client
+        .get(format!("{url}/{}", created.id))
+        .bearer_auth(WORK)
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(detail.notes[0].author, "worker:work-pc");
 }

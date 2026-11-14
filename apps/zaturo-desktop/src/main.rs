@@ -23,7 +23,7 @@ struct Cli {
     config: Option<PathBuf>,
     #[arg(long)]
     quit_after_seconds: Option<u64>,
-    #[arg(long,value_parser=["hub","services","workers","files","private","settings"])]
+    #[arg(long,value_parser=["hub","services","workers","files","private","settings","shared"])]
     page: Option<String>,
 }
 #[derive(Clone, Copy, Default)]
@@ -44,7 +44,17 @@ impl Filters {
         format!("{}\u{1f}{}\u{1f}{}", self.day, self.kind, self.query.trim())
     }
 }
+enum SharedCommand {
+    Reply(String, zaturo_core::SharedUpdate),
+    List,
+    Read(String),
+    Create(zaturo_core::SharedCreate),
+}
 enum Command {
+    Shared {
+        generation: u64,
+        action: SharedCommand,
+    },
     Refresh {
         generation: u64,
         filters: Filters,
@@ -63,6 +73,26 @@ enum Command {
         filters: Filters,
     },
     Quit,
+}
+fn shared_state_text(state: zaturo_core::SharedState) -> &'static str {
+    match state {
+        zaturo_core::SharedState::Pending => "Pendente",
+        zaturo_core::SharedState::Claimed => "Em execução",
+        zaturo_core::SharedState::Blocked => "Aguardando ação",
+        zaturo_core::SharedState::Done => "Concluída",
+    }
+}
+fn select_shared(ui: &AppWindow, entry: &zaturo_core::SharedEntry) {
+    let changed = ui.get_shared_selected_id() != entry.id.as_str();
+    if changed || ui.get_shared_selected_revision() != entry.revision as i32 {
+        ui.set_shared_note_key("".into());
+    }
+    if changed {
+        ui.set_shared_note("".into());
+    }
+    ui.set_shared_selected_id(entry.id.clone().into());
+    ui.set_shared_selected_revision(entry.revision as i32);
+    ui.set_shared_selected_state(entry.state.as_str().into());
 }
 fn filters(ui: &AppWindow, offset: u32) -> Filters {
     Filters {
@@ -306,6 +336,135 @@ fn main() -> Result<()> {
             };
             let (expected, result) = match command {
                 Command::Quit => break,
+                Command::Shared { generation, action } => {
+                    let result = (|| -> Result<()> {
+                        let client = HubClient::new(&current, &current.token()?)?;
+                        match action {
+                            SharedCommand::List => {
+                                let rows =
+                                    runtime.block_on(client.shared_list(&current.target_worker))?;
+                                show_state(
+                                    weak.clone(),
+                                    thread_generation.clone(),
+                                    generation,
+                                    move |ui| {
+                                        ui.set_shared_tasks(ModelRc::new(VecModel::from(
+                                            rows.into_iter()
+                                                .map(|r| WorkerRow {
+                                                    id: r.id.into(),
+                                                    detail: format!(
+                                                        "{} · {} · revisão {}",
+                                                        r.title,
+                                                        shared_state_text(r.state),
+                                                        r.revision
+                                                    )
+                                                    .into(),
+                                                })
+                                                .collect::<Vec<_>>(),
+                                        )));
+                                        ui.set_busy(false);
+                                        ui.set_status_message(
+                                            "Área compartilhada sincronizada.".into(),
+                                        );
+                                    },
+                                );
+                            }
+                            SharedCommand::Reply(id, request) => {
+                                let saved =
+                                    runtime.block_on(client.shared_update(&id, &request))?;
+                                show_state(
+                                    weak.clone(),
+                                    thread_generation.clone(),
+                                    generation,
+                                    move |ui| {
+                                        if ui.get_shared_selected_id() == saved.id.as_str() {
+                                            ui.set_shared_selected_revision(saved.revision as i32);
+                                            if ui.get_shared_note() == request.note.as_str() {
+                                                ui.set_shared_note("".into());
+                                                ui.set_shared_note_key("".into());
+                                            }
+                                            ui.set_shared_detail(
+                                                format!(
+                                                    "Resposta salva · revisão {}\n\n{}",
+                                                    saved.revision, request.note
+                                                )
+                                                .into(),
+                                            );
+                                        }
+                                        ui.set_busy(false);
+                                        ui.set_status_message(
+                                            "Resposta compartilhada salva.".into(),
+                                        );
+                                    },
+                                );
+                            }
+                            SharedCommand::Read(id) => {
+                                let detail = runtime.block_on(client.shared_read(&id))?;
+                                let mut text = format!(
+                                    "{}\n\n{}",
+                                    detail.task.title, detail.task.instructions
+                                );
+                                if !detail.task.transfer_ids.is_empty() {
+                                    text.push_str(&format!(
+                                        "\n\nArquivos criptografados (IDs):\n{}",
+                                        detail.task.transfer_ids.join("\n")
+                                    ));
+                                }
+                                for note in detail.notes.iter().rev() {
+                                    text.push_str(&format!(
+                                        "\n\n{} · {}\n{}",
+                                        note.author,
+                                        shared_state_text(note.state),
+                                        note.note
+                                    ));
+                                }
+                                show_state(
+                                    weak.clone(),
+                                    thread_generation.clone(),
+                                    generation,
+                                    move |ui| {
+                                        select_shared(ui, &detail.task);
+                                        ui.set_shared_detail(text.into());
+                                        ui.set_busy(false);
+                                    },
+                                );
+                            }
+                            SharedCommand::Create(request) => {
+                                let saved = runtime.block_on(client.shared_create(&request))?;
+                                show_state(
+                                    weak.clone(),
+                                    thread_generation.clone(),
+                                    generation,
+                                    move |ui| {
+                                        select_shared(ui, &saved);
+                                        ui.set_shared_detail(
+                                            format!(
+                                                "Tarefa salva: {}\n\n{}",
+                                                saved.title, saved.instructions
+                                            )
+                                            .into(),
+                                        );
+                                        if ui.get_shared_title() == request.title.as_str()
+                                            && ui.get_shared_instructions()
+                                                == request.instructions.as_str()
+                                        {
+                                            ui.set_shared_title("".into());
+                                            ui.set_shared_instructions("".into());
+                                            ui.set_shared_request_key("".into());
+                                        }
+                                        ui.set_busy(false);
+                                        ui.set_status_message(
+                                            "Tarefa disponível para o outro Codex consultar."
+                                                .into(),
+                                        );
+                                    },
+                                );
+                            }
+                        }
+                        Ok(())
+                    })();
+                    (generation, result)
+                }
                 Command::Refresh {
                     generation,
                     filters,
@@ -337,7 +496,10 @@ fn main() -> Result<()> {
                         filters.query.clear();
                         filters.offset = 0;
                         let day = filters.day.clone();
-                        let accepted = request.action.is_none().then(|| request.message.clone());
+                        let accepted_key = request.idempotency_key.clone();
+                        let accepted = (request.action.is_none()
+                            || request.action.as_deref() == Some("assistant"))
+                        .then(|| request.message.clone());
                         show_state(
                             weak.clone(),
                             thread_generation.clone(),
@@ -348,6 +510,9 @@ fn main() -> Result<()> {
                                     .is_some_and(|message| ui.get_composer() == message.as_str())
                                 {
                                     ui.set_composer("".into());
+                                }
+                                if ui.get_chat_request_key() == accepted_key.as_str() {
+                                    ui.set_chat_request_key("".into());
                                 }
                                 ui.set_selected_day(day.into());
                                 ui.set_kind_index(0);
@@ -417,6 +582,138 @@ fn main() -> Result<()> {
             }
         }
     });
+    {
+        let tx = sender.clone();
+        let weak = ui.as_weak();
+        let counter = generation.clone();
+        ui.on_shared_refresh(move || {
+            if let Some(ui) = weak.upgrade() {
+                if ui.get_busy() {
+                    return;
+                }
+                let expected = counter.fetch_add(1, Ordering::SeqCst) + 1;
+                enqueue(
+                    &tx,
+                    Command::Shared {
+                        generation: expected,
+                        action: SharedCommand::List,
+                    },
+                    &ui,
+                );
+            }
+        });
+    }
+    {
+        let tx = sender.clone();
+        let weak = ui.as_weak();
+        let counter = generation.clone();
+        ui.on_shared_open(move |id| {
+            if let Some(ui) = weak.upgrade() {
+                if ui.get_busy() {
+                    return;
+                }
+                let expected = counter.fetch_add(1, Ordering::SeqCst) + 1;
+                enqueue(
+                    &tx,
+                    Command::Shared {
+                        generation: expected,
+                        action: SharedCommand::Read(id.to_string()),
+                    },
+                    &ui,
+                );
+            }
+        });
+    }
+    {
+        let tx = sender.clone();
+        let weak = ui.as_weak();
+        let counter = generation.clone();
+        ui.on_shared_create(move || {
+            if let Some(ui) = weak.upgrade() {
+                if ui.get_busy() {
+                    return;
+                }
+                let title = ui.get_shared_title().to_string();
+                let instructions = ui.get_shared_instructions().to_string();
+                let key = if ui.get_shared_request_key().is_empty() {
+                    let key = uuid::Uuid::new_v4().to_string();
+                    ui.set_shared_request_key(key.clone().into());
+                    key
+                } else {
+                    ui.get_shared_request_key().to_string()
+                };
+                let request = zaturo_core::SharedCreate {
+                    idempotency_key: key,
+                    target_worker: ui.get_worker_target().to_string(),
+                    title,
+                    instructions,
+                    transfer_ids: vec![],
+                };
+                if !request.validates() {
+                    ui.set_status_message(
+                        "Preencha título e instruções; não inclua credenciais.".into(),
+                    );
+                    return;
+                }
+                let expected = counter.fetch_add(1, Ordering::SeqCst) + 1;
+                enqueue(
+                    &tx,
+                    Command::Shared {
+                        generation: expected,
+                        action: SharedCommand::Create(request),
+                    },
+                    &ui,
+                );
+            }
+        });
+    }
+    {
+        let tx = sender.clone();
+        let weak = ui.as_weak();
+        let counter = generation.clone();
+        ui.on_shared_reply(move || {
+            if let Some(ui) = weak.upgrade() {
+                if ui.get_busy() {
+                    return;
+                }
+                let state = match ui.get_shared_selected_state().as_str() {
+                    "pending" => zaturo_core::SharedState::Pending,
+                    "claimed" => zaturo_core::SharedState::Claimed,
+                    "blocked" => zaturo_core::SharedState::Blocked,
+                    _ => return,
+                };
+                let key = if ui.get_shared_note_key().is_empty() {
+                    let key = uuid::Uuid::new_v4().to_string();
+                    ui.set_shared_note_key(key.clone().into());
+                    key
+                } else {
+                    ui.get_shared_note_key().to_string()
+                };
+                let request = zaturo_core::SharedUpdate {
+                    idempotency_key: key,
+                    expected_revision: ui.get_shared_selected_revision().max(0) as u32,
+                    state,
+                    note: ui.get_shared_note().to_string(),
+                };
+                if !request.validates() {
+                    ui.set_status_message("Escreva uma resposta; não inclua credenciais.".into());
+                    return;
+                }
+                let expected = counter.fetch_add(1, Ordering::SeqCst) + 1;
+                enqueue(
+                    &tx,
+                    Command::Shared {
+                        generation: expected,
+                        action: SharedCommand::Reply(
+                            ui.get_shared_selected_id().to_string(),
+                            request,
+                        ),
+                    },
+                    &ui,
+                );
+            }
+        });
+    }
     for callback in 0..2 {
         let tx = sender.clone();
         let weak = ui.as_weak();
@@ -547,13 +844,25 @@ fn main() -> Result<()> {
                     return;
                 }
                 let expected = counter.fetch_add(1, Ordering::SeqCst) + 1;
+                let target = ui.get_worker_target().to_string();
+                let key = if ui.get_chat_request_message() == message.as_str()
+                    && ui.get_chat_request_target() == target.as_str()
+                    && !ui.get_chat_request_key().is_empty()
+                {
+                    ui.get_chat_request_key().to_string()
+                } else {
+                    uuid::Uuid::new_v4().to_string()
+                };
+                ui.set_chat_request_key(key.clone().into());
+                ui.set_chat_request_message(message.clone().into());
+                ui.set_chat_request_target(target.into());
                 let command = Command::Send {
                     generation: expected,
                     request: ChatRequest {
                         message,
-                        idempotency_key: uuid::Uuid::new_v4().to_string(),
-                        target_worker: None,
-                        action: None,
+                        idempotency_key: key,
+                        target_worker: Some(ui.get_worker_target().to_string()),
+                        action: Some("assistant".into()),
                     },
                     filters: filters(&ui, 0),
                 };

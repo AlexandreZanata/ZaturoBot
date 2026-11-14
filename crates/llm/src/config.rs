@@ -25,7 +25,7 @@ pub struct ModelsConfig {
 }
 impl ModelsConfig {
     pub fn validate(&self) -> Result<(), Error> {
-        if self.provider != "opencode-go"
+        if !matches!(self.provider.as_str(), "opencode-go" | "opencode-console")
             || self.default_model != DEEPSEEK_MODEL
             || self.allowed_models != [DEEPSEEK_MODEL]
         {
@@ -33,7 +33,15 @@ impl ModelsConfig {
                 "only the owner-selected DeepSeek model is allowed",
             ));
         }
-        if self.allowed_privacy != [PrivacyClass::PublicCoding] || self.allow_training_models {
+        let privacy = if self.provider == "opencode-console" {
+            PrivacyClass::Personal
+        } else {
+            PrivacyClass::PublicCoding
+        };
+        if self.allowed_privacy != [privacy]
+            || self.allow_training_models
+            || (self.provider == "opencode-console" && self.max_attempts != 1)
+        {
             return Err(Error::InvalidConfig(
                 "only public coding data and non-training routes are supported",
             ));

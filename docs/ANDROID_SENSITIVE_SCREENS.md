@@ -2,7 +2,7 @@
 
 An SMS verification-code screenshot is sensitive account material. This feature's
 current implementation includes in-memory serial-bound capture, finite screenshot-change
-watch and a dedicated endpoint-encrypted desktop viewer. It still requires physical USB
+watch and dedicated endpoint-encrypted desktop and Android viewers. It still requires physical USB
 setup, local per-device grants and an explicit owner confirmation for each request.
 The general file relay persists ciphertext and delivery metadata for up to its configured
 retention; it is therefore not used for sensitive SMS screenshots.
@@ -68,3 +68,34 @@ while a frame is in flight. Use synthetic SMS screens in automated tests and an 
 nonsecret test screen on opted-in hardware. Real OTPs must never be test fixtures. The
 implemented private-view transport is separate from the future continuous scrcpy stream;
 Android mobile private-image viewing is not implied by the initial Android chat/feed client.
+
+
+## Android 0.5 viewer and messaging-app action
+
+The mobile viewer is a separately scoped app (`allow_private_views=true`) and generates
+its own standard age identity locally. Android Keystore encrypts the stored identity;
+only the public recipient is registered in hub schema7. Do not copy a PC's age identity
+or embed private keys in an APK. Kage performs age decryption; ciphertext/output/image
+sizes are bounded. App screenshots remain protected by FLAG_SECURE and backup remains
+disabled. There is no new SMS, storage or accessibility permission.
+
+The temporary image is a transient view inside Hub, never a normal feed model row or
+attachment. Clear it on navigation, focus loss, stop, dismissal and the earlier relative
+server/local monotonic expiry; subtract request time before download/decryption. Consumed
+frames are not refetched. Owned byte buffers/Bitmap references are cleared, but Java crypto
+objects, garbage collection and OS/renderer copies are not guaranteed total RAM erasure.
+
+The explicit messaging control runs only MAIN/CATEGORY_APP_MESSAGING for a registered USB
+serial with an OpenMessages grant and an owner lease. It opens the default messaging app;
+it never sends SMS, targets a contact, types, unlocks, acknowledges USB consent or reads
+SMS storage. Android's positive launch status does not prove an unlocked inbox is visible.
+Verified metadata-only recipes are kept under workspace_root/android-instructions on the
+worker, with unverified steps labeled. They remain data, not permissions or model inputs.
+
+
+Messaging navigation uses the Android-documented MAIN/LAUNCHER intent with a
+MAIN/APP_MESSAGING selector (the CLI equivalent of `makeMainSelectorActivity`).
+A resolver/chooser is rejected. `Status: ok` means Android accepted navigation; it does
+not establish that the unlocked inbox is visible. The local catalog records this exact
+acceptance condition, not a claim that an SMS was read.
+See the [Android Intent reference](https://developer.android.com/reference/android/content/Intent#CATEGORY_APP_MESSAGING).

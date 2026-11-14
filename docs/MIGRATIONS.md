@@ -54,3 +54,19 @@ with a separate service intent/result journal. Existing diagnostic/model tables 
 reservations remain unchanged. Unknown side-effecting service intents reconcile via status
 rather than resubmit. Screenshot frames never enter this journal. Rollback requires the
 consistent schema-3 snapshot and old worker binary, not merely a binary replacement.
+
+
+`crates/db/migrations/0007_hub_shared.sql` upgrades hub 5 to 7 (or composes 1/4 upgrades)
+with shared tasks, bounded revision notes, authenticated request dedupe and public native
+viewer recipients. Existing tasks, feed, transfers and app identities remain unchanged.
+`crates/db/migrations/0008_worker_assistant.sql` upgrades worker 6 to 8 (or composes 2/3)
+with separate personal-call reservations. Both call ledgers count toward route admission's
+global UTC-day/month totals. Pending/unknown/overrun charges remain retained. The existing
+operation/service tables and their uncertainty fences are preserved. Schema numbers use
+the workspace migration inventory, not interchangeable database identities.
+
+Back up/quiesce each writer before deployment. Failed schema creation rolls back the entire
+store upgrade. New binaries accept the documented old versions; old binaries do not accept
+7/8. Rollback needs the matching pre-upgrade consistent database and compatible binary,
+with reconciliation of any newer work; never clear a journal merely to downgrade. These
+upgrades create local tables/indexes and do not bulk rewrite owner records or images.

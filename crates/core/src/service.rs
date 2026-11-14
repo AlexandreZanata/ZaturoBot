@@ -3,6 +3,15 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ServiceRequest {
+    AssistantChat {
+        message: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        context: Vec<ConversationTurn>,
+    },
+    YoutubeGenerate {
+        channel: String,
+        count: u32,
+    },
     YoutubeProfiles,
     YoutubeRuns {
         channel: String,
@@ -18,6 +27,10 @@ pub enum ServiceRequest {
         operation_id: String,
     },
     AndroidDevices,
+    AndroidOpenMessages {
+        device_id: String,
+        owner_confirmed: bool,
+    },
     AndroidPrivateView {
         device_id: String,
         session_id: String,
@@ -29,6 +42,19 @@ pub enum ServiceRequest {
 impl ServiceRequest {
     pub fn validates(&self) -> bool {
         match self {
+            Self::AndroidOpenMessages {
+                device_id,
+                owner_confirmed,
+            } => crate::validate_identifier(device_id).is_ok() && *owner_confirmed,
+            Self::AssistantChat { message, context } => {
+                crate::ordinary_text(message, 2048)
+                    && context.len() <= 4
+                    && context.iter().all(|t| t.validates())
+                    && context.iter().map(|t| t.text.len()).sum::<usize>() <= 1024
+            }
+            Self::YoutubeGenerate { channel, count } => {
+                crate::validate_identifier(channel).is_ok() && (1..=10).contains(count)
+            }
             Self::YoutubeProfiles | Self::AndroidDevices => true,
             Self::AndroidPrivateView {
                 device_id,
@@ -68,6 +94,9 @@ impl ServiceRequest {
     }
     pub fn capability(&self) -> &'static str {
         match self {
+            Self::AndroidOpenMessages { .. } => "android.messages.v1",
+            Self::AssistantChat { .. } => "assistant.chat.v1",
+            Self::YoutubeGenerate { .. } => "youtube.generate.v1",
             Self::AndroidDevices => "android.devices.v1",
             Self::AndroidPrivateView { .. } => "android.private.v1",
             Self::YoutubeSubmit { .. } => "youtube.submit.v1",
@@ -76,6 +105,9 @@ impl ServiceRequest {
     }
     pub fn name(&self) -> &'static str {
         match self {
+            Self::AndroidOpenMessages { .. } => "android_open_messages",
+            Self::AssistantChat { .. } => "assistant_chat",
+            Self::YoutubeGenerate { .. } => "youtube_generate",
             Self::YoutubeProfiles => "youtube_profiles",
             Self::YoutubeRuns { .. } => "youtube_runs",
             Self::YoutubeSubmit { .. } => "youtube_submit",
@@ -85,7 +117,13 @@ impl ServiceRequest {
         }
     }
     pub fn side_effecting(&self) -> bool {
-        matches!(self, Self::YoutubeSubmit { .. })
+        matches!(
+            self,
+            Self::AndroidOpenMessages { .. }
+                | Self::YoutubeSubmit { .. }
+                | Self::YoutubeGenerate { .. }
+                | Self::AssistantChat { .. }
+        )
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -106,9 +144,14 @@ impl ServiceResult {
         if !request.validates()
             || self.operation_id != operation
             || self.action != request.name()
-            || !matches!(self.outcome.as_str(), "completed" | "accepted")
+            || !matches!(self.outcome.as_str(), "completed" | "accepted" | "blocked")
             || self.summary.is_empty()
-            || self.summary.len() > 512
+            || self.summary.len()
+                > if matches!(request, ServiceRequest::AssistantChat { .. }) {
+                    2048
+                } else {
+                    512
+                }
             || !serde_json::to_vec(self).is_ok_and(|v| v.len() <= 4096)
         {
             return false;
@@ -175,7 +218,7 @@ pub struct PrivateViewGrant {
     pub expires_at: i64,
 }
 
-fn canonical_operation_id(value: &str) -> bool {
+pub(crate) fn canonical_operation_id(value: &str) -> bool {
     value.len() == 36
         && value.bytes().enumerate().all(|(i, b)| {
             if matches!(i, 8 | 13 | 18 | 23) {
@@ -259,5 +302,17 @@ mod private_result_tests {
             *owner_confirmed = false;
         }
         assert!(!ready().validates(OP, &unconfirmed));
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConversationTurn {
+    pub role: String,
+    pub text: String,
+}
+impl ConversationTurn {
+    pub fn validates(&self) -> bool {
+        matches!(self.role.as_str(), "owner" | "assistant") && crate::ordinary_text(&self.text, 512)
     }
 }

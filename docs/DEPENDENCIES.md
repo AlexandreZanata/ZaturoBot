@@ -51,3 +51,12 @@ Android presentation also bundles a small pinned subset of Google's Material Sym
 Rounded as Android vector resources under Apache-2.0. Upstream paths, revision, hashes,
 license and notice ship with the app; see [icon provenance](../mobile/android/docs/ICONS.md).
 No Material Components runtime dependency or external icon/font fetch is required.
+
+
+Android 0.5 adds `com.github.android-password-store:kage:0.3.0` (standard age v1 Kotlin/JVM,
+Android API26+, dual Apache-2.0/MIT) for endpoint private-frame decryption, not a new cipher.
+Use the existing Bouncy Castle jdk18on1.87 dependency and exclude kage's alternative
+bcprov-jdk15to18 artifact to avoid duplicate crypto classes. Kage's fixed transitive HKDF
+and kotlin-result libraries remain Gradle dependencies; no dynamic versions. See the
+[upstream library](https://github.com/android-password-store/kage) and packaged notices.
+The MCP adapter adds no Python runtime dependency beyond the 3.11+ standard library.

@@ -2,7 +2,9 @@
 
 mod activity;
 mod service_journal;
+mod shared;
 pub use service_journal::{PendingServiceJob, ServiceIntent};
+mod assistant_budget;
 mod journal;
 mod model_budget;
 mod repository;
@@ -45,25 +47,35 @@ fn connection(
     let version: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
     if version == 0 {
         connection.execute_batch(&format!("BEGIN IMMEDIATE;\n{migration}\nCOMMIT;"))?;
-    } else if expected_version == 5 && matches!(version, 1 | 4) {
+    } else if expected_version == 7 && matches!(version, 1 | 4 | 5) {
         let base = if version == 1 {
             include_str!("../migrations/0004_hub_transfers.sql")
         } else {
             ""
         };
         connection.execute_batch(&format!(
-            "BEGIN IMMEDIATE;\n{base}\n{}\nCOMMIT;",
-            include_str!("../migrations/0005_hub_activity.sql")
+            "BEGIN IMMEDIATE;\n{base}\n{}\n{}\nCOMMIT;",
+            if version == 5 {
+                ""
+            } else {
+                include_str!("../migrations/0005_hub_activity.sql")
+            },
+            include_str!("../migrations/0007_hub_shared.sql")
         ))?;
-    } else if expected_version == 6 && matches!(version, 2 | 3) {
+    } else if expected_version == 8 && matches!(version, 2 | 3 | 6) {
         let base = if version == 2 {
             include_str!("../migrations/0003_worker_model_budget.sql")
         } else {
             ""
         };
         connection.execute_batch(&format!(
-            "BEGIN IMMEDIATE;\n{base}\n{}\nCOMMIT;",
-            include_str!("../migrations/0006_worker_services.sql")
+            "BEGIN IMMEDIATE;\n{base}\n{}\n{}\nCOMMIT;",
+            if version == 6 {
+                ""
+            } else {
+                include_str!("../migrations/0006_worker_services.sql")
+            },
+            include_str!("../migrations/0008_worker_assistant.sql")
         ))?;
     } else if version != expected_version {
         return Err(Error::SchemaVersion);

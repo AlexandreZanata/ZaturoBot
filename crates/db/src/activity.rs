@@ -3,6 +3,12 @@ use crate::{Error, Repository};
 use rusqlite::{OptionalExtension, params};
 use zaturo_core::{ChatReply, ChatRequest, FeedItem};
 impl Repository<'_> {
+    pub fn conversation_tail(&self) -> Result<Vec<FeedItem>, Error> {
+        let mut statement=self.connection.prepare("SELECT body FROM feed_items WHERE kind='chat' AND (role='owner' OR dedupe_key LIKE 'task:%:COMPLETED') ORDER BY created_at DESC,id DESC LIMIT 4")?;
+        let rows = statement.query_map([], |r| r.get::<_, String>(0))?;
+        rows.map(|v| Ok(serde_json::from_str(&v?)?)).collect()
+    }
+
     pub fn insert_feed(&self, item: &FeedItem, dedupe: &str) -> Result<(), Error> {
         self.connection.execute("INSERT INTO feed_items(id,dedupe_key,created_at,kind,role,text,search_text,task_id,artifact_id,body) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10) ON CONFLICT(dedupe_key) DO NOTHING",params![item.id,dedupe,item.created_at,item.kind.as_str(),item.role,item.text,item.text.to_lowercase(),item.task_id,item.artifact_id,serde_json::to_string(item)?])?;
         Ok(())

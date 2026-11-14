@@ -1,6 +1,6 @@
 # Add services to an already-enrolled work PC
 
-This is an additive **0.3 → 0.4** update, not another enrollment. Run it as the existing
+This is an additive **0.3/0.4 → 0.5** update, not another enrollment. Run it as the existing
 Linux owner, never root. Keep the current `work-pc` worker ID, private SSH key and pinned
 host, age identity, worker token, transfer inbox and execution journal. The updater never
 replaces those credentials or removes original YoutubeBot files. The private archive
@@ -9,9 +9,10 @@ restore is a separate, no-clobber operation described in [README.md](README.md).
 ## Before the update
 
 Use clean source checkouts at the full revisions in the owner-issued private enrollment.
-The reviewed YoutubeBot revision is `89dc1e604b87084cfdfc7191058880e7ddf080a5`.
-Its [main CI run](https://github.com/AlexandreZanata/YoutubeBot/actions/runs/43546881432)
-passed 153 Python tests and 30 Node tests. The ZaturoBot revision is supplied after publishing; do not substitute a moving branch
+The reviewed YoutubeBot revision is `bec3a3ffc222c9cc9074faa6560fbab00d41aaf9`.
+Its local verification passed 158 Python tests and 30 Node tests. The
+[main CI run](https://github.com/AlexandreZanata/YoutubeBot/actions/runs/43603001353)
+passed for that revision. The ZaturoBot revision is supplied after publishing; do not substitute a moving branch
 name or hardcode the installer's own revision. Ignored runtime data/build outputs may
 exist, but tracked edits and untracked source files cause rejection. Preserve an older
 working checkout and its local data; use a separate pinned clone for the updated service.
@@ -71,7 +72,7 @@ It creates a consistent SQLite backup via SQLite's backup API and verifies integ
 then privately backs up the existing configuration, worker environment, unit and
 binaries. It atomically publishes the new binaries/configuration and starts the worker,
 unless `--no-start` was supplied. Starting the new worker migrates the existing journal
-in place to schema 6; the updater itself never replaces/deletes that journal. Existing
+in place to schema 8; the updater itself never replaces/deletes that journal. Existing
 finished tasks and uncertain-operation fences must remain intact. Check the actual
 hub/worker handshake after start: systemd active alone is not proof of hub connectivity.
 
@@ -92,11 +93,18 @@ selectors are not accepted.
 
 Add `--enable-private-view` **together with the explicit serial** only for the owner's
 sensitive-screen grant. This enables the bounded private service; each actual screenshot
-still requires the separate desktop confirmation. The SMS app must already be open on
+still requires separate native-client confirmation. The permitted screen must be on
 an unlocked phone. No unlock/PIN bypass, OCR, LLM, background SMS harvesting, plaintext
 feed history or screenshots saved to disk are installed. A disconnected/unauthorized
-phone remains unavailable. Initially the age private-screen viewer exists on Linux
-only; the Android chat app does not import another computer's age identity.
+phone remains unavailable. Linux and Android now have private viewers. Android generates its own age identity
+inside its Keystore-protected settings; it never imports another PC's private identity.
+Add `--enable-messages` with the explicit serial to grant fixed messaging-app opening.
+It never grants SMS sending, OCR, account sign-in or screen-lock bypass. Verified steps
+are recorded as metadata in `workspace_root/android-instructions/DEVICE.json` on that PC.
+Add `--enable-generation` for generation-only YoutubeBot work. This does not grant upload
+or scheduling. Existing scheduling grants are preserved when present.
+The updater also installs the compact local MCP adapter/profile; use its printed
+credential-free registration command and [MCP instructions](../mcp/README.md).
 
 ## Installed paths and preserved state
 

@@ -1,6 +1,7 @@
 //! Transactional application use cases shared by transport and CLI composition roots.
 mod activity;
 mod service_tasks;
+mod shared;
 mod transfers;
 
 use std::path::Path;
@@ -81,11 +82,14 @@ impl Engine {
                 !matches!(
                     capability.as_str(),
                     "diagnostic.v1"
+                        | "assistant.chat.v1"
+                        | "youtube.generate.v1"
                         | "agent.diagnostic.v1"
                         | "youtube.read.v1"
                         | "youtube.submit.v1"
                         | "android.devices.v1"
                         | "android.private.v1"
+                        | "android.messages.v1"
                 )
             })
         {

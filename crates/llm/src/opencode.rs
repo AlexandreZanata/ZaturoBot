@@ -11,6 +11,7 @@ use zaturo_core::ModelUsage;
 
 /// Verified at the official Go endpoint table on 2026-11-13. No arbitrary remote origin.
 pub const GO_CHAT_ENDPOINT: &str = "https://opencode.ai/inference/go/openai/v1/chat/completions";
+pub const CONSOLE_CHAT_ENDPOINT: &str = "https://opencode.ai/inference/openai/v1/chat/completions";
 const USER_AGENT: &str = concat!(
     "ZaturoBot/",
     env!("CARGO_PKG_VERSION"),
@@ -32,7 +33,20 @@ impl fmt::Debug for OpenCodeGoClient {
 }
 impl OpenCodeGoClient {
     pub fn new(config: &ModelsConfig, api_key: String) -> Result<Self, Error> {
+        if config.provider != "opencode-go" {
+            return Err(Error::InvalidConfig(
+                "Go constructor requires the coding route",
+            ));
+        }
         Self::at(config, api_key, GO_CHAT_ENDPOINT.into())
+    }
+    pub fn new_console(config: &ModelsConfig, api_key: String) -> Result<Self, Error> {
+        if config.provider != "opencode-console" {
+            return Err(Error::InvalidConfig(
+                "Console constructor requires the explicit assistant route",
+            ));
+        }
+        Self::at(config, api_key, CONSOLE_CHAT_ENDPOINT.into())
     }
     fn at(config: &ModelsConfig, api_key: String, endpoint: String) -> Result<Self, Error> {
         config.validate()?;
@@ -67,7 +81,12 @@ impl OpenCodeGoClient {
             ..
         } = &request.context;
         if request.model != self.config.default_model
-            || *privacy != PrivacyClass::PublicCoding
+            || *privacy
+                != if self.config.provider == "opencode-console" {
+                    PrivacyClass::Personal
+                } else {
+                    PrivacyClass::PublicCoding
+                }
             || !self.config.allow_global_processing
             || zaturo_core::validate_identifier(operation_id).is_err()
             || request.max_output_tokens > self.config.max_output_tokens
@@ -105,6 +124,11 @@ impl LlmClient for OpenCodeGoClient {
                     messages: &request.messages,
                     max_tokens: request.max_output_tokens,
                     stream: false,
+                    thinking: if self.config.provider == "opencode-console" {
+                        Some(Thinking { r#type: "disabled" })
+                    } else {
+                        None
+                    },
                 })
                 .send()
                 .await
@@ -158,6 +182,12 @@ struct ChatRequest<'a> {
     messages: &'a [Message],
     max_tokens: u32,
     stream: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking: Option<Thinking>,
+}
+#[derive(Serialize)]
+struct Thinking {
+    r#type: &'static str,
 }
 #[derive(Deserialize)]
 struct ChatResponse {

@@ -3,6 +3,10 @@
 use serde::{Deserialize, Serialize};
 mod activity;
 pub use activity::*;
+mod intent;
+pub use intent::*;
+mod shared;
+pub use shared::*;
 mod service;
 pub use service::*;
 mod android;

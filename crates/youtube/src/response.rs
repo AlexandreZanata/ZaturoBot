@@ -31,6 +31,8 @@ pub struct JobStatus {
     pub channel: String,
     pub account: String,
     pub count: u32,
+    pub mode: String,
+    pub generated_count: u32,
     pub created_at: i64,
     pub updated_at: i64,
     pub summary: String,
@@ -76,6 +78,12 @@ struct RawJob {
     channel: String,
     account: String,
     count: u32,
+    #[serde(default = "schedule")]
+    mode: String,
+    #[serde(default)]
+    error_code: Option<String>,
+    #[serde(default)]
+    readiness: Option<std::collections::BTreeMap<String, String>>,
     created_at: i64,
     updated_at: i64,
     #[serde(default)]
@@ -84,6 +92,8 @@ struct RawJob {
 #[derive(Deserialize)]
 struct RawResult {
     scheduled_count: u32,
+    #[serde(default)]
+    generated_count: u32,
     failed_count: u32,
     runs: Vec<RunSummary>,
 }
@@ -92,7 +102,10 @@ fn id(value: &str) -> bool {
 }
 fn clean_run(mut run: RunSummary) -> Result<(RunSummary, bool), Error> {
     if !zaturo_core::safe_filename(&run.id)
-        || !matches!(run.state.as_str(), "scheduled" | "error" | "in_progress")
+        || !matches!(
+            run.state.as_str(),
+            "scheduled" | "ready" | "error" | "in_progress"
+        )
         || run.artifacts.len() > 32
         || run.artifacts.iter().any(|v| !zaturo_core::safe_filename(v))
     {
@@ -125,10 +138,13 @@ pub(crate) fn job_status(raw: Value) -> Result<JobStatus, Error> {
     }
     let result = job.result.unwrap_or(RawResult {
         scheduled_count: 0,
+        generated_count: 0,
         failed_count: 0,
         runs: Vec::new(),
     });
-    if result.scheduled_count > job.count
+    if !matches!(job.mode.as_str(), "schedule" | "generate")
+        || result.generated_count > job.count
+        || result.scheduled_count > job.count
         || result.failed_count > job.count
         || result.runs.len() > 10
     {
@@ -142,10 +158,21 @@ pub(crate) fn job_status(raw: Value) -> Result<JobStatus, Error> {
         truncated |= changed;
     }
     let state = if job.state == JobState::Completed
-        && (result.scheduled_count != job.count
-            || result.failed_count != 0
-            || runs.iter().filter(|r| r.state == "scheduled").count() != job.count as usize)
-    {
+        && (result.failed_count != 0
+            || if job.mode == "generate" {
+                result.generated_count != job.count
+                    || result.scheduled_count != 0
+                    || runs
+                        .iter()
+                        .filter(|r| {
+                            r.state == "ready" && r.artifacts.iter().any(|a| a == "video.mp4")
+                        })
+                        .count()
+                        != job.count as usize
+            } else {
+                result.scheduled_count != job.count
+                    || runs.iter().filter(|r| r.state == "scheduled").count() != job.count as usize
+            }) {
         JobState::Uncertain
     } else {
         job.state
@@ -157,12 +184,24 @@ pub(crate) fn job_status(raw: Value) -> Result<JobStatus, Error> {
         JobState::Failed=>"YouTube batch failed; inspect the private project records before starting different work.",
         JobState::Uncertain=>"YouTube batch outcome is uncertain; automatic resubmission is fenced.",
     }.to_owned();
+    let summary = if job.mode == "generate" {
+        generation_summary(
+            state,
+            job.error_code.as_deref(),
+            job.readiness.as_ref(),
+            job.count,
+        )?
+    } else {
+        summary
+    };
     Ok(JobStatus {
         operation_id: job.operation_id,
         state,
         channel: job.channel,
         account: job.account,
         count: job.count,
+        mode: job.mode,
+        generated_count: result.generated_count,
         created_at: job.created_at,
         updated_at: job.updated_at,
         summary,
@@ -194,40 +233,40 @@ pub(crate) fn submission(
     request: &ServiceRequest,
     job: JobStatus,
 ) -> Result<ServiceResult, Error> {
-    let ServiceRequest::YoutubeSubmit {
-        channel,
-        account,
-        count,
-        ..
-    } = request
-    else {
-        return Err(Error::InvalidRequest);
+    let (channel, account, count, mode) = match request {
+        ServiceRequest::YoutubeSubmit {
+            channel,
+            account,
+            count,
+            ..
+        } => (channel, Some(account), count, "schedule"),
+        ServiceRequest::YoutubeGenerate { channel, count } => (channel, None, count, "generate"),
+        _ => return Err(Error::InvalidRequest),
     };
     if job.operation_id != operation
         || job.channel != *channel
-        || job.account != *account
+        || account.is_some_and(|a| job.account != *a)
         || job.count != *count
+        || job.mode != mode
     {
         return Err(Error::InvalidOutput);
     }
-    match job.state {
-        JobState::Failed => return Err(Error::JobFailed),
-        JobState::Uncertain => return Err(Error::ReconciliationRequired),
-        _ => {}
+    if job.state == JobState::Uncertain {
+        return Err(Error::ReconciliationRequired);
     }
-    if job.state == JobState::Completed
-        && (job.scheduled_count != *count
-            || job.failed_count != 0
-            || job.runs.iter().filter(|r| r.state == "scheduled").count() != *count as usize)
-    {
+    if job.state == JobState::Failed && mode != "generate" {
         return Err(Error::JobFailed);
     }
-    let outcome = if job.state == JobState::Completed {
+    let outcome = if job.state == JobState::Failed {
+        "blocked"
+    } else if job.state == JobState::Completed {
         "completed"
     } else {
         "accepted"
     };
-    let summary = if job.state == JobState::Completed {
+    let summary = if mode == "generate" {
+        job.summary.clone()
+    } else if job.state == JobState::Completed {
         format!("YouTube batch completed with {} scheduled video(s).", count)
     } else {
         job.summary.clone()
@@ -302,7 +341,9 @@ pub(crate) fn map_result(
                 "runs",
             )
         }
-        ServiceRequest::YoutubeSubmit { .. } => submission(operation, request, job_status(raw)?),
+        ServiceRequest::YoutubeSubmit { .. } | ServiceRequest::YoutubeGenerate { .. } => {
+            submission(operation, request, job_status(raw)?)
+        }
         ServiceRequest::YoutubeStatus { operation_id } => {
             let job = job_status(raw)?;
             if job.operation_id != *operation_id {
@@ -326,4 +367,36 @@ pub(crate) fn map_result(
         }
         _ => Err(Error::InvalidRequest),
     }
+}
+
+fn schedule() -> String {
+    "schedule".into()
+}
+fn generation_summary(
+    state: JobState,
+    code: Option<&str>,
+    checks: Option<&std::collections::BTreeMap<String, String>>,
+    count: u32,
+) -> Result<String, Error> {
+    Ok(match state {
+        JobState::Accepted=>"Lote de geração aceito; os logins ainda serão verificados. Nenhum vídeo foi concluído ou publicado.".into(),
+        JobState::Running=>"O computador está preparando o lote. A conclusão depende dos logins e dos arquivos realmente gerados.".into(),
+        JobState::Completed=>format!("{count} vídeo(s) gerado(s) no computador de trabalho. Não foram publicados nem agendados."),
+        JobState::Uncertain=>"O resultado da geração é incerto. Verifique o computador; o lote não será reenviado automaticamente.".into(),
+        JobState::Failed=>match code {
+            Some("profile_missing")=>"O perfil do YoutubeBot não está configurado. Entre no computador de trabalho e conecte Google e ChatGPT. Nenhum vídeo foi criado.".into(),
+            Some("login_required"|"readiness_unknown")=>{
+                let values=checks.ok_or(Error::InvalidOutput)?;
+                if values.len()!=2 || !values.contains_key("google") || !values.contains_key("chatgpt") || values.values().any(|v|!matches!(v.as_str(),"ready"|"login_required"|"unknown"|"unavailable")){return Err(Error::InvalidOutput);}
+                let missing=["google","chatgpt"].into_iter().filter(|k|values[*k].as_str()=="login_required").map(|k|if k=="google"{"Google"}else{"ChatGPT"}).collect::<Vec<_>>();
+                let unknown=["google","chatgpt"].into_iter().filter(|k|matches!(values[*k].as_str(),"unknown"|"unavailable")).map(|k|if k=="google"{"Google"}else{"ChatGPT"}).collect::<Vec<_>>();
+                let mut parts=vec![];
+                if !missing.is_empty(){parts.push(format!("Sua conta não está logada em {}. Entre no computador de trabalho e faça login no perfil dedicado do YoutubeBot.",missing.join(" e ")));}
+                if !unknown.is_empty(){parts.push(format!("Não foi possível confirmar o acesso a {}. Verifique a rede, o navegador e eventuais desafios.",unknown.join(" e ")));}
+                parts.push("Nenhum vídeo foi criado ou publicado.".into());parts.join(" ")
+            },
+            Some("setup_unavailable")=>"O serviço de mídia do Linux não está disponível. Nenhum processo de vídeo foi iniciado; o Codex do computador deve verificar o systemd de usuário.".into(),
+            _=>"A geração falhou. Consulte os registros privados do YoutubeBot no PC de trabalho; o lote não será repetido automaticamente.".into(),
+        }
+    })
 }

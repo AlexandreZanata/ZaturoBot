@@ -119,9 +119,12 @@ impl Router {
         if !self.config.enabled {
             return Err(Error::Disabled);
         }
-        if context.privacy != PrivacyClass::PublicCoding
-            || !self.config.allowed_privacy.contains(&context.privacy)
-        {
+        let privacy = if self.config.provider == "opencode-console" {
+            PrivacyClass::Personal
+        } else {
+            PrivacyClass::PublicCoding
+        };
+        if context.privacy != privacy || !self.config.allowed_privacy.contains(&context.privacy) {
             return Err(Error::Denied(
                 "explicit public-coding disclosure is required",
             ));

@@ -164,3 +164,26 @@ reference material only; the owner's always-end-on-open preference is authoritat
 No full Telegram/WhatsApp parity or unsupported messaging features are claimed.
 Tab draft/search retention remains process-memory-only. API, model policy, credentials,
 worker grants, screenshot protection and the private-view lifecycle are unchanged.
+
+
+## ADR-0019: Bounded personal chat, inert shared tasks and private mobile images - accepted
+
+The owner explicitly expanded the native service slice. Reuse the existing durable task
+transport, authenticated apps, YoutubeBot actors and RAM private-view relay. Known owner
+commands use a deterministic fast path; arbitrary conversation uses a separate Console
+Personal route, one call without tools/thinking/retry, <=4 clipped ordinary context turns
+and the same aggregate durable spend admission. Only DeepSeek V4.1 Flash is eligible.
+Go remains coding-only; lack of Console balance/permission is reported without fallback.
+
+The common area stores inert tasks, authenticated authors, bounded comments and encrypted
+transfer IDs. MCP stdio exposes four stable compact tools; list summaries before fetching
+a body. Revision/idempotency fences prevent stale overwrites but do not promise exactly-once
+external execution. The other Codex requires the owner's current execution request.
+
+Video chat commands authorize generation-only actors. Existing scheduled publication stays
+separate. Positive browser evidence distinguishes missing login from unknown state; raw
+browser/provider errors never enter chat. Native mobile views generate a dedicated local
+age identity protected by Keystore, register only its public key under an explicit app
+scope and decrypt with kage. No new plaintext endpoint, phone permission or image SQL/file
+is introduced. Explicit fixed messaging-app navigation records only verified local recipes.
+Runtime verification and remote-PC/device limitations belong to the acceptance evidence.

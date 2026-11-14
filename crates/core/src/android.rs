@@ -36,6 +36,7 @@ pub enum AndroidTransport {
 pub enum AndroidCapability {
     DeviceStatus,
     SensitiveScreenView,
+    OpenMessages,
 }
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -67,7 +68,7 @@ impl RegisteredAndroidDevice {
             return Err("invalid Android display name");
         }
         if self.capabilities.is_empty()
-            || self.capabilities.len() > 2
+            || self.capabilities.len() > 3
             || self
                 .capabilities
                 .iter()

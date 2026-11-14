@@ -24,3 +24,8 @@ Hub schema5 adds indexed activity/chat and service-state dedupe; worker schema6 
 separate service intent/result journal with fair polling timestamps. Preserve the model
 ledger unchanged. Private screen frames never enter SQLite. Seed only metadata notices
 with stable keys; do not treat job acceptance as video completion.
+
+Hub schema7 adds `shared.rs`, inert revision-fenced coordination and app public viewer keys.
+Worker schema8 adds `assistant_budget.rs`: separate personal-call reservations that share
+global day/month charges with coding. Preserve uncertain charges and all previous tables.
+The new migrations are 0007_hub_shared and 0008_worker_assistant. No screen bytes in SQL.

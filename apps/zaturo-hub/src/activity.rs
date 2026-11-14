@@ -8,6 +8,7 @@ use axum::{
     Json, Router,
     body::Body,
     extract::{Path, Query, State},
+    http::HeaderMap,
     http::{Method, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -38,10 +39,18 @@ async fn feed(
 }
 async fn chat(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(request): Json<ChatRequest>,
 ) -> Result<Json<ChatReply>, ApiFailure> {
     let target = state.config.worker_id.clone();
-    let reply = database(&state, move |e| e.chat(request, &target, now_ms())).await?;
+    let actor = bearer(&headers)
+        .and_then(|t| state.apps.as_ref().and_then(|a| a.identity(t, true)))
+        .map(|id| format!("app:{id}"))
+        .unwrap_or_else(|| "owner".into());
+    let reply = database(&state, move |e| {
+        e.chat_as(request, &target, &actor, now_ms())
+    })
+    .await?;
     if reply.task.is_some() {
         state.changes.notify_one();
     }

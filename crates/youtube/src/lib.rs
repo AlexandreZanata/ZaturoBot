@@ -14,6 +14,8 @@ pub struct YoutubeConfig {
     pub project_root: PathBuf,
     #[serde(default)]
     pub allow_schedule: bool,
+    #[serde(default)]
+    pub allow_generate: bool,
 }
 impl YoutubeConfig {
     pub fn validate(&self) -> Result<(), Error> {
@@ -132,14 +134,17 @@ impl YoutubeClient {
         if !request.validates() {
             return Err(Error::InvalidRequest);
         }
-        let ServiceRequest::YoutubeSubmit {
-            channel,
-            account,
-            count,
-            ..
-        } = request
-        else {
-            return Err(Error::InvalidRequest);
+        let (channel, account, count, mode) = match request {
+            ServiceRequest::YoutubeSubmit {
+                channel,
+                account,
+                count,
+                ..
+            } => (channel, Some(account), count, "schedule"),
+            ServiceRequest::YoutubeGenerate { channel, count } => {
+                (channel, None, count, "generate")
+            }
+            _ => return Err(Error::InvalidRequest),
         };
         let job = self
             .status(operation)
@@ -147,8 +152,9 @@ impl YoutubeClient {
             .map_err(|_| Error::ReconciliationRequired)?;
         if job.operation_id != operation
             || job.channel != *channel
-            || job.account != *account
+            || account.is_some_and(|a| job.account != *a)
             || job.count != *count
+            || job.mode != mode
         {
             return Err(Error::ReconciliationRequired);
         }
@@ -156,6 +162,21 @@ impl YoutubeClient {
     }
     fn arguments(&self, operation: &str, request: &ServiceRequest) -> Result<Vec<String>, Error> {
         match request {
+            ServiceRequest::YoutubeGenerate { channel, count } => {
+                if !self.config.allow_generate {
+                    return Err(Error::PolicyDenied);
+                }
+                Ok(vec![
+                    "generate".into(),
+                    "--operation-id".into(),
+                    operation.into(),
+                    "--channel".into(),
+                    channel.clone(),
+                    "--count".into(),
+                    count.to_string(),
+                    "--approved-generation".into(),
+                ])
+            }
             ServiceRequest::YoutubeProfiles => Ok(vec!["profiles".into()]),
             ServiceRequest::YoutubeRuns { channel, limit } => Ok(vec![
                 "runs".into(),

@@ -38,7 +38,10 @@ struct Metadata {
     id: String,
     state: &'static str,
     expires_at: i64,
+    remaining_millis: u64,
     task_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    failure_code: Option<String>,
 }
 impl Session {
     fn claim_grant(&mut self, worker: &str) -> Result<PrivateViewGrant, ApiFailure> {
@@ -68,7 +71,13 @@ impl Session {
                 "waiting"
             },
             expires_at: self.grant.expires_at,
+            remaining_millis: self
+                .grant
+                .expires_at
+                .saturating_sub(now_ms())
+                .clamp(0, 180000) as u64,
             task_id: self.task_id.clone(),
+            failure_code: None,
         }
     }
 }
@@ -87,6 +96,7 @@ fn missing() -> ApiFailure {
 }
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
+        .route("/v1/private-viewers", post(register_viewer))
         .route("/v1/private-views", post(create))
         .route("/v1/private-views/{id}", get(status).delete(revoke))
         .route("/v1/private-views/{id}/content", get(content))
@@ -125,9 +135,15 @@ async fn no_store(request: Request<Body>, next: Next) -> Response {
 }
 async fn owner_auth(State(state): State<AppState>, request: Request<Body>, next: Next) -> Response {
     let write = request.method() != Method::GET;
-    if bearer(request.headers())
-        .is_some_and(|t| state.authorize_app(t, write) && state.viewer_device(t).is_some())
-    {
+    if bearer(request.headers()).is_some_and(|t| {
+        state.authorize_app(t, write)
+            && (state.viewer_device(t).is_some()
+                || state
+                    .apps
+                    .as_ref()
+                    .and_then(|a| a.native_viewer(t))
+                    .is_some())
+    }) {
         next.run(request).await
     } else {
         denied().into_response()
@@ -151,7 +167,13 @@ async fn worker_auth(
 }
 fn viewer(state: &AppState, headers: &HeaderMap) -> Result<String, ApiFailure> {
     bearer(headers)
-        .and_then(|t| state.viewer_device(t))
+        .and_then(|t| {
+            state
+                .apps
+                .as_ref()
+                .and_then(|a| a.native_viewer(t))
+                .or_else(|| state.viewer_device(t))
+        })
         .ok_or_else(denied)
 }
 fn worker(state: &AppState, headers: &HeaderMap) -> Result<String, ApiFailure> {
@@ -188,11 +210,18 @@ async fn create(
     if !peers.iter().any(|p| p.id == request.worker_id) {
         return Err(denied());
     }
-    let recipient = peers
-        .iter()
-        .find(|p| p.id == viewer)
-        .map(|p| p.encryption_recipient.clone())
-        .ok_or_else(denied)?;
+    let recipient = if viewer.starts_with("app:") {
+        let id = viewer.clone();
+        database(&state, move |e| e.app_viewer(&id))
+            .await?
+            .ok_or_else(denied)?
+    } else {
+        peers
+            .iter()
+            .find(|p| p.id == viewer)
+            .map(|p| p.encryption_recipient.clone())
+            .ok_or_else(denied)?
+    };
     let now = now_ms();
     state.private_views.purge(now);
     let id = uuid::Uuid::new_v4().to_string();
@@ -281,6 +310,7 @@ async fn status(
         && let Some(task_id) = metadata.task_id.clone()
         && let Ok(task) = database(&state, move |e| e.get(&task_id)).await
     {
+        metadata.failure_code = task.failure.clone();
         metadata.state = match task.state {
             zaturo_core::TaskState::Failed => "failed",
             zaturo_core::TaskState::Cancelled => "cancelled",
@@ -463,4 +493,34 @@ mod tests {
         store.purge(60_000);
         assert!(store.0.lock().unwrap().is_empty());
     }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RegisterViewer {
+    recipient: String,
+    explicit_owner_confirmation: bool,
+}
+async fn register_viewer(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(request): Json<RegisterViewer>,
+) -> Result<Json<serde_json::Value>, ApiFailure> {
+    let identity = bearer(&headers)
+        .and_then(|t| state.apps.as_ref().and_then(|a| a.native_viewer(t)))
+        .ok_or_else(denied)?;
+    if !request.explicit_owner_confirmation
+        || !zaturo_transfer::crypto::valid_recipient(&request.recipient)
+    {
+        return Err(denied());
+    }
+    let id = identity.clone();
+    let recipient = request.recipient;
+    database(&state, move |e| {
+        e.save_app_viewer(&id, &recipient, now_ms())
+    })
+    .await?;
+    Ok(Json(
+        serde_json::json!({"viewer":identity,"registered":true}),
+    ))
 }

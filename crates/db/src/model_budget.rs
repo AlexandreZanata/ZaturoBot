@@ -55,12 +55,12 @@ impl WorkerJournal {
         let (day_start, month_start) = period_starts(&transaction, now)?;
         let (task_charge,task_calls):(u64,u32)=transaction.query_row("SELECT COALESCE(SUM(charged_tokens),0),COUNT(*) FROM model_calls WHERE operation_id=?1",[&reservation.operation_id],|r|Ok((r.get(0)?,r.get(1)?)))?;
         let day_charge: u64 = transaction.query_row(
-            "SELECT COALESCE(SUM(charged_tokens),0) FROM model_calls WHERE created_at>=?1",
+            "SELECT COALESCE(SUM(charged_tokens),0) FROM (SELECT charged_tokens,created_at FROM model_calls UNION ALL SELECT charged_tokens,created_at FROM assistant_calls) WHERE created_at>=?1",
             [day_start],
             |r| r.get(0),
         )?;
         let month_charge: u64 = transaction.query_row(
-            "SELECT COALESCE(SUM(charged_tokens),0) FROM model_calls WHERE created_at>=?1",
+            "SELECT COALESCE(SUM(charged_tokens),0) FROM (SELECT charged_tokens,created_at FROM model_calls UNION ALL SELECT charged_tokens,created_at FROM assistant_calls) WHERE created_at>=?1",
             [month_start],
             |r| r.get(0),
         )?;
@@ -174,6 +174,7 @@ impl WorkerJournal {
             connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         enforce_clock(&transaction, now)?;
         transaction.execute("UPDATE model_calls SET state='uncertain',updated_at=?2 WHERE operation_id=?1 AND state='reserved'",params![operation_id,now])?;
+        transaction.execute("UPDATE assistant_calls SET state='uncertain',updated_at=?2 WHERE operation_id=?1 AND state='reserved'",params![operation_id,now])?;
         transaction.commit()?;
         Ok(())
     }
@@ -215,10 +216,10 @@ fn parse_state(state: &str) -> Result<ModelCallState, Error> {
         _ => Err(Error::OperationConflict),
     }
 }
-fn enforce_clock(connection: &Connection, now: i64) -> Result<(), Error> {
+pub(crate) fn enforce_clock(connection: &Connection, now: i64) -> Result<(), Error> {
     let last: Option<i64> = connection
         .query_row(
-            "SELECT updated_at FROM model_calls ORDER BY updated_at DESC LIMIT 1",
+            "SELECT updated_at FROM (SELECT updated_at FROM model_calls UNION ALL SELECT updated_at FROM assistant_calls) ORDER BY updated_at DESC LIMIT 1",
             [],
             |r| r.get(0),
         )
@@ -228,7 +229,7 @@ fn enforce_clock(connection: &Connection, now: i64) -> Result<(), Error> {
     }
     Ok(())
 }
-fn period_starts(connection: &Connection, now: i64) -> Result<(i64, i64), Error> {
+pub(crate) fn period_starts(connection: &Connection, now: i64) -> Result<(i64, i64), Error> {
     let month: Option<i64> = connection.query_row(
         "SELECT CAST(strftime('%s',?1/1000,'unixepoch','start of month') AS INTEGER)*1000",
         [now],

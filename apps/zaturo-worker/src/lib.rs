@@ -1,4 +1,6 @@
 //! Outbound worker transport and durable, policy-checked diagnostic execution.
+mod android_actions;
+mod assistant;
 pub mod config;
 mod execution;
 pub mod files;

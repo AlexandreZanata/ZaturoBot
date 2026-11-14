@@ -17,6 +17,8 @@ pub struct WorkerConfig {
     #[serde(default)]
     pub models_config: Option<PathBuf>,
     #[serde(default)]
+    pub assistant_models_config: Option<PathBuf>,
+    #[serde(default)]
     pub files: Option<FilesConfig>,
     #[serde(default)]
     pub youtube: Option<zaturo_youtube::YoutubeConfig>,
@@ -53,15 +55,18 @@ impl WorkerConfig {
         ensure!(
             self.max_concurrent_tasks == 1
                 && self.capabilities.contains(&"diagnostic.v1".into())
-                && self.capabilities.len() <= 6
+                && self.capabilities.len() <= 9
                 && self.capabilities.iter().all(|c| matches!(
                     c.as_str(),
                     "diagnostic.v1"
+                        | "assistant.chat.v1"
+                        | "youtube.generate.v1"
                         | "agent.diagnostic.v1"
                         | "youtube.read.v1"
                         | "youtube.submit.v1"
                         | "android.devices.v1"
                         | "android.private.v1"
+                        | "android.messages.v1"
                 ))
                 && self
                     .capabilities
@@ -79,6 +84,11 @@ impl WorkerConfig {
         if let Some(youtube) = &self.youtube {
             youtube.validate()?;
         }
+        ensure!(
+            !self.capabilities.iter().any(|c| c == "assistant.chat.v1")
+                || self.assistant_models_config.is_some(),
+            "assistant capability requires its separate Console model profile"
+        );
         ensure!(
             !self.capabilities.iter().any(|c| c.starts_with("youtube.")) || self.youtube.is_some(),
             "YouTube capabilities require a configured local adapter"
@@ -111,6 +121,21 @@ impl WorkerConfig {
                     .as_ref()
                     .is_some_and(|a| a.allow_sensitive_views && !a.devices.is_empty()),
             "sensitive Android views require explicit registered devices and a local grant"
+        );
+        ensure!(
+            !self.capabilities.iter().any(|c| c == "youtube.generate.v1")
+                || self.youtube.as_ref().is_some_and(|a| a.allow_generate),
+            "video generation requires the local grant"
+        );
+        ensure!(
+            !self.capabilities.iter().any(|c| c == "android.messages.v1")
+                || self
+                    .android
+                    .as_ref()
+                    .is_some_and(|a| a.devices.iter().any(|d| d
+                        .capabilities
+                        .contains(&zaturo_core::AndroidCapability::OpenMessages))),
+            "opening messages requires a registered USB device and local grant"
         );
         ensure!(
             (1..=5).contains(&self.heartbeat_seconds),

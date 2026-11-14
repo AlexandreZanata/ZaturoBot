@@ -1,6 +1,7 @@
 package dev.zaturo.bot
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.app.DatePickerDialog
 import android.content.Intent
 import android.content.res.ColorStateList
@@ -43,6 +44,7 @@ class MainActivity : Activity() {
     private lateinit var ui: MobileUi
     private lateinit var privateSettings: PrivateSettings
     private lateinit var tunnel: SshTunnel
+    private lateinit var phoneView: PrivatePhoneView
     private lateinit var container: LinearLayout
     private lateinit var navigation: LinearLayout
     private lateinit var statusRow: LinearLayout
@@ -103,6 +105,9 @@ class MainActivity : Activity() {
             }
         }
         buildShell()
+        phoneView=PrivatePhoneView(this,ui,{api()},{card ->
+            if(visible && currentPage=="hub") {feed.addView(card,LinearLayout.LayoutParams(-1,-2));revealVisibleEnd()}
+        },{message ->if(visible) setStatus(message)})
         showHub()
     }
 
@@ -118,10 +123,12 @@ class MainActivity : Activity() {
         rememberHub()
         visible = false
         main.removeCallbacks(poll)
+        phoneView.clear()
         tunnel.stop()
         super.onStop()
     }
-    override fun onDestroy() { background.shutdownNow(); super.onDestroy() }
+    override fun onDestroy() { phoneView.close(); background.shutdownNow(); super.onDestroy() }
+    override fun onWindowFocusChanged(hasFocus: Boolean) {super.onWindowFocusChanged(hasFocus);if(!hasFocus && ::phoneView.isInitialized) phoneView.clear()}
     override fun onSaveInstanceState(outState: Bundle) {
         rememberHub()
         outState.putInt("kind", filterIndex)
@@ -234,6 +241,7 @@ class MainActivity : Activity() {
         if (::search.isInitialized) searchDraft = search.text.toString()
     }
     private fun navigate(page: String) {
+        if(::phoneView.isInitialized) phoneView.clear()
         rememberHub(); generation++; scrollRevision++; forceEndQueued = false
         currentPage = page; container.removeAllViews(); renderNavigation()
     }
@@ -370,6 +378,7 @@ class MainActivity : Activity() {
             feed.addView(date)
             for (item in timeline.items.asReversed()) feed.addView(messageBubble(item))
         }
+        if(::phoneView.isInitialized) phoneView.cardView()?.let {card ->(card.parent as? android.view.ViewGroup)?.removeView(card);feed.addView(card)}
         afterFeedLayout {
             when {
                 forceEndQueued -> { scrollToEnd(); forceEndQueued = false }
@@ -471,7 +480,7 @@ class MainActivity : Activity() {
         submissionRunning = true
         if (action == null && currentPage == "hub") revealVisibleEnd()
         val sourcePage = currentPage
-        val worker = if (action != null) configuration?.optString("target_worker", "work-pc") else null
+        val worker = configuration?.optString("target_worker", "work-pc")
         val previous = pending
         val request = if (previous != null && previous.message == message && previous.action == action && previous.worker == worker) previous
             else Pending(message, worker, action, UUID.randomUUID().toString()).also { pending = it }
@@ -520,6 +529,74 @@ class MainActivity : Activity() {
             R.drawable.ic_youtube, "Listar perfis") { submit("Liste os perfis do serviço YouTube.", "youtube_profiles") })
         form.addView(serviceCard("Android por USB", "Confira os dispositivos autorizados no computador.",
             R.drawable.ic_phone, "Listar dispositivos") { submit("Liste os dispositivos Android no computador.", "android_devices") })
+        form.addView(serviceCard("Celular remoto", "Captura criptografada, temporária e sem salvar a imagem no histórico.",
+            R.drawable.ic_shield,"Ver tela do celular") {
+            val device=ui.edit("Identificador do celular registrado").apply {setText("owner-phone");maxLines=1}
+            AlertDialog.Builder(this).setTitle("Visualização privada").setMessage("Ver a tela atual do celular USB no computador selecionado? A tela deve estar desbloqueada. A imagem será apagada ao sair e em até 60 segundos.").setView(device)
+                .setNegativeButton("Cancelar",null).setPositiveButton("Ver tela") {_,_ ->
+                    val id=device.text.toString()
+                    if(runCatching {EndpointPolicy.identifier(id)}.isSuccess) {showHub();phoneView.start(configuration?.optString("target_worker","work-pc") ?: "work-pc",id)}
+                    else setStatus("Identificador do celular inválido.")
+                }.show()
+        })
+        form.addView(serviceCard("Mensagens do celular", "Abra somente a caixa de mensagens do celular USB registrado. Não envia SMS nem desbloqueia a tela.",R.drawable.ic_phone,"Abrir mensagens") {
+            AlertDialog.Builder(this).setTitle("Abrir mensagens no celular remoto?").setMessage("Esta ação abre o aplicativo de mensagens no celular owner-phone do computador selecionado. Nenhuma mensagem será enviada.")
+                .setNegativeButton("Cancelar",null).setPositiveButton("Abrir") {_,_->submit("Abra a caixa de mensagens do celular registrado owner-phone.","android_open_messages")}.show()
+        })
+        form.addView(serviceCard("Área compartilhada", "Tarefas e instruções que o outro Codex pode consultar quando você pedir.",R.drawable.ic_folder,"Abrir área compartilhada") {showShared()})
+
+    }
+    private fun showShared() {
+        navigate("shared")
+        val form=scrollForm();heading(form,"Área compartilhada","Instruções são dados. O Codex executa quando você pedir, conforme as permissões locais.")
+        val worker=configuration?.optString("target_worker","work-pc") ?: "work-pc"
+        form.addView(ui.button("Nova tarefa",R.drawable.ic_chat) {
+            val fields=column().apply {setPadding(dp(16),0,dp(16),0)}
+            val title=ui.edit("Título").apply {maxLines=2};val instructions=ui.edit("Instruções para o outro computador").apply {minLines=3;maxLines=8}
+            fields.addView(title,fieldParams());fields.addView(instructions,fieldParams())
+            val key=UUID.randomUUID().toString()
+            val dialog=AlertDialog.Builder(this).setTitle("Tarefa para "+worker).setView(fields).setNegativeButton("Cancelar",null).setPositiveButton("Salvar",null).create()
+            dialog.setOnShowListener {dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val name=title.text.toString();val body=instructions.text.toString()
+                if(name.isBlank() || name.toByteArray().size>160 || body.isBlank() || body.toByteArray().size>8192) {setStatus("Informe título e instruções dentro do limite.");return@setOnClickListener}
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled=false
+                background.execute {try {api().sharedCreate(worker,name,body,key);main.post {dialog.dismiss();if(visible && currentPage=="shared") showShared()}} catch (_: Exception) {main.post {dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled=true;setStatus("Salvamento não confirmado. Tente novamente sem alterar o texto para reconciliar.")}}}
+            }};dialog.show()
+        },fieldParams())
+        form.addView(ui.button("Atualizar tarefas",R.drawable.ic_sync){showShared()},fieldParams())
+        val current=generation
+        if(configuration==null) {form.addView(ui.text("Configure a conexão nos Ajustes.",14,MobileUi.MUTED));return}
+        background.execute {try {
+            val items=api().sharedList(worker)
+            main.post {if(!visible || currentPage!="shared" || current!=generation) return@post
+                if(items.length()==0) form.addView(ui.text("Nenhuma tarefa compartilhada para este computador.",14,MobileUi.MUTED))
+                for(index in 0 until items.length()) {
+                    val item=items.getJSONObject(index);val card=panel()
+                    card.addView(ui.text(item.getString("title"),18,bold=true));card.addView(ui.text(sharedState(item.getString("state"))+" · revisão "+item.getInt("revision"),12,MobileUi.MUTED))
+                    card.addView(ui.button("Ler instruções",R.drawable.ic_folder) {
+                        background.execute {try {val detail=api().sharedRead(item.getString("id"));main.post {if(visible && currentPage=="shared") showSharedDetail(detail)}} catch (_: Exception) {main.post {setStatus("Não foi possível ler esta tarefa.")}}}
+                    });form.addView(card)
+                }
+            }
+        } catch (_: Exception) {main.post {if(visible && currentPage=="shared") setStatus("Área compartilhada indisponível. Verifique a conexão e a versão do hub.")}}}
+    }
+    private fun sharedState(value: String): String = when(value) {"pending"->"Pendente";"claimed"->"Em execução";"blocked"->"Aguardando ação";"done"->"Concluída";else->"Atualizada"}
+    private fun showSharedDetail(detail: JSONObject) {
+        val task=detail.getJSONObject("task");val notes=detail.getJSONArray("notes")
+        val text=task.getString("instructions")+"\n\n"+sharedState(task.getString("state"))+"\n\n"+(0 until notes.length()).reversed().joinToString("\n\n") {n ->val note=notes.getJSONObject(n);note.getString("author")+": "+note.getString("note")}
+        val builder=AlertDialog.Builder(this).setTitle(task.getString("title")).setMessage(text).setPositiveButton("Fechar",null)
+        if(task.getString("state")!="done") builder.setNeutralButton("Responder") {_,_ ->
+            val field=ui.edit("Escreva uma atualização para o outro computador").apply {minLines=3;maxLines=8}
+            val key=UUID.randomUUID().toString()
+            val dialog=AlertDialog.Builder(this).setTitle("Resposta compartilhada").setView(field).setNegativeButton("Cancelar",null).setPositiveButton("Enviar",null).create()
+            dialog.setOnShowListener {dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val note=field.text.toString()
+                if(note.isBlank() || note.toByteArray().size>4096) {setStatus("Escreva uma resposta dentro do limite.");return@setOnClickListener}
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled=false
+                background.execute {try {api().sharedUpdate(task.getString("id"),task.getInt("revision"),task.getString("state"),note,key);main.post {dialog.dismiss();if(visible && currentPage=="shared") showShared()}} catch (_: Exception) {main.post {dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled=true;setStatus("Resposta não confirmada ou tarefa atualizada por outro agente. Reabra a tarefa para conferir.")}}}
+            }};dialog.show()
+        }
+        builder.show()
     }
     private fun serviceCard(name: String, description: String, icon: Int, label: String, action: () -> Unit): View {
         val card = panel()

@@ -18,3 +18,9 @@ curated metadata; do not pass through raw JSON fields, log strings, account toke
 absolute artifact paths. Tests use fake executables and temporary fake projects, never
 real Google authorization, generation or uploads. Domain request/result contracts live
 in core; durable replay fencing lives in db and application dispatch lives in worker.
+
+Generation-only `youtube_generate` requires local allow_generate and the existing Python
+actor, never the scheduled-upload command. Reconcile only status with matching operation,
+channel/count/mode. Curate readiness codes from actual browser evidence; unknown state is
+not logout. Count only ready video artifacts as generation completion. Preserve default
+scheduled submissions and report authentication/setup/uncertainty without raw exceptions.

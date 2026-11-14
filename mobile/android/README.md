@@ -4,7 +4,12 @@ Initial native Kotlin Android app (API 26+), not a browser wrapper. It uses the 
 wolf SVG converted into Android vector/adaptive icons and the black/yellow brand palette.
 The hub shows today's activity by default, date/type/search filters and saved messages.
 Explicit diagnostic, YouTube-profile and Android-device requests use the existing
-worker task boundary; arbitrary chat text is recorded without claiming execution.
+worker task boundary. Version 0.5 sends explicit assistant chat: known commands dispatch
+bounded work without a model; other conversation uses the separate Console route.
+The Services page includes the shared task area and revisioned notes. A private phone
+capture is an explicitly confirmed, ephemeral in-chat card with a dedicated on-device
+age identity encrypted by Android Keystore. It never becomes ordinary saved chat media.
+See [assistant contracts](../../docs/ASSISTANT_AND_SHARED_TASKS.md).
 The conversation filter sends the hub's `chat` kind; **Serviços** sends `service`,
 covering YoutubeBot and Android service activity. Labels and wire values share one catalog.
 

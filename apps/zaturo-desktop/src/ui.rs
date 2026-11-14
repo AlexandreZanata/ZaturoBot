@@ -178,6 +178,45 @@ impl AppWindow {
         self.instance.window()
     }
     strings!(
+        (set_shared_note, get_shared_note, "shared-note"),
+        (
+            set_shared_selected_id,
+            get_shared_selected_id,
+            "shared-selected-id"
+        ),
+        (
+            set_shared_selected_state,
+            get_shared_selected_state,
+            "shared-selected-state"
+        ),
+        (set_shared_note_key, get_shared_note_key, "shared-note-key"),
+        (set_shared_title, get_shared_title, "shared-title"),
+        (
+            set_shared_instructions,
+            get_shared_instructions,
+            "shared-instructions"
+        ),
+        (set_shared_detail, get_shared_detail, "shared-detail"),
+        (
+            set_shared_request_key,
+            get_shared_request_key,
+            "shared-request-key"
+        ),
+        (
+            set_chat_request_key,
+            get_chat_request_key,
+            "chat-request-key"
+        ),
+        (
+            set_chat_request_message,
+            get_chat_request_message,
+            "chat-request-message"
+        ),
+        (
+            set_chat_request_target,
+            get_chat_request_target,
+            "chat-request-target"
+        ),
         (set_private_device, get_private_device, "private-device"),
         (set_private_watch, get_private_watch, "private-watch"),
         (set_private_status, get_private_status, "private-status"),
@@ -223,6 +262,9 @@ impl AppWindow {
         (set_preview_open, get_preview_open, "preview-open")
     );
     callbacks!(
+        (on_shared_reply, "shared-reply"),
+        (on_shared_refresh, "shared-refresh"),
+        (on_shared_create, "shared-create"),
         (on_start_private, "start-private"),
         (on_close_private, "close-private"),
         (on_refresh, "refresh"),
@@ -233,6 +275,21 @@ impl AppWindow {
         (on_load_more, "load-more"),
         (on_hub_opened, "hub-opened")
     );
+    pub fn set_shared_selected_revision(&self, value: i32) {
+        self.instance
+            .set_property("shared-selected-revision", Value::Number(value.into()))
+            .expect("embedded shared revision");
+    }
+    pub fn get_shared_selected_revision(&self) -> i32 {
+        match self
+            .instance
+            .get_property("shared-selected-revision")
+            .expect("embedded shared revision")
+        {
+            Value::Number(v) => v as i32,
+            _ => 0,
+        }
+    }
     pub fn set_kind_index(&self, value: i32) {
         self.instance
             .set_property("kind-index", Value::Number(value.into()))
@@ -253,6 +310,28 @@ impl AppWindow {
             Value::Number(n) => n as i32,
             _ => 0,
         }
+    }
+    pub fn on_shared_open(&self, callback: impl Fn(SharedString) + 'static) {
+        self.instance
+            .set_callback("shared-open", move |values| {
+                if let Some(Value::String(id)) = values.first() {
+                    callback(id.clone());
+                }
+                Value::Void
+            })
+            .expect("embedded shared callback");
+    }
+    pub fn set_shared_tasks(&self, rows: ModelRc<WorkerRow>) {
+        let values = rows
+            .iter()
+            .map(|r| object(vec![("id", r.id), ("detail", r.detail)]))
+            .collect::<Vec<_>>();
+        self.instance
+            .set_property(
+                "shared-tasks",
+                Value::Model(ModelRc::new(VecModel::from(values))),
+            )
+            .expect("embedded shared model");
     }
     pub fn on_open_artifact(&self, callback: impl Fn(SharedString) + 'static) {
         self.instance

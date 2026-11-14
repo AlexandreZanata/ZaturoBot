@@ -5,7 +5,10 @@ build-validated `.slint` source so generated FFI does not weaken the workspace's
 `unsafe_code = forbid` rule. The software renderer and pinned winit integration provide
 native display, icon and focus/visibility handling. No browser/webview is embedded.
 The flat sidebar/controls, official local Material Symbols and gold/right owner bubbles
-share the Android visual language while keeping a desktop layout.
+share the Android visual language while keeping a desktop layout. Version 0.5 submits
+bounded assistant chat and adds a shared task page with revision-fenced replies.
+See [assistant contracts](../../docs/ASSISTANT_AND_SHARED_TASKS.md) and the
+[local MCP installer](../../deploy/mcp/README.md).
 
 ## Build and connect
 

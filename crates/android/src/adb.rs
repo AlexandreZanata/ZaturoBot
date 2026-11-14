@@ -313,6 +313,60 @@ impl AdbClient {
         }
         Ok(value.to_owned())
     }
+    /// Open the default messaging app only; never send, type, unlock or select a contact.
+    pub async fn open_messages(
+        &self,
+        device: &RegisteredAndroidDevice,
+        lease: &SessionLease,
+        now: i64,
+    ) -> Result<()> {
+        lease.authorize_messages(device, now)?;
+        let started = tokio::time::Instant::now();
+        let remaining = Duration::from_millis((lease.status().expires_at - now) as u64);
+        tokio::select! {biased;
+            _=lease.revoked()=>Err(Error::PermissionDenied),
+            _=tokio::time::sleep(remaining)=>Err(Error::PermissionDenied),
+            result=async {
+        self.ready(device, now).await?;
+        let output = self
+            .command(
+                &[
+                    "-s",
+                    &device.adb_serial,
+                    "shell",
+                    "am",
+                    "start",
+                    "-W",
+                    "-a",
+                    "android.intent.action.MAIN",
+                    "-c",
+                    "android.intent.category.LAUNCHER",
+                    "--selector",
+                    "-a",
+                    "android.intent.action.MAIN",
+                    "-c",
+                    "android.intent.category.APP_MESSAGING",
+                ],
+                8192,
+            )
+            .await?;
+        let text = std::str::from_utf8(&output).map_err(|_| Error::InvalidOutput)?;
+        if text
+            .lines()
+            .any(|l| l.starts_with("Error")
+                || l.contains("Exception")
+                || l.contains("ResolverActivity")
+                || l.contains("ChooserActivity"))
+            || !text.lines().any(|l| l.trim() == "Status: ok")
+        {
+            return Err(Error::CommandFailed);
+        }
+        let finished=now.saturating_add(i64::try_from(started.elapsed().as_millis()).unwrap_or(i64::MAX));
+        lease.authorize_messages(device, finished)?;
+        Ok(())
+            }=>result,
+        }
+    }
     /// Capture only into protected memory. Callers must not persist or relay this as an ordinary file.
     pub async fn capture(
         &self,

@@ -140,6 +140,56 @@ impl HubClient {
         )
         .await
     }
+    pub async fn shared_list(&self, target: &str) -> Result<Vec<zaturo_core::SharedSummary>> {
+        Self::read(
+            self.client
+                .get(format!("{}/v1/shared/tasks", self.origin))
+                .query(&[("target_worker", target), ("limit", "10")])
+                .send()
+                .await?,
+        )
+        .await
+    }
+    pub async fn shared_read(&self, id: &str) -> Result<zaturo_core::SharedDetail> {
+        zaturo_core::validate_identifier(id).map_err(anyhow::Error::msg)?;
+        Self::read(
+            self.client
+                .get(format!("{}/v1/shared/tasks/{id}", self.origin))
+                .send()
+                .await?,
+        )
+        .await
+    }
+    pub async fn shared_update(
+        &self,
+        id: &str,
+        request: &zaturo_core::SharedUpdate,
+    ) -> Result<zaturo_core::SharedEntry> {
+        zaturo_core::validate_identifier(id).map_err(anyhow::Error::msg)?;
+        ensure!(request.validates(), "invalid shared note");
+        Self::read(
+            self.client
+                .post(format!("{}/v1/shared/tasks/{id}/updates", self.origin))
+                .json(request)
+                .send()
+                .await?,
+        )
+        .await
+    }
+    pub async fn shared_create(
+        &self,
+        request: &zaturo_core::SharedCreate,
+    ) -> Result<zaturo_core::SharedEntry> {
+        ensure!(request.validates(), "invalid shared task");
+        Self::read(
+            self.client
+                .post(format!("{}/v1/shared/tasks", self.origin))
+                .json(request)
+                .send()
+                .await?,
+        )
+        .await
+    }
     pub async fn send(&self, request: &ChatRequest) -> Result<()> {
         ensure!(
             !request.message.trim().is_empty() && request.message.len() <= 4096,

@@ -97,7 +97,7 @@ examples = ["config/worker.example.toml"]
 [[configurations]]
 name = "ModelsConfig"
 source = "crates/llm/src/config.rs"
-examples = ["config/models.example.toml"]
+examples = ["config/models.example.toml", "config/assistant-models.example.toml"]
 
 [[migrations]]
 path = "crates/db/migrations/0004_hub_transfers.sql"
@@ -136,3 +136,26 @@ documentation = "docs/MIGRATIONS.md"
 name = "DesktopConfig"
 source = "apps/zaturo-desktop/src/config.rs"
 examples = ["apps/zaturo-desktop/config.example.toml"]
+
+[[migrations]]
+path = "crates/db/migrations/0007_hub_shared.sql"
+documentation = "docs/MIGRATIONS.md"
+
+[[migrations]]
+path = "crates/db/migrations/0008_worker_assistant.sql"
+documentation = "docs/MIGRATIONS.md"
+
+[[features]]
+id = "assistant-chat"
+phase = 2
+status = "implemented"
+
+[[features]]
+id = "shared-coordination"
+phase = 8
+status = "implemented"
+
+[[features]]
+id = "mobile-private-view"
+phase = 7
+status = "implemented"
