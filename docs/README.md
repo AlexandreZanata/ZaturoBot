@@ -42,7 +42,9 @@ Android documents distinguish [USB foundations](ANDROID_INTEGRATION.md),
 [future app-testing acceptance](ANDROID_APP_TESTING.md).
 
 
-The [Autonomous Commerce planning area](planning/autonomous-commerce/README.md) contains
-the requested two-repository audit, agency/brand architecture, official policy evidence,
-phased acceptance plan and Claude handoff. It is a proposal only; no commerce runtime,
-account connection, publication permission or new model purpose is enabled.
+[Commerce foundation](COMMERCE.md) documents the pure F1 module and its boundaries;
+[the F1 report](COMMERCE_F1_REPORT.md) records actual verification. The
+[refined plan](planning/commerce-refined/ZATURO-COMMERCE-REFINED-PLAN.md) and
+[backlog](planning/commerce-refined/IMPLEMENTATION-BACKLOG.md) govern later slices.
+The [original two-repository planning area](planning/autonomous-commerce/README.md)
+remains a historical audit baseline, superseded where the refined plan differs.

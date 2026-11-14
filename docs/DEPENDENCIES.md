@@ -70,3 +70,13 @@ the hub, and upstream scripts/setup/code-evaluation tools are never forwarded. P
 (AGPL-3.0) is an independently operated API service, not imported or installed on the VPS.
 The BitLupa bridge reads its documented external schema without copying its private source.
 See [computer](COMPUTER_USE.md) and [social](SOCIAL_MANAGEMENT.md) contracts.
+
+Commerce F1 reuses workspace `sha2` for public policy/content digests and `url` for strict
+HTTPS affiliate-host validation in the pure core. Neither parses credentials or performs
+network I/O. `chrono-tz` is newly pinned to 0.10.4 with only its `std` feature, providing
+generated IANA timezone rules alongside the existing `chrono`; core must not approximate
+`America/Cuiaba` with a permanent UTC offset. Its cached upstream manifest/source/license
+were reviewed: MIT OR Apache-2.0, Rust 1.65 minimum, no optional build-time timezone
+generator/download feature enabled. The locked dependency is a dated timezone-data
+snapshot; updating rules requires revalidation of slot tests, not a claim to track live
+changes. Existing internal dependency edges and crate count are unchanged.

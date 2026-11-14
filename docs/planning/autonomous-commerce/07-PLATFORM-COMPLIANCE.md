@@ -1,5 +1,7 @@
 # 07 — Platform compliance and commercial permissions
 
+> Historical planning baseline at `eb6a0cb`. The [refined plan](../commerce-refined/ZATURO-COMMERCE-REFINED-PLAN.md) supersedes it where different; [current commerce contracts](../../COMMERCE.md) and [F1 evidence](../../COMMERCE_F1_REPORT.md) describe implemented behavior.
+
 Status: proposed design, not a production authorization. Official public documentation checked on 2026-11-14. No account was connected, credentials inspected, or publication attempted. Recheck platform evidence before each adapter is activated and after a policy-change alert.
 
 ## Decision and admission rule

@@ -1,5 +1,7 @@
 # 11 — Operations and recovery
 
+> Historical planning baseline at `eb6a0cb`. The [refined plan](../commerce-refined/ZATURO-COMMERCE-REFINED-PLAN.md) supersedes it where different; [current commerce contracts](../../COMMERCE.md) and [F1 evidence](../../COMMERCE_F1_REPORT.md) describe implemented behavior.
+
 Status: proposed runbook for a later implemented commerce slice. No service, account, schedule, credential or deployment is changed by this document. Dependencies: [architecture](03-SYSTEM-ARCHITECTURE.md), [integration contracts](04-INTEGRATION-CONTRACTS.md), [policy](06-AUTONOMY-AND-POLICY-MATRIX.md), [cost strategy](08-AI-PROVIDER-AND-COST-STRATEGY.md), [acceptance](10-TEST-AND-ACCEPTANCE-PLAN.md).
 
 ## Operational ownership

@@ -1,5 +1,7 @@
 # 03 — System architecture
 
+> Historical planning baseline at `eb6a0cb`. The [refined plan](../commerce-refined/ZATURO-COMMERCE-REFINED-PLAN.md) supersedes it where different; [current commerce contracts](../../COMMERCE.md) and [F1 evidence](../../COMMERCE_F1_REPORT.md) describe implemented behavior.
+
 Status: proposed design, not an implemented registration. Depends on the [audited baseline](01-REPOSITORY-AUDIT.md) and [existing architecture](../../ARCHITECTURE.md).
 
 ## Control, execution and modularity

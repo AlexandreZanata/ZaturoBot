@@ -1,5 +1,11 @@
 # Architecture
 
+The [commerce foundation](COMMERCE.md) is a pure module in `zaturo-core`, not another
+runtime/queue. F1 computes validated offers, policies, content, templates, slots, kill
+decisions and attribution from injected values. Existing SQL/use-case/wire/transport
+ownership and allowed internal dependency edges are unchanged. Commerce persistence,
+Hub workflows and publication are later feature slices, not implied by these types.
+
 The hub and worker are independently restartable Rust composition roots in one modular
 workspace. The hub coordinates; the worker executes. They never synchronize SQLite
 files. Versioned JSON messages and durable operation identifiers connect their state.

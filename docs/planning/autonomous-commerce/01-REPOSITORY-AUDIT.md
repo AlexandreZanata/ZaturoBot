@@ -1,5 +1,7 @@
 # 01 — Repository audit
 
+> Historical planning baseline at `eb6a0cb`. The [refined plan](../commerce-refined/ZATURO-COMMERCE-REFINED-PLAN.md) supersedes it where different; [current commerce contracts](../../COMMERCE.md) and [F1 evidence](../../COMMERCE_F1_REPORT.md) describe implemented behavior.
+
 Status: real read-only repository inspection at pinned commits; runtime claims below remain bounded by recorded evidence. See [architecture](03-SYSTEM-ARCHITECTURE.md) and [handoff](13-CLAUDE-HANDOFF.md).
 
 ## ZaturoBot repository audit for Autonomous Commerce

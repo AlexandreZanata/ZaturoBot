@@ -1,5 +1,7 @@
 # 09 — Implementation roadmap
 
+> Historical planning baseline at `eb6a0cb`. The [refined plan](../commerce-refined/ZATURO-COMMERCE-REFINED-PLAN.md) supersedes it where different; [current commerce contracts](../../COMMERCE.md) and [F1 evidence](../../COMMERCE_F1_REPORT.md) describe implemented behavior.
+
 Status: proposed execution phases; **no feature is implemented by this plan**. Dependencies: [audit](01-REPOSITORY-AUDIT.md), [architecture](03-SYSTEM-ARCHITECTURE.md), [policy](06-AUTONOMY-AND-POLICY-MATRIX.md), [platform evidence](07-PLATFORM-COMPLIANCE.md), [cost strategy](08-AI-PROVIDER-AND-COST-STRATEGY.md) and [acceptance](10-TEST-AND-ACCEPTANCE-PLAN.md).
 
 ## Ordering and shortest path

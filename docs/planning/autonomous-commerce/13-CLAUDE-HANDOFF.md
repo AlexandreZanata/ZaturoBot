@@ -1,5 +1,7 @@
 # 13 — Claude Code handoff
 
+> Historical planning baseline at `eb6a0cb`. The [refined plan](../commerce-refined/ZATURO-COMMERCE-REFINED-PLAN.md) supersedes it where different; [current commerce contracts](../../COMMERCE.md) and [F1 evidence](../../COMMERCE_F1_REPORT.md) describe implemented behavior.
+
 Status: planning artifact complete; the global repository quality gate has the unrelated shared-snapshot blocker recorded below. No commerce runtime, schema, model route, social account or production permission is created by this work.
 
 ## Owner intent and execution limit

@@ -1,5 +1,7 @@
 # 06 — Autonomy and policy matrix
 
+> Historical planning baseline at `eb6a0cb`. The [refined plan](../commerce-refined/ZATURO-COMMERCE-REFINED-PLAN.md) supersedes it where different; [current commerce contracts](../../COMMERCE.md) and [F1 evidence](../../COMMERCE_F1_REPORT.md) describe implemented behavior.
+
 Status: proposed deterministic policy; no production grant is created by this plan. Depends on [integration contracts](04-INTEGRATION-CONTRACTS.md), [platform evidence](07-PLATFORM-COMPLIANCE.md), [provider strategy](08-AI-PROVIDER-AND-COST-STRATEGY.md) and [operations](11-OPERATIONS-AND-RECOVERY.md).
 
 ## Authority and present boundary

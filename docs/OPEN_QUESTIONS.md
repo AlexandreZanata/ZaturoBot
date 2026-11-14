@@ -56,5 +56,10 @@ future fixture-only development; they are not newly accepted production scopes.
 - C05 — Define audience legal basis, consent/withdrawal, retention/deletion and whether any
   separately eligible communication route is wanted; WhatsApp remains synthetic-only.
 
-The [Claude handoff](planning/autonomous-commerce/13-CLAUDE-HANDOFF.md) records isolated
-checkouts, baseline versions and actual validation. No answer is inferred from silence.
+The [refined plan](planning/commerce-refined/ZATURO-COMMERCE-REFINED-PLAN.md) records
+O-01 through O-13. Brand/niche/program/windows/disclosure/allowance remain unaccepted
+proposals; the explicit F1 implementation request permits only offline parameterized
+development. Main's computer/social work is committed and the previous snapshot scanner
+blocker was resolved before F1 (fresh pre-push scans remain mandatory). Main ADR-0021
+already selects Personal Go; F6 commerce purpose and its caps remain future work. See
+[F1 report](COMMERCE_F1_REPORT.md) for current evidence; the older handoff is historical.

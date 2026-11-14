@@ -69,3 +69,13 @@ offers; live price-monitoring remains planned. The social Postiz connector suppo
 reviewed initial drafts/post/schedule/status operations, not universal network comments
 or account login. See [computer use](COMPUTER_USE.md), [social](SOCIAL_MANAGEMENT.md),
 and ADR-0020.
+
+## Commerce feature slice
+
+[Commerce F1](COMMERCE.md) implements pure domain rules only. Later phases in the
+[refined plan](planning/commerce-refined/ZATURO-COMMERCE-REFINED-PLAN.md) reuse the Hub's
+task/authentication layers and the existing social transport pattern. A future
+MeuAssistente bridge is an outbound scoped Hub client, with independent databases and no
+new listener there. The older bidirectional commerce API proposal is historical.
+No new route, integration credential, Telegram transport, model profile or publication
+permission is available in F1; existing account and synthetic-only WhatsApp limits remain.

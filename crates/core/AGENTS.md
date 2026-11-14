@@ -27,3 +27,12 @@ Generation requests do not imply publication. Opening SMS is a separate confirme
 
 
 `computer.rs` owns bounded semantic actions, leases, observations and capture-request recognition. Models never supply approval authority or executable paths.
+
+`commerce/` owns pure F1 commerce contracts: checked BRL money, evidence-bound offers,
+content transitions, strict policy/hash validation, advertising/claim checks, escaped
+template rendering, timezone slot calculation, kill decisions and bounded sub-ID mapping.
+All time is injected UTC milliseconds; counters distinguish unknown from measured zero.
+These functions do not authenticate an owner, verify a marketplace account, schedule a
+task or send a post. Later services must revalidate deserialized/mutated values and enforce
+owner authority before resolving uncertain content. Never edit an official affiliate link
+to create attribution. See [commerce](../../docs/COMMERCE.md) and `tests/commerce_*.rs`.

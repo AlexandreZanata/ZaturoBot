@@ -1,5 +1,7 @@
 # 04 — Integration contracts
 
+> Historical planning baseline at `eb6a0cb`. The [refined plan](../commerce-refined/ZATURO-COMMERCE-REFINED-PLAN.md) supersedes it where different; [current commerce contracts](../../COMMERCE.md) and [F1 evidence](../../COMMERCE_F1_REPORT.md) describe implemented behavior.
+
 Status: proposed contracts, not live endpoints, migrations, Rust types or permissions. Depends on [architecture](03-SYSTEM-ARCHITECTURE.md), [autonomy](06-AUTONOMY-AND-POLICY-MATRIX.md), [platform gates](07-PLATFORM-COMPLIANCE.md) and the [audited baseline](01-REPOSITORY-AUDIT.md).
 
 ## Contract ownership and transport

@@ -4,6 +4,7 @@ pub use computer::*;
 
 use serde::{Deserialize, Serialize};
 mod activity;
+pub mod commerce;
 pub use activity::*;
 mod intent;
 pub use intent::*;

@@ -128,3 +128,18 @@ charge after send. No Console fallback, credit purchase or top-up is authorized.
 The supplied account screenshot showing Extra Usage off/$0 is a point-in-time setting,
 not proof of a later request. Record new live acceptance only after actual observation;
 preserve the historical Console402 without treating it as a current Go prerequisite.
+
+## Owner-authorized commerce foundation (F1)
+
+On 2026-11-14 the owner requested implementation of the refined commerce plan's base
+and GitHub publication after validation, using the then-current main/OpenCode contracts.
+The first slice is F1: pure `zaturo-core::commerce` money/offer validation, content
+transitions, policy hashing, claim/disclosure checks, template rendering, editorial-slot
+calculation, kill-rule evaluation and sub-ID attribution. Time and observations are
+caller inputs. No database, account connection, scheduler loop, publisher, model purpose,
+paid call or MeuAssistente change is part of F1. Existing Personal Go routing is retained.
+
+Brand, niche, affiliate-medium eligibility, posting windows and provider allowance choices
+remain owner activation decisions. Synthetic F1 fixtures do not adopt those proposals or
+establish permission to publish. Implementation status and actual evidence belong to the
+[roadmap](ROADMAP.md) and [F1 report](COMMERCE_F1_REPORT.md).

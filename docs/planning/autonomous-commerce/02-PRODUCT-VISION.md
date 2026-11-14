@@ -1,5 +1,7 @@
 # 02 — Product vision
 
+> Historical planning baseline at `eb6a0cb`. The [refined plan](../commerce-refined/ZATURO-COMMERCE-REFINED-PLAN.md) supersedes it where different; [current commerce contracts](../../COMMERCE.md) and [F1 evidence](../../COMMERCE_F1_REPORT.md) describe implemented behavior.
+
 Status: proposed. Depends on the [audit](01-REPOSITORY-AUDIT.md), [platform gates](07-PLATFORM-COMPLIANCE.md) and [autonomy contract](06-AUTONOMY-AND-POLICY-MATRIX.md).
 
 ## Outcome and operating boundary

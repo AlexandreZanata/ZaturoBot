@@ -1,6 +1,11 @@
 # Canonical inventory checked against source, documentation, and migrations.
 version = 1
 
+[[features]]
+id = "commerce"
+phase = 5
+status = "partial"
+
 [[tools]]
 id = "diagnostic.v1"
 source = "crates/tools/src/lib.rs"

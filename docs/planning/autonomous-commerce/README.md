@@ -1,5 +1,7 @@
 # Zaturo Autonomous Commerce — engineering plan
 
+> Historical planning baseline at `eb6a0cb`. The [refined plan](../commerce-refined/ZATURO-COMMERCE-REFINED-PLAN.md) supersedes it where different; [current commerce contracts](../../COMMERCE.md) and [F1 evidence](../../COMMERCE_F1_REPORT.md) describe implemented behavior.
+
 Planning baseline: 2026-11-14, `America/Cuiaba`. Status: **proposal only; no application behavior or production permission changes**.
 
 The owner requested an independent commercial agency module built on ZaturoBot: curate useful offers, create a consistent visual identity and original content, operate eligible social accounts within standing grants, and report results/exceptions in the Hub. The supplied mission explicitly limits this execution to repository audit and planning. Engineering documents are English; the eventual owner interface defaults to Brazilian Portuguese.

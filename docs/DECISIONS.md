@@ -259,3 +259,30 @@ Preserve historical Console HTTP402 evidence. It describes the former route, not
 Go route's prerequisite or live success. Record actual Go/native/task/billing acceptance
 separately after observing it; fixtures do not establish the owner's live subscription,
 accounts or target PC. See [the provider contract](LLM_PROVIDERS.md).
+
+## ADR-0022: Pure commerce foundation and refined feature slice — accepted for F1
+
+The owner requested implementation of Claude's refined commerce base and GitHub code
+publication after validation on 2026-11-14. Integrate current main first and implement
+only F1 of the [refined backlog](planning/commerce-refined/IMPLEMENTATION-BACKLOG.md),
+inside `zaturo-core::commerce`: pure validated facts, money, policy, content, templates,
+slot calculation, kill decisions and attribution. Reuse existing layers and dependencies;
+add only a reviewed pinned timezone library, not a new task engine or speculative crate.
+The earlier plan's proposed commerce ADR-0020 is superseded; main's accepted ADR-0020 and
+ADR-0021 retain their meanings.
+
+Brand/niche/accounts/windows/allowance choices remain activation gates. The current
+request permits parameterized offline fixtures without treating proposed defaults as
+owner-approved configuration. No SQL, integration endpoint, dispatch grant, live account
+or remote effect is introduced. Runtime permissions cannot come from a PolicyDocument,
+evidence digest, generated sub-ID, model output or a content-resolution value.
+
+The refined architecture keeps one Hub/Engine and adds persistence/approval/publication
+in later phases. MeuAssistente would become an outbound scoped Hub client, not a second
+commerce listener. Browser-driven YoutubeBot is not the commerce publishing path.
+D-01's bounded Go drafting design belongs to F6: it needs a separate purpose/profile and
+reviewed allowance/billing contract; F1 changes neither Personal Go nor coding routes,
+provider keys, budgets, fallback policy or the exclusive DeepSeek model selection.
+
+F1 is independently testable and has no external effects. Its typed contract is
+[commerce](COMMERCE.md); actual checks and limitations are in [F1 report](COMMERCE_F1_REPORT.md).

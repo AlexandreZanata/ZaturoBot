@@ -4,6 +4,11 @@ Status: planned for Phase 6. The foundation's queue eligibility, deadlines, boun
 retries, and lease maintenance are task-engine behavior, not a recurring-job scheduler.
 No cron, overnight window, dependency graph, or notification service is enabled.
 
+Commerce F1 now provides pure local-date slot calculation and missed-window disposition
+using pinned IANA rules in `zaturo-core::commerce::slots`. This does not run a timer,
+persist an occurrence, create a task or dispatch content. Durable commerce admission
+remains F3 in the [refined backlog](planning/commerce-refined/IMPLEMENTATION-BACKLOG.md).
+
 A future schedule stores an IANA timezone (`America/Cuiaba` initially), local execution
 window, next eligible UTC instant, task template, dependency IDs, concurrency cap,
 budget scope, and interruption policy. Use explicit DST/ambiguous-time handling even

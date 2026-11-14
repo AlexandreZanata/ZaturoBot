@@ -5,7 +5,8 @@ stable discovery keys; [architecture.toml](../architecture.toml) is the dependen
 
 - `zaturo-core` — `crates/core`: explicit chat intents, inert shared-task contracts,
   task IDs, task states, legal transitions, execution
-  budgets, diagnostic contracts, capabilities, and deterministic validation.
+  budgets, diagnostic contracts, capabilities, and deterministic validation. Its
+  `commerce` module provides the pure F1 commercial rules and template renderer.
 - `zaturo-protocol` — `crates/protocol`: versioned hub/worker messages and serialization.
 - `zaturo-db` — `crates/db`: SQLite migrations, task/event persistence, assignments,
   worker records, shared coordination/public viewer recipients, and separate durable
@@ -63,11 +64,11 @@ local files and tests. [Recipes](recipes/README.md) explain change paths. Add an
 here whenever a new reusable component or workspace crate is introduced.
 
 
-## Proposed commerce module
+## Commerce foundation — partial
 
-[Autonomous Commerce](planning/autonomous-commerce/README.md) plans an independently
-enabled agency/curation feature slice using existing layers and worker adapters. It is
-not an implemented workspace component or runtime registration. Brand identity, verified
-offers, editorial scheduling, channel publication and commerce metrics remain proposed;
-see the [audit](planning/autonomous-commerce/01-REPOSITORY-AUDIT.md) for exact reusable
-components and gaps. No empty crate is added by this planning pass.
+`zaturo-core::commerce` implements pure F1 money, offer, policy/hash, content-transition,
+claim/disclosure, escaped-template, slot, kill-rule and attribution contracts. There is
+no new crate, executable capability, database or publisher. See [commerce](COMMERCE.md),
+[F1 evidence](COMMERCE_F1_REPORT.md) and the
+[refined backlog](planning/commerce-refined/IMPLEMENTATION-BACKLOG.md). F2+ persistence,
+Hub reporting, approvals, publication, metrics and model drafting remain planned.

@@ -1,5 +1,7 @@
 # 08 — AI provider and cost strategy
 
+> Historical planning baseline at `eb6a0cb`. The [refined plan](../commerce-refined/ZATURO-COMMERCE-REFINED-PLAN.md) supersedes it where different; [current commerce contracts](../../COMMERCE.md) and [F1 evidence](../../COMMERCE_F1_REPORT.md) describe implemented behavior.
+
 Status: proposed design only. Official public sources checked on 2026-11-14. No model request, subscription change, credential access, or budget reset was performed.
 
 ## Decision

@@ -147,3 +147,15 @@ allowance use. Go coding diagnostics keep two steps; Personal planning keeps its
 configured budget and eight-step cap. Console402 remains historical evidence. One normal live chat completed with Go billing
 and zero reported balance charge; see the provider record. Keep Extra Usage disabled; no
 new credit, fallback model or expanded account/desktop grant follows from this routing change.
+
+## Autonomous Commerce foundation
+
+<!-- feature:commerce status:partial -->
+The owner requested the [refined plan](planning/commerce-refined/ZATURO-COMMERCE-REFINED-PLAN.md)
+after the initial audit. F1 adds pure commercial rules inside `zaturo-core`: money,
+offers, content transitions, policy hashing, claims/disclosures, templates, local-date
+slots, kill decisions and attribution. [F1 evidence](COMMERCE_F1_REPORT.md) records actual
+checks. These types expose no account, provider, database, schedule loop or publisher.
+F2 begins with persistence/imports/ranking/stored drafts and truthful Hub reporting;
+F3+ policy activation, stop, approvals and publication remain planned. No commerce model
+purpose, account configuration or production grant is activated by F1.

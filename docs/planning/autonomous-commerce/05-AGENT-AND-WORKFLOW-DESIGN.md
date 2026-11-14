@@ -1,5 +1,7 @@
 # 05 — Agent and workflow design
 
+> Historical planning baseline at `eb6a0cb`. The [refined plan](../commerce-refined/ZATURO-COMMERCE-REFINED-PLAN.md) supersedes it where different; [current commerce contracts](../../COMMERCE.md) and [F1 evidence](../../COMMERCE_F1_REPORT.md) describe implemented behavior.
+
 Status: proposed. Depends on [architecture](03-SYSTEM-ARCHITECTURE.md), [contracts](04-INTEGRATION-CONTRACTS.md), [policy](06-AUTONOMY-AND-POLICY-MATRIX.md) and [eligible inference](08-AI-PROVIDER-AND-COST-STRATEGY.md).
 
 ## Minimize agents and make work auditable

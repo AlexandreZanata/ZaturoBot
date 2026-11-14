@@ -1,5 +1,7 @@
 # 10 — Test and acceptance plan
 
+> Historical planning baseline at `eb6a0cb`. The [refined plan](../commerce-refined/ZATURO-COMMERCE-REFINED-PLAN.md) supersedes it where different; [current commerce contracts](../../COMMERCE.md) and [F1 evidence](../../COMMERCE_F1_REPORT.md) describe implemented behavior.
+
 Status: future behavioral contract; not a claim that commerce tests exist or passed. Use the [audit](01-REPOSITORY-AUDIT.md) for current source/test evidence and [handoff](13-CLAUDE-HANDOFF.md) for commands actually run in this planning pass. Dependencies: [contracts](04-INTEGRATION-CONTRACTS.md), [policy](06-AUTONOMY-AND-POLICY-MATRIX.md), [roadmap](09-IMPLEMENTATION-ROADMAP.md), [operations](11-OPERATIONS-AND-RECOVERY.md).
 
 ## Harness and evidence boundary

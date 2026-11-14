@@ -1,5 +1,7 @@
 # 12 — Risk register and release decisions
 
+> Historical planning baseline at `eb6a0cb`. The [refined plan](../commerce-refined/ZATURO-COMMERCE-REFINED-PLAN.md) supersedes it where different; [current commerce contracts](../../COMMERCE.md) and [F1 evidence](../../COMMERCE_F1_REPORT.md) describe implemented behavior.
+
 Status: proposed controls. Severity reflects potential impact, not measured incident probability. The owner is accountable for business/channel/purpose authorization; the implementation maintainer owns technical gates. None of the mitigations below is claimed implemented by writing this plan.
 
 ## Production blockers
