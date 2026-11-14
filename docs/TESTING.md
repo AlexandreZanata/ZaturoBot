@@ -110,3 +110,12 @@ Android JVM fixtures cover standard-age interoperability, wrong recipients, tamp
 and bounded decoding; opt-in age CLI interoperability uses synthetic files only.
 A live Console check is separate, owner-authorized and charged through the normal worker
 ledger. No fixture substitutes for physical work-PC USB/browser acceptance.
+
+
+Private-session integration runs the production worker reconnect loop: consuming/revoking
+a frame can race the completion acknowledgement, and the protocol deliberately closes
+an uncertain connection for reconciliation. A single `connect_once` fixture cannot assume
+continuity across that race. Keep recipient/one-time/no-disk/unchanged-watch/cancellation
+assertions intact and verify that the subsequent session completes within its bound.
+The work-services updater also tests all nine typed capabilities together, retained grants,
+private scoped MCP installation and refusal to rebind an existing USB serial.

@@ -116,7 +116,7 @@ cargo xtask docs
 cargo xtask secrets
 ```
 
-The 0.5 local gate passed **182 Rust tests and 27 Python helper tests**, plus strict
+The 0.5 local gate passed **182 Rust tests and 29 Python helper tests**, plus strict
 formatting/Clippy, documentation/architecture/registry checks, publication guard, and
 rustdoc. Desktop release and Android debug APK builds provide build evidence; they do
 not replace real Google/video or physical Android acceptance. The six-page

@@ -78,6 +78,7 @@ class WorkServicesTests(unittest.TestCase):
             self.source / "deploy/notebook/zaturo-worker.user.service",
             "[Service]\nExecStart=%h/.local/lib/zaturobot/zaturo-worker --config %h/.config/zaturobot/worker.toml connect\nMemoryMax=512M\n",
         )
+        write(self.source / "deploy/mcp/zaturo_mcp.py", "# synthetic reviewed MCP fixture; never executed\n")
         write(self.youtube / ".gitignore", ".venv/\n.local/\ndist/\n")
         write(
             self.youtube / "tools/ytbot/service.py",
@@ -328,6 +329,51 @@ class WorkServicesTests(unittest.TestCase):
         self.assertIn("android.private.v1", config["capabilities"])
         self.assertFalse(config["youtube"]["allow_schedule"])
         self.assertNotIn("youtube.submit.v1", config["capabilities"])
+
+    @unittest.skipUnless(Path("/usr/bin/adb").is_file(), "host has no adb binary")
+    def test_all_nine_typed_capabilities_and_mcp_preserve_existing_grants(self):
+        original = dict(self.original)
+        original["capabilities"] = [*self.original["capabilities"], "assistant.chat.v1"]
+        profile = write(self.config_dir / "assistant-models.toml", "# existing bounded personal route\n")
+        original["assistant_models_config"] = str(profile)
+        write(self.worker_config, updater.render_toml(original))
+        status, report = self.run_update("--apply", "--enable-generation", "--enable-scheduling",
+            "--android-serial", "SYNTHETIC_USB_123", "--enable-private-view", "--enable-messages")
+        self.assertEqual(status, 0, report)
+        updated = tomllib.loads(self.worker_config.read_text())
+        self.assertEqual(set(updated["capabilities"]), updater.KNOWN_CAPS)
+        self.assertEqual(updated["assistant_models_config"], str(profile))
+        self.assertEqual(updated["files"], original["files"])
+        self.assertTrue(report["generation_granted"] and report["messages_granted"])
+        self.assertEqual(updated["android"]["devices"][0]["capabilities"],
+            ["device_status", "sensitive_screen_view", "open_messages"])
+        self.assertEqual((self.home / ".local/lib/zaturobot/zaturo_mcp.py").read_bytes(),
+            (self.source / "deploy/mcp/zaturo_mcp.py").read_bytes())
+        mcp = tomllib.loads((self.config_dir / "mcp.toml").read_text())
+        self.assertEqual(set(mcp), {"hub_url", "env_file"})
+        self.assertEqual(mcp["env_file"], str(self.config_dir / "app.env"))
+        self.assertEqual(report["mcp_registration"][:6], ["codex", "mcp", "add", "zaturobot", "--", "/usr/bin/python3"])
+        self.assertNotIn(self.token, json.dumps(report))
+        status, repeated = self.run_update("--apply")
+        self.assertEqual(status, 0, repeated)
+        self.assertEqual(repeated["mode"], "already_current")
+        self.assertTrue(repeated["generation_granted"] and repeated["messages_granted"]
+            and repeated["scheduling_granted"] and repeated["private_screen_granted"])
+        self.assertEqual(tomllib.loads(self.worker_config.read_text()), updated)
+        status, error = self.run_update("--apply", "--android-serial", "OTHER_SYNTHETIC_USB", "--enable-messages")
+        self.assertNotEqual(status, 0)
+        self.assertIn("refusing to replace", error)
+        self.assertEqual(tomllib.loads(self.worker_config.read_text()), updated)
+
+    def test_new_grants_are_not_implicit_and_messages_require_an_explicit_serial(self):
+        status, report = self.run_update()
+        self.assertEqual(status, 0, report)
+        self.assertFalse(report["generation_granted"] or report["messages_granted"])
+        before = self.worker_config.read_bytes()
+        status, error = self.run_update("--apply", "--enable-messages")
+        self.assertNotEqual(status, 0)
+        self.assertIn("explicitly supplied USB serial", error)
+        self.assertEqual(self.worker_config.read_bytes(), before)
 
     def test_real_home_flow_stops_worker_before_backup_and_replacement(self):
         events = []

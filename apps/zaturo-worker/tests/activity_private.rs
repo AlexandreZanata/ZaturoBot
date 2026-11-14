@@ -1,6 +1,6 @@
 //! Full hub/worker private-view transport with synthetic pixels and a fake USB ADB only.
 use sha2::{Digest, Sha256};
-use std::{fs, os::unix::fs::PermissionsExt, sync::Arc, time::Duration};
+use std::{fs, os::unix::fs::PermissionsExt, time::Duration};
 use zaturo_core::{AndroidCapability, RegisteredAndroidDevice};
 use zaturo_hub::{AppState, config::HubConfig};
 const OWNER: &str = "synthetic-owner-for-private-view-tests";
@@ -93,9 +93,10 @@ else:
         }],
         allow_sensitive_views: true,
     });
-    let journal = Arc::new(zaturo_db::WorkerJournal::open(&config.database).unwrap());
-    let worker =
-        tokio::spawn(async move { zaturo_worker::connect_once(&config, WORK, journal).await });
+    // Revoking a consumed session may race its completion acknowledgement. The protocol
+    // deliberately reconnects for reconciliation; exercise the production reconnect loop
+    // instead of assuming that a single connect_once session must remain connected.
+    let worker = tokio::spawn(async move { zaturo_worker::run(config, WORK.to_owned()).await });
     let http = reqwest::Client::builder().no_proxy().build().unwrap();
     let body = serde_json::json!({"worker_id":"work-pc","device_id":"owner-phone","watch_seconds":0,"explicit_owner_confirmation":true});
     assert_eq!(
@@ -288,6 +289,14 @@ else:
             if status["state"] == "unchanged" {
                 break;
             }
+            assert!(
+                !worker.is_finished(),
+                "production worker stopped during private-session reconciliation"
+            );
+            assert!(
+                status["state"] != "failed" && status["state"] != "cancelled",
+                "new watch unexpectedly terminated: {status}"
+            );
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
     })

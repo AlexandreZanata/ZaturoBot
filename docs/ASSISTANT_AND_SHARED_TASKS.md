@@ -84,7 +84,7 @@ See [MCP setup](../deploy/mcp/README.md) and [native clients](NATIVE_CLIENTS.md)
 
 ## 0.5 verification and deployment evidence (2026-11-14)
 
-The repository gate passed 182 Rust tests and 27 Python helper tests, including Clippy,
+The repository gate passed 182 Rust tests and 29 Python helper tests, including Clippy,
 formatting, documentation/architecture and publication checks. Android unit tests passed
 14 with one opt-in live test skipped; two separate standard-age CLI interoperability
 checks passed. Lint and the normal APK build passed. Synthetic native visual checks

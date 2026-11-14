@@ -396,7 +396,7 @@ def update_config(config, youtube, python, options):
             caps.append("android.private.v1")
         require(len(devices) <= 8, "too many registered Android devices")
     require(
-        len(caps) <= 6 and len(caps) == len(set(caps)),
+        len(caps) <= len(KNOWN_CAPS) and len(caps) == len(set(caps)),
         "invalid service capability combination",
     )
     order = [
@@ -866,8 +866,11 @@ def install(options):
         "worker_id": "work-pc",
         "journal_schema_before": schema,
         "capabilities": updated["capabilities"],
-        "scheduling_granted": options.enable_scheduling,
-        "private_screen_granted": options.enable_private_view,
+        "scheduling_granted": updated["youtube"]["allow_schedule"],
+        "generation_granted": updated["youtube"]["allow_generate"],
+        "messages_granted": "android.messages.v1" in updated["capabilities"],
+        "private_screen_granted": "android.private.v1" in updated["capabilities"],
+        "mcp_registration": ["codex", "mcp", "add", "zaturobot", "--", "/usr/bin/python3", str(lib/"zaturo_mcp.py"), "--config", str(config_dir/"mcp.toml")] if mcp_source.exists() else None,
         "offline_home": offline,
         "source_revision": enrollment["expected_zaturo_revision"],
         "youtube_revision": enrollment["expected_youtube_revision"],
