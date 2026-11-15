@@ -118,12 +118,11 @@ function renderShell({
   <meta property="og:description" content="${esc(description)}">
   <meta property="og:url" content="${esc(canonicalUrl(routePath))}">
   <meta property="og:image" content="${esc(root)}brand/png/social-cover-1200x630.png">
-  <link rel="icon" type="image/svg+xml" href="${esc(root)}brand/favicon.svg">
+  <link rel="icon" type="image/svg+xml" href="${esc(root)}brand/procurali_icone_branco_transparente.svg">
+  <link rel="alternate icon" type="image/svg+xml" href="${esc(root)}brand/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="${esc(root)}brand/png/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="${esc(root)}brand/png/apple-touch-icon-180.png">
-  <meta name="theme-color" content="#072617">
-  <link rel="preload" href="${esc(root)}assets/fonts/FiraSans-Regular.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="${esc(root)}assets/fonts/FiraSans-Bold.woff2" as="font" type="font/woff2" crossorigin>
+  <meta name="theme-color" content="#143D2B">
   <link rel="stylesheet" href="${esc(root)}assets/tokens.css">
   <link rel="stylesheet" href="${esc(root)}assets/styles.css">
   ${buildJsonLd(routePath, jsonLd)}
@@ -155,17 +154,22 @@ function renderShell({
         ${navLink("grupos", "grupos/index.html", "users", "Grupos")}
       </nav>
 
+      <form class="header-search-form" action="${esc(root)}ofertas/index.html" method="get" role="search" aria-label="Buscar ofertas no catálogo">
+        <label class="sr-only" for="header-search-q">Buscar ofertas ou produtos</label>
+        ${icon("search", "icon header-search-icon")}
+        <input id="header-search-q" type="search" name="q" placeholder="Buscar produto, modelo ou loja...">
+        <button type="submit" class="header-search-submit">Buscar</button>
+      </form>
+
       <div class="header-actions">
-        <a class="header-icon-btn" href="${esc(root)}ofertas/index.html#f-q" data-focus-search aria-label="Buscar ofertas no catálogo">
-          ${icon("search")}
-        </a>
         <button type="button" class="header-icon-btn saved-btn" data-open-saved aria-haspopup="dialog" aria-controls="saved-drawer" aria-label="Abrir itens salvos">
           ${icon("bookmark")}
           <span class="saved-count" data-saved-count hidden>0</span>
         </button>
         <a class="btn header-tg-btn" href="${esc(SITE_META.telegramUrl)}" target="_blank" rel="noopener" data-analytics-event="community_link_click" data-analytics-detail="telegram-header">
           ${icon("send")}
-          <span>Entrar no Telegram</span>
+          <span>Grupos</span>
+          <span class="sr-only"> Entrar no Telegram</span>
         </a>
         <button type="button" class="menu-toggle" data-menu-toggle aria-expanded="false" aria-controls="mobile-drawer" aria-label="Abrir menu de navegação">
           <span class="menu-icon-open">${icon("menu")}</span>
@@ -180,7 +184,7 @@ function renderShell({
           <label class="sr-only" for="drawer-search-q">Buscar no catálogo</label>
           ${icon("search", "icon search-icon")}
           <input id="drawer-search-q" type="search" name="q" placeholder="Busque por produto, categoria ou oferta...">
-          <button type="submit" class="btn btn-lime">Buscar</button>
+          <button type="submit" class="btn btn-petrol">Buscar</button>
         </form>
         <ul class="mobile-nav-list">
           <li><a href="${esc(root)}ofertas/index.html">${icon("tag")}<span>Ofertas</span></a></li>

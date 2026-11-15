@@ -42,14 +42,14 @@ function statusBadgeHtml(offer) {
   if (offer.state === "approved") {
     const sevenDay = verifySevenDaySample(offer);
     return sevenDay.eligible
-      ? '<span class="badge badge-lime">✓ Ativa (demo) · Série de 7 dias</span>'
+      ? '<span class="badge badge-emerald">✓ Ativa (demo) · Série 7 dias</span>'
       : '<span class="badge badge-petrol">✓ Ativa (demo)</span>';
   }
   if (offer.state === "stale") {
-    return '<span class="badge badge-warning">⚠ Preço desatualizado (&gt;30 min)</span>';
+    return '<span class="badge badge-warning">⏳ Preço em atualização (&gt;30 min)</span>';
   }
   if (offer.state === "expired") {
-    return '<span class="badge badge-neutral">⏱ Oferta expirada (histórico)</span>';
+    return '<span class="badge badge-neutral">⏱ Prazo encerrado (histórico)</span>';
   }
   if (offer.state === "missing_rights") {
     return '<span class="badge badge-danger">⛔ Direitos de mídia pendentes</span>';
@@ -77,10 +77,27 @@ function breadcrumbsHtml(root, items) {
 function offerRowHtml(root, offer, { compact = false, headingTag = "h3" } = {}) {
   const sevenDay = verifySevenDaySample(offer);
   const price = formatBrl(offer.priceBrlCents);
+  const refPrice = offer.referencePriceCents ? formatBrl(offer.referencePriceCents) : "";
+  const savingsCents =
+    offer.referencePriceCents && offer.referencePriceCents > offer.priceBrlCents
+      ? offer.referencePriceCents - offer.priceBrlCents
+      : 0;
   const detailHref = `${root}ofertas/${offer.slug}/index.html`;
-  const conditionText = offer.couponCondition
-    ? `Com condição de cupom informada · ${offer.paymentConditions}`
-    : offer.paymentConditions;
+  const conditionText =
+    offer.shortCondition ||
+    (offer.couponCondition
+      ? `Com condição de cupom · ${offer.paymentConditions}`
+      : offer.paymentConditions);
+  const isActionable = offer.state === "approved";
+  const destLabel =
+    offer.ctaDestLabel ||
+    (isActionable
+      ? offer.marketplaceLabel === "Mercado Livre"
+        ? "Ver oferta no Mercado Livre"
+        : "Ver oferta na Shopee"
+      : "Conferir status do item");
+  const ctaClass = isActionable ? "btn btn-action" : "btn btn-secondary";
+
   return `
   <article class="offer-row${compact ? " offer-row--compact" : ""}">
     <a class="offer-thumb" href="${esc(detailHref)}" tabindex="-1" aria-hidden="true">
@@ -92,17 +109,27 @@ function offerRowHtml(root, offer, { compact = false, headingTag = "h3" } = {}) 
       <p class="offer-variant">Variante: ${esc(offer.exactVariant)}</p>
       <p class="offer-reason">${esc(offer.oneLineReason)}</p>
       ${sevenDay.eligible ? `<p class="offer-flag">${icon("check")}<span>${esc(sevenDay.label)}</span></p>` : ""}
+      ${
+        offer.couponCode
+          ? `<div class="offer-inline-coupon"><button type="button" class="coupon-pill" data-copy-code="${esc(offer.couponCode)}">Copiar cupom: <strong>${esc(offer.couponCode)}</strong></button></div>`
+          : ""
+      }
     </div>
     <div class="offer-aside">
-      <strong class="offer-price">${esc(price)}</strong>
+      <div class="offer-price-block">
+        ${refPrice ? `<span class="price-old">De ${esc(refPrice)}</span>` : ""}
+        <strong class="offer-price">${esc(price)}</strong>
+        ${savingsCents > 0 ? `<span class="savings-pill">Economia de ${esc(formatBrl(savingsCents))}</span>` : ""}
+      </div>
       <span class="offer-cond">${esc(conditionText)}</span>
+      ${offer.validUntilDisplay ? `<span class="deadline-pill">${esc(offer.validUntilDisplay)}</span>` : ""}
       <span class="offer-obs">${icon("clock")}<span>Obs. ${esc(offer.observedAtDisplay)} · frete não incluído</span></span>
       ${
         compact
           ? ""
           : `<div class="offer-actions">
-        <a class="btn btn-petrol" href="${esc(detailHref)}">Ver ficha</a>
-        <button type="button" class="btn btn-secondary" data-save-offer="${esc(offer.slug)}" data-offer-title="${esc(offer.title)}" data-offer-price="${esc(price)}">Salvar item</button>
+        <a class="${ctaClass}" href="${esc(detailHref)}">${esc(destLabel)}</a>
+        <button type="button" class="btn btn-secondary" data-save-offer="${esc(offer.slug)}" data-offer-title="${esc(offer.title)}" data-offer-price="${esc(price)}">Salvar</button>
       </div>`
       }
     </div>
@@ -113,6 +140,8 @@ function renderVerticalOfferCard(root, card) {
   const detailHref = `${root}ofertas/${card.slug}/index.html`;
   const price = formatBrl(card.priceCents);
   const oldPrice = card.oldPriceCents ? formatBrl(card.oldPriceCents) : "";
+  const isMercadoLivre = card.marketplaceLabel === "Mercado Livre";
+  const storeToneClass = isMercadoLivre ? "store-chip--ml" : "store-chip--shopee";
   const toneClass =
     card.badgeTone === "warning"
       ? "v-badge--warning"
@@ -121,11 +150,20 @@ function renderVerticalOfferCard(root, card) {
       : card.badgeTone === "danger"
       ? "v-badge--danger"
       : "v-badge--emerald";
+  const cardStateClass = card.isStale
+    ? " v-offer-card--stale"
+    : card.isFeaturedCard
+    ? " v-offer-card--featured"
+    : "";
+  const ctaClass = card.isStale ? "btn-offer-card btn-offer-card--neutral" : "btn-offer-card";
 
   return `
-  <article class="v-offer-card">
+  <article class="v-offer-card${cardStateClass}">
     <div class="v-offer-top">
-      <span class="v-badge ${toneClass}">${esc(card.topBadge)}</span>
+      <div class="v-offer-top-badges">
+        <span class="store-chip ${storeToneClass}">${icon("store", "store-icon")}<span>${esc(card.marketplaceLabel || "Shopee")}</span></span>
+        <span class="v-badge ${toneClass}">${esc(card.topBadge)}</span>
+      </div>
       <button
         type="button"
         class="card-heart-btn"
@@ -144,189 +182,108 @@ function renderVerticalOfferCard(root, card) {
 
     <div class="v-offer-body">
       <h3 class="v-offer-title"><a href="${esc(detailHref)}">${esc(card.shortTitle)}</a></h3>
-      <div class="v-offer-store-row">
-        <span class="store-meta">
-          ${icon("store", "store-icon")}
-          <span>${esc(card.storeLabel)}</span>
-        </span>
-      </div>
+      <p class="v-offer-use">${esc(card.shortUse || "")}</p>
+
       <div class="v-offer-price-block">
         <div class="v-offer-price-inline">
-          ${oldPrice ? `<span class="v-offer-old-price">${esc(oldPrice)}</span>` : ""}
           <strong class="v-offer-price">${esc(price)}</strong>
+          ${oldPrice ? `<span class="v-offer-old-price">De ${esc(oldPrice)}</span>` : ""}
         </div>
-        <div class="v-offer-savings-row">
-          ${card.mintText ? `<span class="v-mint-pill">${esc(card.mintText)}</span>` : ""}
+        <p class="v-offer-condition">${esc(card.shortCondition || card.storeLabel)}</p>
+        <div class="v-offer-signals">
+          ${
+            card.mintText || card.couponCode
+              ? `<div class="v-signals-inline">
+                  ${card.mintText ? `<span class="v-mint-pill">${esc(card.mintText)}</span>` : ""}
+                  ${
+                    card.couponCode
+                      ? `<button type="button" class="v-coupon-btn" data-copy-code="${esc(card.couponCode)}">Copiar: <strong>${esc(card.couponCode)}</strong></button>`
+                      : ""
+                  }
+                </div>`
+              : ""
+          }
+          ${
+            card.deadlineText
+              ? `<span class="v-deadline-pill${card.isStale ? " v-deadline-pill--stale" : ""}">${esc(card.deadlineText)}</span>`
+              : ""
+          }
         </div>
       </div>
-      <a class="btn-offer-card" href="${esc(detailHref)}">
-        ${icon("external")}
-        <span>Ver oferta</span>
-      </a>
+
+      <div class="v-offer-foot">
+        <span class="v-offer-checked">${icon("clock")}<span>${esc(card.checkedLabel || "Conferido hoje")} · ${esc(card.storeLabel)}</span></span>
+        <a class="${ctaClass}" href="${esc(detailHref)}">
+          <span>${esc(card.ctaLabel || "Ver oferta")}</span>
+          ${card.isStale ? icon("arrowRight") : icon("external")}
+        </a>
+      </div>
     </div>
   </article>`;
 }
 
 export function renderHomePage(root) {
-  const featuredOffer =
-    OFFERS.find((o) => o.slug === HOME_SHOWCASE_META.featuredSlug) || OFFERS[0];
-  const fMeta = HOME_SHOWCASE_META.featuredMeta;
-  const featuredPrice = formatBrl(featuredOffer.priceBrlCents);
-  const featuredRefPrice = formatBrl(fMeta.referencePriceBrlCents);
-  const featuredHref = `${root}ofertas/${featuredOffer.slug}/index.html`;
   const dailyCards = HOME_SHOWCASE_META.dailyCards || [];
 
   return `
-  <section class="hero-showcase">
-    <div class="hero-curve hero-curve--top" aria-hidden="true"></div>
-    <div class="hero-curve hero-curve--bottom" aria-hidden="true"></div>
+  <section class="catalog-opening">
+    <div class="container">
+      <h1 class="sr-only">Encontre o que vale a pena para você. Ofertas e guias para escolher com mais contexto.</h1>
 
-    <div class="container hero-showcase-grid">
-      <div class="hero-copy-col">
-        <p class="hero-kicker-text">OFERTAS · GUIAS · CUPONS · COMUNIDADE</p>
+      <form class="opening-search-form" action="${esc(root)}ofertas/index.html" method="get" role="search" aria-label="Buscar ofertas no catálogo">
+        <label class="sr-only" for="opening-search-input">Busque por produto, categoria ou oferta</label>
+        <span class="opening-search-icon" aria-hidden="true">${icon("search")}</span>
+        <input id="opening-search-input" class="opening-search-input" type="search" name="q" placeholder="Buscar suporte, hub, luminária...">
+        <button type="submit" class="btn btn-lime btn-sm">Buscar</button>
+      </form>
 
-        <h1 class="hero-display-title">
-          <span>Encontre as melhores</span>
-          <span>ofertas, <em class="hero-title-lime">sem perder tempo.</em></span>
-        </h1>
-
-        <p class="hero-lead-copy">
-          Ofertas e guias selecionados com contexto, comparação de preços e condições reais, para você comprar com mais segurança e economia.<span class="sr-only"> Encontre o que vale a pena para você. Ofertas e guias para escolher com mais contexto.</span>
-        </p>
-
-        <form class="hero-search-bar" action="${esc(root)}ofertas/index.html" method="get" role="search" aria-label="Buscar ofertas e guias no catálogo">
-          <label class="sr-only" for="hero-search-input">Busque por produto, categoria, marca ou oferta</label>
-          <span class="hero-search-icon" aria-hidden="true">${icon("search")}</span>
-          <input id="hero-search-input" class="hero-search-input" type="search" name="q" placeholder="Busque por produto, categoria, marca ou oferta...">
-          <button type="submit" class="btn-hero-search">Buscar</button>
-        </form>
-
-        <div class="hero-category-pills" aria-label="Atalhos de categorias">
-          <span class="hero-cat-label">Explorar por categoria:</span>
-          <a class="hero-cat-pill" href="${esc(root)}categorias/ergonomia-e-suportes/index.html">
+      <div class="opening-tags-row">
+        <nav class="quick-filter-bar" aria-label="Filtros essenciais da vitrine">
+          <a class="filter-chip filter-chip--active" href="${esc(root)}ofertas/index.html">
+            <span>Todos em destaque</span>
+          </a>
+          <a class="filter-chip" href="${esc(root)}ofertas/index.html?condicao=com-cupom">
+            ${icon("ticket")}
+            <span>Com cupom ativo</span>
+          </a>
+          <a class="filter-chip" href="${esc(root)}categorias/ergonomia-e-suportes/index.html">
             ${icon("laptop")}
             <span>Ergonomia</span>
           </a>
-          <a class="hero-cat-pill" href="${esc(root)}categorias/energia-e-cabos/index.html">
+          <a class="filter-chip" href="${esc(root)}categorias/energia-e-cabos/index.html">
             ${icon("zap")}
             <span>Energia e cabos</span>
           </a>
-          <a class="hero-cat-pill" href="${esc(root)}categorias/iluminacao-de-bancada/index.html">
+          <a class="filter-chip" href="${esc(root)}categorias/iluminacao-de-bancada/index.html">
             ${icon("lamp")}
             <span>Iluminação</span>
           </a>
-          <a class="hero-cat-pill" href="${esc(root)}categorias/organizacao-de-mesa/index.html">
+          <a class="filter-chip" href="${esc(root)}categorias/organizacao-de-mesa/index.html">
             ${icon("grid")}
             <span>Organização</span>
           </a>
-          <a class="hero-cat-pill" href="${esc(root)}ofertas/index.html">
-            <span>Ver todas</span>
-            ${icon("arrowRight")}
-            <span class="sr-only"> Explorar ofertas</span>
-          </a>
-        </div>
-      </div>
+        </nav>
 
-      <div class="hero-featured-col" aria-label="Oferta em destaque demonstrativa">
-        <article class="hero-featured-card">
-          <div class="hero-featured-top">
-            <span class="featured-pill">
-              ${icon("flame")}
-              <span>Oferta em destaque</span>
-            </span>
-            <button
-              type="button"
-              class="card-heart-btn"
-              data-save-offer="${esc(featuredOffer.slug)}"
-              data-save-icon="true"
-              data-offer-title="${esc(featuredOffer.title)}"
-              data-offer-price="${esc(featuredPrice)}"
-              aria-label="Salvar oferta em destaque">
-              ${icon("heart", "heart-icon")}
-            </button>
-          </div>
-
-          <div class="hero-featured-body">
-            <a class="hero-featured-media" href="${esc(featuredHref)}" tabindex="-1" aria-hidden="true">
-              <img src="${esc(root + fMeta.imagePath.replace(/^\//, ""))}" alt="${esc(featuredOffer.title)}" width="520" height="544">
-            </a>
-
-            <div class="hero-featured-info">
-              <h2 class="hero-featured-title">
-                <a href="${esc(featuredHref)}">${esc(featuredOffer.title)}</a>
-              </h2>
-              <p class="hero-featured-desc">${esc(fMeta.shortDesc)}</p>
-
-              <div class="featured-ref-row">
-                <span class="coral-pill">${esc(fMeta.topBadge)}</span>
-                <span class="featured-ref-price">R$ 104,90</span>
-              </div>
-
-              <div class="featured-main-price">${esc(featuredPrice)}</div>
-
-              <div>
-                <span class="v-mint-pill v-mint-pill--featured">${esc(fMeta.savingsText)}</span>
-              </div>
-
-              <a class="btn-featured-cta" href="${esc(featuredHref)}">
-                ${icon("external")}
-                <span>${esc(fMeta.ctaLabel)}</span>
-              </a>
-            </div>
-          </div>
-        </article>
+        <a class="opening-explore-link" href="${esc(root)}ofertas/index.html">
+          <span>Explorar ofertas</span>
+          ${icon("arrowRight")}
+        </a>
       </div>
     </div>
   </section>
 
-  <section class="trust-strip-bar" aria-label="Pilares de transparência do Procurali">
-    <div class="container">
-      <div class="trust-strip-grid">
-        <div class="trust-item">
-          <span class="trust-icon-box" aria-hidden="true">${icon("shield")}</span>
-          <div>
-            <strong class="trust-title">Curadoria verificada</strong>
-            <p class="trust-sub">Ofertas analisadas por nossa equipe</p>
-          </div>
-        </div>
-        <div class="trust-item">
-          <span class="trust-icon-box" aria-hidden="true">${icon("calendar")}</span>
-          <div>
-            <strong class="trust-title">Atualização diária</strong>
-            <p class="trust-sub">Achados e condições sempre atuais</p>
-          </div>
-        </div>
-        <div class="trust-item">
-          <span class="trust-icon-box" aria-hidden="true">${icon("link")}</span>
-          <div>
-            <strong class="trust-title">Transparência nos links</strong>
-            <p class="trust-sub">Você sabe que está em um link de afiliado</p>
-          </div>
-        </div>
-        <div class="trust-item">
-          <span class="trust-icon-box" aria-hidden="true">${icon("coins")}</span>
-          <div>
-            <strong class="trust-title">Economia real</strong>
-            <p class="trust-sub">Comparações, cupons e ofertas de verdade</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="daily-finds-section">
+  <section class="daily-finds-section" aria-labelledby="vitrine-heading">
     <div class="container">
       <div class="section-row-head">
         <div class="section-row-title-wrap">
           <span class="section-icon-accent" aria-hidden="true">${icon("zap")}</span>
-          <h2>Achados do dia</h2>
+          <h2 id="vitrine-heading">Vitrine de achados do dia</h2>
           <span class="sage-pill-badge">
-            ${icon("flame")}
-            <span>Ofertas selecionadas com observações da equipe</span>
+            <span>Conferidos em 15/11 · demo</span>
           </span>
         </div>
         <a class="section-more-link" href="${esc(root)}ofertas/index.html">
-          <span>Ver todas as ofertas</span>
+          <span>Ver catálogo completo</span>
           ${icon("arrowRight")}
         </a>
       </div>
@@ -337,28 +294,36 @@ export function renderHomePage(root) {
     </div>
   </section>
 
-  <section class="community-showcase-section">
+  <section class="trust-strip-bar" aria-label="Pilares de transparência do Procurali">
     <div class="container">
-      <div class="community-strip-card">
-        <div class="community-strip-left">
-          <span class="community-plane-icon" aria-hidden="true">${icon("send")}</span>
-          <h2>Participe dos nossos grupos</h2>
+      <div class="trust-strip-grid">
+        <div class="trust-item">
+          <span class="trust-icon-box" aria-hidden="true">${icon("shield")}</span>
+          <div>
+            <strong class="trust-title">Pesquisa e critério técnico</strong>
+            <p class="trust-sub">Especificações conferidas com foco em uso real</p>
+          </div>
         </div>
-
-        <span class="community-strip-divider" aria-hidden="true"></span>
-
-        <p class="community-strip-copy">Receba alertas de ofertas, cupons exclusivos e novidades em primeira mão, com a comunidade da Procurali.</p>
-
-        <div class="community-strip-actions">
-          <a class="btn-strip-tg" href="${esc(SITE_META.telegramUrl)}" target="_blank" rel="noopener" data-analytics-event="community_link_click" data-analytics-detail="telegram-banner">
-            ${icon("send")}
-            <span>Entrar no Telegram</span>
-            <span class="sr-only"> Receber achados no Telegram</span>
-          </a>
-          <a class="btn-strip-wa" href="${esc(root)}grupos/index.html">
-            ${icon("whatsapp")}
-            <span>Entrar no WhatsApp</span>
-          </a>
+        <div class="trust-item">
+          <span class="trust-icon-box" aria-hidden="true">${icon("clock")}</span>
+          <div>
+            <strong class="trust-title">Horário visível no card</strong>
+            <p class="trust-sub">Itens &gt;30 min entram em atualização e pausam o clique</p>
+          </div>
+        </div>
+        <div class="trust-item">
+          <span class="trust-icon-box" aria-hidden="true">${icon("link")}</span>
+          <div>
+            <strong class="trust-title">Afiliado transparente</strong>
+            <p class="trust-sub">Você sabe antes do clique quando há comissão possível</p>
+          </div>
+        </div>
+        <div class="trust-item">
+          <span class="trust-icon-box" aria-hidden="true">${icon("coins")}</span>
+          <div>
+            <strong class="trust-title">Sem pressão fabricada</strong>
+            <p class="trust-sub">Prazos e cupons só aparecem quando realmente confirmados</p>
+          </div>
         </div>
       </div>
     </div>
@@ -370,7 +335,7 @@ export function renderHomePage(root) {
         <div class="section-row-title-wrap section-row-title-wrap--guides">
           <span class="section-icon-dark" aria-hidden="true">${icon("book")}</span>
           <h2>Guias e artigos</h2>
-          <p class="section-inline-sub">Conteúdos práticos para te ajudar a escolher melhor</p>
+          <p class="section-inline-sub">Comparações práticas antes de decidir a compra</p>
         </div>
         <a class="section-more-link" href="${esc(root)}guias/index.html">
           <span>Ver todos os guias</span>
@@ -401,49 +366,28 @@ export function renderHomePage(root) {
     </div>
   </section>
 
-  <section class="methodology-strip-section">
+  <section class="community-showcase-section">
     <div class="container">
-      <div class="methodology-card">
-        <div class="methodology-head">
-          <div>
-            <span class="kicker">Transparência editorial · Procura Ali</span>
-            <h2>Como o Procurali seleciona · <span class="tagline-accent">“${esc(SITE_META.proposedTagline)}”</span></h2>
-          </div>
-          <div class="btn-row">
-            <a class="btn btn-petrol" href="${esc(root)}encontre-com-ia/index.html">${icon("sparkle")}<span>Abrir Encontre com IA</span></a>
-            <a class="btn btn-secondary" href="${esc(root)}como-selecionamos/index.html">Ler método completo</a>
-          </div>
+      <div class="community-strip-card">
+        <div class="community-strip-left">
+          <span class="community-plane-icon" aria-hidden="true">${icon("send")}</span>
+          <h2>Acompanhe pelos grupos</h2>
         </div>
-        <ol class="steps-compact">
-          <li class="step-compact">
-            <span class="step-num" aria-hidden="true">01</span>
-            <div>
-              <h3>Pesquisa de bancada clara</h3>
-              <p>Especificações e compatibilidade verificadas antes do resumo, sem testes inventados.</p>
-            </div>
-          </li>
-          <li class="step-compact">
-            <span class="step-num" aria-hidden="true">02</span>
-            <div>
-              <h3>Observação com hora marcada</h3>
-              <p>Registros com data/hora e condição de pagamento; ofertas vencidas (&gt;30 min) são bloqueadas.</p>
-            </div>
-          </li>
-          <li class="step-compact">
-            <span class="step-num" aria-hidden="true">03</span>
-            <div>
-              <h3>Contrapontos sempre visíveis</h3>
-              <p>Toda ficha traz “para quem faz sentido” e limitações explícitas antes de clicar.</p>
-            </div>
-          </li>
-          <li class="step-compact">
-            <span class="step-num" aria-hidden="true">04</span>
-            <div>
-              <h3>Afiliados com transparência</h3>
-              <p>Se comprar pelo link futuro, podemos receber comissão sem custo extra no seu pedido.</p>
-            </div>
-          </li>
-        </ol>
+
+        <span class="community-strip-divider" aria-hidden="true"></span>
+
+        <p class="community-strip-copy">Canal opcional para quem prefere alertas resumidos de ofertas e novos guias sem abrir o site todo dia.</p>
+
+        <div class="community-strip-actions">
+          <a class="btn-strip-tg" href="${esc(SITE_META.telegramUrl)}" target="_blank" rel="noopener" data-analytics-event="community_link_click" data-analytics-detail="telegram-banner">
+            ${icon("send")}
+            <span>Receber achados no Telegram</span>
+          </a>
+          <a class="btn-strip-wa" href="${esc(root)}grupos/index.html">
+            ${icon("whatsapp")}
+            <span>Ver grupos no WhatsApp</span>
+          </a>
+        </div>
       </div>
     </div>
   </section>`;
@@ -549,14 +493,20 @@ export function renderOfferDetailPage(root, offer) {
 
   let stateAlertHtml = "";
   if (offer.state === "stale") {
-    stateAlertHtml = `<div class="notice-box notice-box--warning"><strong>Preço desatualizado (mais de 30 minutos):</strong> este registro foi observado há cerca de ${freshness.ageMinutes} minutos em relação à referência do protótipo (${esc(SITE_META.prototypeReferenceTimeLabelBrt)}). Conforme nossa política de frescor, o botão de compra permanece desabilitado até nova checagem permitida.</div>`;
+    stateAlertHtml = `<div class="notice-box notice-box--warning"><strong>Preço em atualização (mais de 30 minutos):</strong> este registro foi observado há cerca de ${freshness.ageMinutes} minutos em relação à referência do protótipo (${esc(SITE_META.prototypeReferenceTimeLabelBrt)}). Conforme nossa política de frescor, o link comercial permanece pausado até nova checagem.</div>`;
   } else if (offer.state === "expired") {
-    stateAlertHtml = `<div class="notice-box notice-box--warning"><strong>Oferta expirada:</strong> este item pertence ao arquivo histórico e não deve ser tratado como preço vigente.</div>`;
+    stateAlertHtml = `<div class="notice-box notice-box--warning"><strong>Oferta encerrada:</strong> este item pertence ao arquivo histórico e não deve ser tratado como preço vigente.</div>`;
   } else if (offer.state === "missing_rights") {
     stateAlertHtml = `<div class="notice-box notice-box--danger"><strong>Bloqueio por direitos de mídia:</strong> os direitos de imagem do item real ainda não foram confirmados (${esc(rights?.licenseType || "pendente")}). Nenhuma ação de compra é liberada.</div>`;
   } else {
     stateAlertHtml = `<div class="notice-box"><strong>Item fictício de demonstração:</strong> catálogo ilustrativo sem vínculo com produto real nem link oficial ativo.</div>`;
   }
+
+  const refPrice = offer.referencePriceCents ? formatBrl(offer.referencePriceCents) : "";
+  const savingsCents =
+    offer.referencePriceCents && offer.referencePriceCents > offer.priceBrlCents
+      ? offer.referencePriceCents - offer.priceBrlCents
+      : 0;
 
   return `
   <section class="section-tight">
@@ -588,17 +538,31 @@ export function renderOfferDetailPage(root, offer) {
 
           ${
             sevenDay.eligible
-              ? `<p><span class="badge badge-lime">✓ ${esc(sevenDay.label)}</span></p>`
+              ? `<p><span class="badge badge-emerald">✓ ${esc(sevenDay.label)}</span></p>`
               : `<p><span class="badge badge-neutral">Observação pontual datada (sem série de 7 dias)</span></p>`
           }
 
           <div class="affiliate-box">
             <div>
-              <div class="offer-price">${esc(formatBrl(offer.priceBrlCents))}</div>
-              <p style="margin-top:0.35rem;margin-bottom:0.25rem;"><strong>Condição:</strong> ${esc(offer.paymentConditions)}</p>
+              <div class="offer-price-block">
+                ${refPrice ? `<span class="price-old">De ${esc(refPrice)}</span>` : ""}
+                <div class="offer-price">${esc(formatBrl(offer.priceBrlCents))}</div>
+                ${savingsCents > 0 ? `<span class="savings-pill">Economia confirmada de ${esc(formatBrl(savingsCents))}</span>` : ""}
+              </div>
+              <p style="margin-top:0.45rem;margin-bottom:0.25rem;"><strong>Condição:</strong> ${esc(offer.paymentConditions)}</p>
+              ${
+                offer.validUntilDisplay
+                  ? `<p class="deadline-banner">${esc(offer.validUntilDisplay)}</p>`
+                  : ""
+              }
+              ${
+                offer.couponCode
+                  ? `<p style="margin-bottom:0.35rem;"><button type="button" class="coupon-pill" data-copy-code="${esc(offer.couponCode)}">Copiar código do cupom: <strong>${esc(offer.couponCode)}</strong></button></p>`
+                  : ""
+              }
               ${
                 offer.couponCondition
-                  ? `<p style="margin-bottom:0.25rem;"><strong>Cupom:</strong> ${esc(offer.couponCondition)}</p>`
+                  ? `<p style="margin-bottom:0.25rem;"><strong>Regra do cupom:</strong> ${esc(offer.couponCondition)}</p>`
                   : ""
               }
               <p class="muted" style="margin-bottom:0.25rem;"><strong>Frete:</strong> ${esc(offer.freightStatus)}</p>
@@ -608,7 +572,7 @@ export function renderOfferDetailPage(root, offer) {
             <div class="btn-row">
               ${
                 ctaProps.enabled
-                  ? `<a class="btn btn-primary" href="${esc(ctaProps.href)}" rel="${esc(ctaProps.rel)}" target="${esc(ctaProps.target)}" data-analytics-event="outbound_offer_click" data-analytics-detail="${esc(offer.slug)}">${esc(ctaProps.label)}</a>`
+                  ? `<a class="btn btn-action" href="${esc(ctaProps.href)}" rel="${esc(ctaProps.rel)}" target="${esc(ctaProps.target)}" data-analytics-event="outbound_offer_click" data-analytics-detail="${esc(offer.slug)}">${esc(ctaProps.label)}</a>`
                   : `<button type="button" class="btn" disabled aria-disabled="true">${esc(ctaProps.label)}</button>`
               }
               <button type="button" class="btn btn-secondary" data-save-offer="${esc(offer.slug)}" data-offer-title="${esc(offer.title)}" data-offer-price="${esc(formatBrl(offer.priceBrlCents))}">Salvar item</button>
@@ -617,7 +581,7 @@ export function renderOfferDetailPage(root, offer) {
             <div style="border-top:1px solid var(--color-border);padding-top:var(--space-2);font-size:0.88rem;">
               <p style="margin-bottom:0.25rem;"><strong>${esc(SITE_META.affiliateDisclosure)}</strong></p>
               <p class="muted" style="margin-bottom:0.25rem;">${esc(SITE_META.priceChangeNotice)}</p>
-              <p class="muted" style="margin-bottom:0;">Motivo do estado do botão: ${esc(ctaProps.reason)}</p>
+              <p class="muted" style="margin-bottom:0;">Estado do link: ${esc(ctaProps.reason)}</p>
             </div>
           </div>
         </div>
@@ -1300,19 +1264,27 @@ export function renderCreativeKitPage(root) {
         <div class="grid-2">
           <div class="card">
             <img src="${esc(root)}brand/logo-primary-light.svg" alt="Logotipo principal Procurali em fundo claro" width="360" height="88">
-            <p class="muted" style="margin-bottom:0;">Versão principal clara (<code>#FFFFFF</code> / <code>#072617</code> / <code>#0E6B38</code>)</p>
+            <p class="muted" style="margin-bottom:0;">Versão principal clara (<code>#FFFFFF</code> / <code>#143D2B</code> / CTA <code>#C2410C</code>)</p>
+          </div>
+          <div class="card card--dark-brand">
+            <img src="${esc(root)}brand/logo-primary-dark.svg" alt="Logotipo principal Procurali em fundo verde escuro" width="360" height="88">
+            <p style="margin-bottom:0;color:#E5E7EB;">Versão principal escura (<code>#143D2B</code> / <code>#FFFFFF</code> / destaque <code>#A3E635</code>)</p>
+          </div>
+          <div class="card card--dark-brand">
+            <img src="${esc(root)}brand/procurali_icone_branco_transparente.svg" alt="Ícone oficial Procurali branco transparente (favicon do navegador)" width="96" height="96">
+            <p style="margin-bottom:0;color:#E5E7EB;">Ícone oficial do navegador (<code>brand/procurali_icone_branco_transparente.svg</code>)</p>
           </div>
           <div class="card">
-            <img src="${esc(root)}brand/logo-primary-dark.svg" alt="Logotipo principal Procurali em fundo esmeralda escuro" width="360" height="88">
-            <p class="muted" style="margin-bottom:0;">Versão principal escura (<code>#072617</code> / <code>#FFFFFF</code> / <code>#8BEB28</code>)</p>
+            <img src="${esc(root)}brand/symbol-mark.svg" alt="Símbolo oficial Procurali verde escuro" width="96" height="96">
+            <p class="muted" style="margin-bottom:0;">Símbolo oficial sobre fundo claro (<code>#143D2B</code>)</p>
           </div>
           <div class="card">
             <img src="${esc(root)}brand/logo-monochrome-dark.svg" alt="Logotipo monocromático escuro Procurali" width="360" height="88">
             <p class="muted" style="margin-bottom:0;">Monocromático escuro para carimbos e impressão</p>
           </div>
-          <div class="card">
+          <div class="card card--dark-brand">
             <img src="${esc(root)}brand/logo-monochrome-light.svg" alt="Logotipo monocromático claro Procurali" width="360" height="88">
-            <p class="muted" style="margin-bottom:0;">Monocromático claro sobre superfície escura</p>
+            <p style="margin-bottom:0;color:#E5E7EB;">Monocromático claro sobre superfície escura</p>
           </div>
         </div>
       </div>

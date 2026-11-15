@@ -282,15 +282,15 @@ function offerStatusBadge(offer) {
   if (offer.state === "approved") {
     const sevenDay = verifySevenDaySample(offer);
     if (sevenDay.eligible) {
-      return '<span class="badge badge-lime">✓ Ativa (demo) · Série de 7 dias</span>';
+      return '<span class="badge badge-emerald">✓ Ativa (demo) · Série 7 dias</span>';
     }
     return '<span class="badge badge-petrol">✓ Ativa (demo)</span>';
   }
   if (offer.state === "stale") {
-    return '<span class="badge badge-warning">⚠ Preço desatualizado (&gt;30 min)</span>';
+    return '<span class="badge badge-warning">⏳ Preço em atualização (&gt;30 min)</span>';
   }
   if (offer.state === "expired") {
-    return '<span class="badge badge-neutral">⏱ Oferta expirada (histórico)</span>';
+    return '<span class="badge badge-neutral">⏱ Prazo encerrado (histórico)</span>';
   }
   if (offer.state === "missing_rights") {
     return '<span class="badge badge-danger">⛔ Bloqueada: direitos de mídia</span>';
@@ -389,12 +389,28 @@ function initOffersFilter() {
     resultsEl.innerHTML = filtered
       .map((offer) => {
         const price = formatBrl(offer.priceBrlCents);
+        const refPrice = offer.referencePriceCents ? formatBrl(offer.referencePriceCents) : "";
+        const savingsCents =
+          offer.referencePriceCents && offer.referencePriceCents > offer.priceBrlCents
+            ? offer.referencePriceCents - offer.priceBrlCents
+            : 0;
         const sevenDay = verifySevenDaySample(offer);
         const imageSrc = `${root}${offer.imagePath.replace(/^\//, "")}`;
         const detailHref = `${root}ofertas/${offer.slug}/index.html`;
-        const conditionText = offer.couponCondition
-          ? `Com condição de cupom informada · ${offer.paymentConditions}`
-          : offer.paymentConditions;
+        const conditionText =
+          offer.shortCondition ||
+          (offer.couponCondition
+            ? `Com condição de cupom · ${offer.paymentConditions}`
+            : offer.paymentConditions);
+        const isActionable = offer.state === "approved";
+        const destLabel =
+          offer.ctaDestLabel ||
+          (isActionable
+            ? offer.marketplaceLabel === "Mercado Livre"
+              ? "Ver oferta no Mercado Livre"
+              : "Ver oferta na Shopee"
+            : "Conferir status do item");
+        const ctaClass = isActionable ? "btn btn-action" : "btn btn-secondary";
 
         return `
         <article class="offer-row">
@@ -411,14 +427,24 @@ function initOffersFilter() {
                 ? `<p class="offer-flag"><svg class="icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg><span>${escapeHtml(sevenDay.label)}</span></p>`
                 : ""
             }
+            ${
+              offer.couponCode
+                ? `<div class="offer-inline-coupon"><button type="button" class="coupon-pill" data-copy-code="${escapeHtml(offer.couponCode)}">Copiar cupom: <strong>${escapeHtml(offer.couponCode)}</strong></button></div>`
+                : ""
+            }
           </div>
           <div class="offer-aside">
-            <strong class="offer-price">${escapeHtml(price)}</strong>
+            <div class="offer-price-block">
+              ${refPrice ? `<span class="price-old">De ${escapeHtml(refPrice)}</span>` : ""}
+              <strong class="offer-price">${escapeHtml(price)}</strong>
+              ${savingsCents > 0 ? `<span class="savings-pill">Economia de ${escapeHtml(formatBrl(savingsCents))}</span>` : ""}
+            </div>
             <span class="offer-cond">${escapeHtml(conditionText)}</span>
+            ${offer.validUntilDisplay ? `<span class="deadline-pill">${escapeHtml(offer.validUntilDisplay)}</span>` : ""}
             <span class="offer-obs"><svg class="icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg><span>Obs. ${escapeHtml(offer.observedAtDisplay)} · frete não incluído</span></span>
             <div class="offer-actions">
-              <a class="btn btn-petrol" href="${escapeHtml(detailHref)}">Ver ficha</a>
-              <button type="button" class="btn btn-secondary" data-save-offer="${escapeHtml(offer.slug)}" data-offer-title="${escapeHtml(offer.title)}" data-offer-price="${escapeHtml(price)}">Salvar item</button>
+              <a class="${ctaClass}" href="${escapeHtml(detailHref)}">${escapeHtml(destLabel)}</a>
+              <button type="button" class="btn btn-secondary" data-save-offer="${escapeHtml(offer.slug)}" data-offer-title="${escapeHtml(offer.title)}" data-offer-price="${escapeHtml(price)}">Salvar</button>
             </div>
           </div>
         </article>`;
@@ -545,6 +571,23 @@ function initAiFinder() {
 function initCopyButtons() {
   const statusEl = document.getElementById("copy-feedback");
   document.addEventListener("click", async (event) => {
+    const codeBtn = event.target.closest("[data-copy-code]");
+    if (codeBtn) {
+      const code = codeBtn.getAttribute("data-copy-code") || "";
+      if (!code) return;
+      const origHtml = codeBtn.innerHTML;
+      try {
+        await navigator.clipboard.writeText(code);
+        codeBtn.textContent = `Copiado: ${code}`;
+      } catch {
+        codeBtn.textContent = `Código: ${code}`;
+      }
+      setTimeout(() => {
+        codeBtn.innerHTML = origHtml;
+      }, 1800);
+      return;
+    }
+
     const btn = event.target.closest("[data-copy-target]");
     if (!btn) return;
     const id = btn.getAttribute("data-copy-target");
@@ -570,7 +613,10 @@ function initCopyButtons() {
 
 function initSearchFocusShortcut() {
   const headerSearchTrigger = document.querySelector("[data-focus-search]");
-  const heroInput = document.getElementById("hero-search-input");
+  const heroInput =
+    document.getElementById("hero-search-input") ||
+    document.getElementById("header-search-input") ||
+    document.getElementById("opening-search-input");
   if (!headerSearchTrigger || !heroInput) return;
 
   headerSearchTrigger.addEventListener("click", (event) => {

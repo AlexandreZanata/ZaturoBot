@@ -1,44 +1,4 @@
-/* Procurali Design Tokens — Emerald & Electric Lime CSS custom properties */
-@font-face {
-  font-family: "Fira Sans";
-  src: url("./fonts/FiraSans-Regular.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Fira Sans";
-  src: url("./fonts/FiraSans-Medium.woff2") format("woff2");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Fira Sans";
-  src: url("./fonts/FiraSans-SemiBold.woff2") format("woff2");
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Fira Sans";
-  src: url("./fonts/FiraSans-Bold.woff2") format("woff2");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Fira Sans";
-  src: url("./fonts/FiraSans-ExtraBold.woff2") format("woff2");
-  font-weight: 800;
-  font-style: normal;
-  font-display: swap;
-}
-
+/* Procurali Design Tokens — Functional Offer Catalog System */
 @font-face {
   font-family: "Fira Mono";
   src: url("./fonts/FiraMono-Regular.woff2") format("woff2");
@@ -48,85 +8,84 @@
 }
 
 :root {
-  /* Core Refined Editorial Forest & Leaf-Lime Palette */
-  --color-petrol: #0C3320;
-  --color-petrol-dark: #082416;
-  --color-petrol-mid: #12432A;
-  --color-emerald: #144029;
-  --color-emerald-hover: #0E2F1E;
-  --color-emerald-bright: #1B5A39;
+  /* 1. Semantic Functional Palette */
+  --color-petrol: #143D2B;
+  --color-petrol-dark: #0E2C1E;
+  --color-petrol-mid: #1C5039;
+  --color-emerald: #143D2B;
+  --color-emerald-hover: #0E2C1E;
+  --color-emerald-bright: #1E5A40;
 
-  --color-lime: #A2E34A;
-  --color-lime-hover: #B3EB62;
-  --color-mint-bg: #E2F0D3;
-  --color-mint-text: #1A4A2E;
-  --color-warm-pill-bg: #E6EFE0;
-  --color-warm-pill-text: #244732;
-
-  --color-canvas: #F6F7F4;
-  --color-surface: #FFFFFF;
-  --color-surface-alt: #EDF1EC;
-
-  --color-coral: #BA3A23;
-  --color-coral-hover: #9F2E1A;
-  --color-coral-text: #A32E1C;
-
-  /* Ink and neutral tokens */
-  --color-ink: #102419;
-  --color-ink-on-petrol: #F6FAF7;
+  /* Commercial Offer Primary CTA (Burnt Orange) */
+  --color-action: #C2410C;
+  --color-action-hover: #9A3412;
+  --color-coral: #C2410C;
+  --color-coral-hover: #9A3412;
+  --color-coral-text: #9A3412;
   --color-ink-on-coral: #FFFFFF;
-  --color-ink-on-lime: #0C3320;
+
+  /* Neutral Catalog Surfaces */
+  --color-canvas: #F7F8FA;
+  --color-surface: #FFFFFF;
+  --color-surface-alt: #F1F3F6;
+  --color-ink: #171717;
+  --color-muted: #5F6368;
+  --color-border: #E5E7EB;
+  --color-border-strong: #6B7280;
+
+  /* Confirmed Savings / Positive Condition */
+  --color-mint-bg: #F0FDF4;
+  --color-mint-text: #15803D;
+  --color-warm-pill-bg: #F0FDF4;
+  --color-warm-pill-text: #143D2B;
+
+  /* Punctual Brand Highlight (always paired with dark #143D2B ink) */
+  --color-lime: #A3E635;
+  --color-lime-hover: #B3EB52;
+  --color-ink-on-petrol: #FFFFFF;
+  --color-ink-on-lime: #143D2B;
   --color-ink-on-emerald: #FFFFFF;
-  --color-muted: #4A5E52;
-  --color-border: #E0E6DF;
-  --color-border-strong: #73887B;
 
-  /* Status tokens (always pair with icon + label) */
-  --color-warning-bg: #FFF1DB;
-  --color-warning-border: #C97D10;
-  --color-warning-text: #6C4000;
-  --color-danger-bg: #FDECEC;
-  --color-danger-border: #B8352E;
-  --color-danger-text: #7A1B16;
-  --color-neutral-bg: #E6ECE8;
-  --color-neutral-text: #32443B;
+  /* Verified Scarcity / Real Limitations / Status */
+  --color-warning-bg: #FEF3C7;
+  --color-warning-border: #D97706;
+  --color-warning-text: #92400E;
+  --color-danger-bg: #FEF2F2;
+  --color-danger-border: #FCA5A5;
+  --color-danger-text: #B91C1C;
+  --color-neutral-bg: #F3F4F6;
+  --color-neutral-text: #374151;
 
-  /* Social icon accents */
-  --color-telegram-start: #2AABEE;
-  --color-telegram-end: #1B8CD8;
-  --color-whatsapp-start: #25D366;
-  --color-whatsapp-end: #129E48;
-
-  /* Typography */
-  --font-display: 'Fira Sans', 'Ubuntu Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-body: 'Fira Sans', 'Open Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Open Sans Typography Stack */
+  --font-display: 'Inter', 'Noto Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Inter', 'Noto Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'Fira Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  /* Spacing grid (4px / 8px base) */
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.25rem;
-  --space-6: 1.5rem;
-  --space-8: 2rem;
-  --space-10: 2.5rem;
-  --space-12: 3rem;
-  --space-16: 4rem;
+  /* Spacing Rhythm (4, 8, 12, 16, 24, 32 px) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
 
-  /* Radii & layout */
+  /* Card / Button / Layout Geometry */
   --radius-sm: 8px;
   --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
+  --radius-lg: 12px;
+  --radius-xl: 12px;
   --radius-pill: 999px;
   --container-max: 1280px;
-  --shadow-subtle: 0 2px 8px rgba(7, 38, 23, 0.05), 0 8px 22px rgba(7, 38, 23, 0.04);
-  --shadow-elevated: 0 18px 42px rgba(4, 24, 14, 0.28);
+  --shadow-subtle: 0 1px 2px rgba(23, 23, 23, 0.04), 0 4px 12px rgba(23, 23, 23, 0.03);
+  --shadow-elevated: 0 12px 32px rgba(23, 23, 23, 0.14);
 
-  /* Focus & motion */
-  --focus-ring: 3px solid #072617;
-  --focus-ring-light: 3px solid #8BEB28;
-  --focus-offset: 3px;
-  --transition-fast: 150ms ease;
+  /* Focus & Motion */
+  --focus-ring: 3px solid #143D2B;
+  --focus-ring-light: 3px solid #A3E635;
+  --focus-offset: 2px;
+  --transition-fast: 140ms ease;
 }

@@ -93,9 +93,12 @@ test("2. Home copy, primary nav, affiliate disclosure, and honest disabled demo/
   assert.match(home, /Ofertas e guias para escolher com mais contexto\./);
   assert.match(home, /Explorar ofertas/);
   assert.match(home, /Receber achados no Telegram/);
-  assert.match(home, /Como o Procurali seleciona/);
+  assert.match(home, /como-selecionamos\/index\.html/);
   assert.match(home, /Achados que fazem sentido\./);
   assert.match(home, /href="https:\/\/t\.me\/procurali"/);
+
+  const selectionPage = fs.readFileSync(path.join(SITE_DIR, "como-selecionamos", "index.html"), "utf8");
+  assert.match(selectionPage, /Como o Procurali seleciona/);
 
   for (const offer of OFFERS) {
     const detailPath = path.join(SITE_DIR, "ofertas", offer.slug, "index.html");

@@ -112,13 +112,17 @@ export function verifySevenDaySample(offer) {
  */
 export function buildOfficialAffiliateAnchorProps(offer, mediaRightsList = []) {
   const rights = mediaRightsList.find((m) => m.id === offer.mediaRightsRef);
+  const storeAction =
+    offer.marketplaceLabel === "Mercado Livre"
+      ? "Ver oferta no Mercado Livre"
+      : "Ver oferta na Shopee";
   if (offer.isDemoFixture) {
     return {
       enabled: false,
       href: null,
       rel: null,
       target: null,
-      label: "Ver oferta na Shopee (desabilitado — demonstração)",
+      label: `${storeAction} (desabilitado — demonstração)`,
       reason:
         "Item fictício de demonstração: não gera compra real nem utiliza link de afiliado inventado.",
     };
@@ -159,7 +163,7 @@ export function buildOfficialAffiliateAnchorProps(offer, mediaRightsList = []) {
     href: offer.officialAffiliateUrl,
     rel: "sponsored noopener",
     target: "_blank",
-    label: "Ver oferta na Shopee",
+    label: storeAction,
     reason: "URL oficial preservada integralmente com rel=\"sponsored noopener\".",
   };
 }
