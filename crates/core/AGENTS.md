@@ -37,3 +37,9 @@ private browser profile separate from semantic sessions; SMS verifies unlocked f
 before/after capture and optional fixed companion return needs its own grant. Never
 self-approve capture, copy account profiles or publish private evidence. Preserve the
 main-PC administration/same-signature APK boundary.
+
+
+ADR-0024: a phone print is a current-screen one-shot, never SMS navigation or a send/arrival
+watch. Hub fallback returns a native Android hint without model/task execution. One-shot
+results require a frame; only explicit watch may be unchanged. Prepared print consumption
+requires ready state, focused Hub and unexpired original native confirmation.

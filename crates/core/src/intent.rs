@@ -221,3 +221,91 @@ mod tests {
         }
     }
 }
+
+/// A private-view prompt, never consent to navigate, infer, watch SMS or send a message.
+pub fn requested_phone_capture(message: &str) -> bool {
+    if !crate::ordinary_text(message, 4096) {
+        return false;
+    }
+    let normalized = normalize_owner_text(message);
+    let words = normalized
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|v| !v.is_empty())
+        .collect::<Vec<_>>();
+    let capture = words.iter().position(|v| {
+        matches!(
+            *v,
+            "print" | "prints" | "captura" | "capture" | "capturar" | "screenshot"
+        )
+    });
+    let Some(capture) = capture else {
+        return false;
+    };
+    let prefix = &words[..=capture];
+    let negated = prefix.iter().enumerate().any(|(i, v)| {
+        matches!(*v, "nao" | "nunca" | "sem")
+            && prefix[i + 1..capture].iter().all(|word| {
+                matches!(
+                    *word,
+                    "me" | "o"
+                        | "a"
+                        | "um"
+                        | "uma"
+                        | "envie"
+                        | "enviar"
+                        | "mande"
+                        | "mandar"
+                        | "tire"
+                        | "tirar"
+                        | "faca"
+                        | "fazer"
+                        | "quero"
+                        | "que"
+                        | "voce"
+                        | "preciso"
+                )
+            })
+    });
+    if matches!(words.first(), Some(&"se" | &"talvez" | &"poderia")) || negated {
+        return false;
+    }
+    words.iter().any(|v| {
+        matches!(
+            *v,
+            "sms" | "sm" | "mensagem" | "mensagens" | "celular" | "telefone" | "smartphone"
+        )
+    })
+}
+
+#[cfg(test)]
+mod phone_capture_tests {
+    use super::*;
+    #[test]
+    fn screenshot_requests_are_not_navigation_or_sms_events() {
+        for text in [
+            "envie print do sms",
+            "enviar print do sm",
+            "mande um print da mensagem",
+            "print da tela atual do celular",
+            "envie print do sms mesmo que nenhum SMS foi enviado",
+            "mande print do SMS que não chegou",
+            "não envie SMS, mande print do celular",
+            "o SMS não chegou, envie print do celular",
+        ] {
+            assert!(requested_phone_capture(text), "{text}");
+            assert!(!matches!(
+                chat_intent(text),
+                ChatIntent::AndroidOpenMessages
+            ));
+        }
+        for text in [
+            "abrir sms",
+            "não envie print do SMS",
+            "nunca tire um print do celular",
+            "se chegar SMS envie print",
+            "envie print do computador",
+        ] {
+            assert!(!requested_phone_capture(text), "{text}");
+        }
+    }
+}

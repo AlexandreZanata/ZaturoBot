@@ -36,3 +36,9 @@ Registered browser research retains its durable routing origin. Hub validates th
 on both child creation and executor grant, and permits only public browser reads; neither
 model output nor native approval expands it into desktop observation, input or social
 actions. Explicit general computer tasks retain their separate bounded native grants.
+
+
+ADR-0024: a phone print is a current-screen one-shot, never SMS navigation or a send/arrival
+watch. Hub fallback returns a native Android hint without model/task execution. One-shot
+results require a frame; only explicit watch may be unchanged. Prepared print consumption
+requires ready state, focused Hub and unexpired original native confirmation.

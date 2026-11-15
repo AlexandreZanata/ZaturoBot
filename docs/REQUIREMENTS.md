@@ -153,3 +153,10 @@ Optional fixed return to the companion is native-confirmed and never approves UI
 Preserve all private-view protections and existing account/session boundaries. Publish
 reviewed source/services/update instructions to GitHub without private state or media.
 See [remote private capture](REMOTE_PRIVATE_CAPTURE.md).
+
+
+Requested phone/SMS prints must return the current permitted screen even with zero new
+messages and identical pixels. Do not substitute app navigation, a send-status message
+or an SMS-change watch for one-shot frame delivery. Prepared print images open on the
+focused native Hub when ready, under the original confirmation. Older-client chat uses
+an explicit native-capture hint rather than inference/navigation. See ADR-0024.
