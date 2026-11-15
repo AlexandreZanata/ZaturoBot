@@ -67,7 +67,7 @@ class InstallContracts(unittest.TestCase):
         for name in installer.HELPERS:
             self.assertEqual((self.lib / name).read_bytes(), (self.helpers / name).read_bytes())
             self.assert_private(self.lib / name, 0o700)
-        for name in ("computer-linux.toml", "computer-browser.toml"):
+        for name in ("computer-linux.toml", "computer-browser.toml", "computer-private-browser.toml"):
             profile = tomllib.loads((self.config / name).read_text())
             self.assertFalse(profile["enabled"]); self.assertFalse(profile["allow_input"]); self.assertFalse(profile["allow_capture"])
             self.assert_private(self.config / name, 0o600)
@@ -87,7 +87,7 @@ class InstallContracts(unittest.TestCase):
         old_helper = (self.lib / installer.HELPERS[0]).read_bytes()
         (self.helpers / installer.HELPERS[0]).write_text("# New reviewed fixture version\n")
         plan = self.install()
-        self.assertEqual(plan["existing_profiles_preserved"], [str(self.config / name) for name in ("computer-linux.toml", "computer-browser.toml")])
+        self.assertEqual(plan["existing_profiles_preserved"], [str(self.config / name) for name in ("computer-linux.toml", "computer-browser.toml", "computer-private-browser.toml")])
         self.assertNotIn("fixture-owner-data", json.dumps(plan))
         report = self.install(apply=True)
         self.assertEqual(profile.read_bytes(), original)

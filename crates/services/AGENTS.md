@@ -31,3 +31,8 @@ reply rather than a fabricated execution. Generation does not imply publication.
 
 
 `computer.rs` binds up to8 sequential child steps to a live planner parent. Input review uses the prior observed node/ref; social execution binds the same parent's exact prepared hash/preview. Current executor grants, explicit native approval and parent cancellation are independently enforced.
+
+Registered browser research retains its durable routing origin. Hub validates that origin
+on both child creation and executor grant, and permits only public browser reads; neither
+model output nor native approval expands it into desktop observation, input or social
+actions. Explicit general computer tasks retain their separate bounded native grants.

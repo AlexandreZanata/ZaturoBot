@@ -13,6 +13,7 @@ import kage.crypto.x25519.X25519Identity
 import org.json.JSONObject
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /** Endpoint-only age identity, ciphertext transport and a finite RAM-only image inside Hub. */
 internal class PrivatePhoneView(private val activity: Activity, private val ui: MobileUi,
@@ -27,8 +28,14 @@ internal class PrivatePhoneView(private val activity: Activity, private val ui: 
     private var bitmap: Bitmap? = null
     private var card: View? = null
     private var revision = 0L
+    // Opaque consent metadata only; no image, active download or polling survives focus loss.
+    private var preparedSession: String? = null
+    private var preparedExpiresAt = 0L
+    private var preparedAutoOpen = false
+    private val closed=AtomicBoolean(false)
+    private val preparedPending=AtomicReference<String?>(null)
     private class PrivateFailure(val safeText: String): Exception()
-    fun start(worker: String,device: String,source: String="android") {
+    fun start(worker: String,device: String,source: String="android",preparedId: String?=null,url: String?=null) {
         clear()
         val current=++revision
         val stop=AtomicBoolean(false);cancelled=stop
@@ -41,13 +48,13 @@ internal class PrivatePhoneView(private val activity: Activity, private val ui: 
                 check(!stop.get())
                 val client=api();client.registerViewer(identity.recipient().encodeToString())
                 check(!stop.get())
-                val initial=client.privateView(worker,device,source);created=initial.getString("id")
+                val initial=if(preparedId==null) client.privateView(worker,device,source,url=url) else client.privateStatus(preparedId);created=initial.getString("id")
                 val id=created
                 main.post {if(current==revision && !stop.get()) session=id}
                 val end=SystemClock.elapsedRealtime()+55000
                 var result=initial
                 var measuredAt=SystemClock.elapsedRealtime()
-                while(result.getString("state")=="waiting" && SystemClock.elapsedRealtime()<end && !stop.get()) {
+                while(result.getString("state") in setOf("waiting","prepared") && SystemClock.elapsedRealtime()<end && !stop.get()) {
                     Thread.sleep(1000);measuredAt=SystemClock.elapsedRealtime();result=client.privateStatus(id)
                 }
                 check(!stop.get())
@@ -64,8 +71,8 @@ internal class PrivatePhoneView(private val activity: Activity, private val ui: 
                 check(remaining>0)
                 val deadline=SystemClock.elapsedRealtime()+remaining
                 val cipher=client.privateFrame(id)
-                val plain=try {PrivateImageCrypto.decrypt(identity,cipher)} finally {cipher.fill(0)}
-                val decoded=try {decodePng(plain)} finally {plain.fill(0)}
+                val plain=try {check(!stop.get());PrivateImageCrypto.decrypt(identity,cipher)} finally {cipher.fill(0)}
+                val decoded=try {check(!stop.get());decodePng(plain)} finally {plain.fill(0)}
                 main.post {
                     if(current!=revision || stop.get() || SystemClock.elapsedRealtime()>=deadline || activity.isFinishing) {decoded.recycle();return@post}
                     bitmap=decoded
@@ -75,6 +82,18 @@ internal class PrivatePhoneView(private val activity: Activity, private val ui: 
                     image=picture;layout.addView(picture,LinearLayout.LayoutParams(-1,-2))
                     layout.addView(ui.button("Fechar captura",R.drawable.ic_close){clear()})
                     card=layout;attach(layout);status("Captura privada recebida. A imagem não entra no histórico.")
+                    picture.viewTreeObserver.addOnPreDrawListener(object:android.view.ViewTreeObserver.OnPreDrawListener {
+                        override fun onPreDraw():Boolean {
+                            picture.viewTreeObserver.removeOnPreDrawListener(this)
+                            picture.post {
+                                val visible=android.graphics.Rect()
+                                if(current==revision && !stop.get() && picture.isShown && picture.width>0 && picture.height>0 && picture.getGlobalVisibleRect(visible) && activity.hasWindowFocus() && SystemClock.elapsedRealtime()<deadline) {
+                                    executor.execute {if(!stop.get() && !closed.get() && SystemClock.elapsedRealtime()<deadline) runCatching {client.privateDisplayed(id)}}
+                                }
+                            }
+                            return true
+                        }
+                    })
                     main.postDelayed({if(current==revision) clear()},(deadline-SystemClock.elapsedRealtime()).coerceAtLeast(0))
                 }
             } catch (error: Exception) {
@@ -90,6 +109,38 @@ internal class PrivatePhoneView(private val activity: Activity, private val ui: 
             }
         }
     }
+    fun prepare(worker: String,device: String,messages: Boolean=false,returnToHub: Boolean=false) {
+        clear()
+        preparedSession?.let {old->executor.execute {runCatching {api().cancelPrivate(old)}}}
+        preparedSession=null
+        preparedAutoOpen=false
+        status("Preparando uma captura USB em 15 segundos…")
+        executor.execute {
+            try {
+                val identity=stored.read()?.optString("identity")?.takeIf {it.isNotEmpty()}?.let {X25519Identity.decode(it)}
+                    ?: X25519Identity.new().also {stored.save(JSONObject().put("identity",it.encodeToString()))}
+                val client=api();client.registerViewer(identity.recipient().encodeToString())
+                val initial=client.privateView(worker,device,if(messages) "android_messages" else "android",true,returnToHub=returnToHub)
+                if(closed.get()) {runCatching {client.cancelPrivate(initial.getString("id"))};return@execute}
+                preparedPending.set(initial.getString("id"))
+                main.post {
+                    if(closed.get()) return@post
+                    preparedSession=initial.getString("id")
+                    preparedAutoOpen=messages && returnToHub
+                    preparedExpiresAt=SystemClock.elapsedRealtime()+initial.getLong("remaining_millis").coerceIn(0,60000)
+                    status(if(messages) "Print de SMS preparado. Em 15 segundos o PC abrirá Mensagens, capturará a tela desbloqueada e ${if(returnToHub) "voltará a este Hub" else "deixará a imagem disponível em Abrir captura preparada"}. A imagem expira em até 60 segundos." else "Captura preparada. Abra agora uma tela sem dados sigilosos, aguarde 15 segundos e volte ao Hub. A imagem expira em até 60 segundos.")
+                }
+            } catch (_:Exception) {main.post {status("Não foi possível preparar a captura. Confira a conexão e a versão do Hub; nenhuma captura será repetida automaticamente.")}}
+        }
+    }
+    fun resumePrepared() {if(preparedAutoOpen && hasPrepared() && activity.hasWindowFocus()) {preparedAutoOpen=false;openPrepared()}}
+    fun hasPrepared():Boolean = preparedSession!=null && SystemClock.elapsedRealtime()<preparedExpiresAt
+    fun openPrepared() {
+        val id=preparedSession
+        if(id==null || SystemClock.elapsedRealtime()>=preparedExpiresAt) {preparedSession=null;status("Não há captura preparada válida. Prepare uma nova captura no menu Serviços.");return}
+        preparedSession=null;preparedAutoOpen=false;preparedPending.compareAndSet(id,null)
+        start("work-pc","owner-phone","android",id)
+    }
     fun cardView(): View? = card
     fun clear() {
         revision++;cancelled.set(true)
@@ -99,7 +150,7 @@ internal class PrivatePhoneView(private val activity: Activity, private val ui: 
         val old=session;session=null
         if(old!=null) executor.execute {runCatching {api().cancelPrivate(old)}}
     }
-    fun close() {clear();executor.shutdown()}
+    fun close() {closed.set(true);clear();preparedSession=null;executor.execute {preparedPending.getAndSet(null)?.let {old->runCatching {api().cancelPrivate(old)}}};executor.shutdown()}
     companion object {
         fun decodePng(bytes: ByteArray): Bitmap {
             require(bytes.size<=8*1024*1024 && bytes.size>=24 && bytes.take(8).toByteArray().contentEquals(byteArrayOf(-119,80,78,71,13,10,26,10)))

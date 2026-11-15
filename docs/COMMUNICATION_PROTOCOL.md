@@ -89,3 +89,13 @@ no-store responses, explicit confirmation, at most two sessions and one reserved
 request (separate from normal file throughput). One worker grant and one owner read are
 allowed. Waiting expiry is watch+60seconds(max180); received frames expire within60.
 Task acceptance rejects noncanonical private metadata or captions before SQL persistence.
+
+
+The0.7 additive `assistant_route` and `youtube_opencode_generate` service variants require
+`assistant.route.v1`/`youtube.opencode.v1`. Protocol2, worker schema8 and hub schema9 remain.
+Advertise only after hub support. A routing order binds original target and trusted
+planner separately; the model cannot select a worker. Older text-only assistant workers
+retain ordinary `assistant_chat` compatibility. See [execution](OPENCODE_EXECUTION.md).
+
+
+Version0.8 adds native URL and actual SMS-screen capture; see the [remote private capture contract](REMOTE_PRIVATE_CAPTURE.md) for grants, transport, update and physical acceptance.

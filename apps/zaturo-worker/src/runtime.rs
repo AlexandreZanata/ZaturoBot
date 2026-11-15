@@ -215,11 +215,12 @@ async fn session(
                                 TaskKind::Diagnostic => execution::diagnostic(work, local, cancel).await,
                                 TaskKind::AssistedDiagnostic => execution::execute(work, local, models, cancel).await,
                                 TaskKind::Service=>{
-                                    if matches!(work.task.service,Some(zaturo_core::ServiceRequest::DesktopPrivateView{..})) {crate::desktop_private::execute(work,settings,credential,cancel).await}
+                                    if matches!(work.task.service,Some(zaturo_core::ServiceRequest::DesktopPrivateView{..}|zaturo_core::ServiceRequest::BrowserPrivateView{..})) {crate::desktop_private::execute(work,settings,credential,cancel).await}
                                     else if matches!(work.task.service,Some(zaturo_core::ServiceRequest::ComputerTask{..}|zaturo_core::ServiceRequest::ComputerStep{..}|zaturo_core::ServiceRequest::PriceSearch{..})) {crate::computer::execute(work,local,settings,credential,cancel).await}
-                                    else if matches!(work.task.service,Some(zaturo_core::ServiceRequest::AssistantChat{..})) {crate::assistant::execute(work,local,settings,cancel).await}
+                                    else if matches!(work.task.service,Some(zaturo_core::ServiceRequest::YoutubeOpenCodeGenerate{..}|zaturo_core::ServiceRequest::AssistantRoute{..})) && settings.opencode.is_some() {crate::opencode::execute(work,local,settings,cancel).await}
+                                    else if matches!(work.task.service,Some(zaturo_core::ServiceRequest::AssistantChat{..}|zaturo_core::ServiceRequest::AssistantRoute{..})) {crate::assistant::execute(work,local,settings,cancel).await}
                                     else if matches!(work.task.service,Some(zaturo_core::ServiceRequest::AndroidOpenMessages{..})) {crate::android_actions::execute(work,local,settings,cancel).await}
-                                    else if matches!(work.task.service,Some(zaturo_core::ServiceRequest::AndroidPrivateView{..})) {crate::private_views::execute(work,settings,credential,cancel).await}
+                                    else if matches!(work.task.service,Some(zaturo_core::ServiceRequest::AndroidPrivateView{..}|zaturo_core::ServiceRequest::AndroidMessagesPrivateView{..})) {crate::private_views::execute(work,settings,credential,cancel).await}
                                     else {crate::service_execution::execute(work,local,settings.youtube,settings.android.map(|a|a.executable),cancel).await}
                                 }
                             }

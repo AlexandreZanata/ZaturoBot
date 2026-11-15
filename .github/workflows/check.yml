@@ -18,5 +18,25 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends pkg-config libfontconfig1-dev
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
       - name: Validate the repository
         run: cargo xtask check --locked
+
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+          log-accepted-android-sdk-licenses: false
+      - name: Compile, lint and test Android without packaging or signing
+        working-directory: mobile/android
+        run: ./gradlew --no-daemon :app:compileDebugKotlin :app:compileDebugJavaWithJavac :app:testDebugUnitTest :app:lintDebug

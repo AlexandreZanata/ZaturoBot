@@ -147,3 +147,23 @@ allowance use. Go coding diagnostics keep two steps; Personal planning keeps its
 configured budget and eight-step cap. Console402 remains historical evidence. One normal live chat completed with Go billing
 and zero reported balance charge; see the provider record. Keep Extra Usage disabled; no
 new credit, fallback model or expanded account/desktop grant follows from this routing change.
+
+
+## Owner-authorized installed execution slice
+
+<!-- feature:installed-opencode status:implemented -->
+Typed natural-intent routing and a hash-pinned real OpenCode runner with a one-forward
+Personal Go gateway, exact job broker, durable reconciliation, owned cancellation and
+full media inspection. Source implementation is not physical acceptance or deployment.
+See [the acceptance requirements](OPENCODE_EXECUTION.md).
+
+<!-- feature:wayland-private-capture status:implemented -->
+Separate single-window nonpersistent ScreenCast/PipeWire PNG transport in memory, retaining
+the fixed X11 restrictions and native one-time viewer protections. Actual portal consent,
+source compatibility and Android display must be observed on the destination PC/phone.
+
+
+<!-- feature:remote-private-capture status:implemented -->
+Native Android URL selection/bot-owned page opening and SMS foreground images reuse the
+ephemeral relay. Source and offline validation are separate from the required0.8 Hub/APK
+rollout and actual device display acceptance. See [capture](REMOTE_PRIVATE_CAPTURE.md).

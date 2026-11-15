@@ -5771,6 +5771,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-util"
+version = "0.7.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e464cf451ba96ebfc6f9b6542f17ee8b8956e33f1e40d9690624e59d7a7f8a4b"
+dependencies = [
+ "bytes",
+ "futures-core",
+ "futures-sink",
+ "pin-project-lite",
+ "tokio",
+]
+
+[[package]]
 name = "toml"
 version = "0.5.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5883,6 +5896,7 @@ dependencies = [
  "pin-project-lite",
  "sync_wrapper",
  "tokio",
+ "tokio-util",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -7179,7 +7193,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xtask"
-version = "0.6.1"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -7230,7 +7244,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-android"
-version = "0.6.1"
+version = "0.8.0"
 dependencies = [
  "rustix 1.1.6",
  "sha2 0.10.9",
@@ -7244,7 +7258,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-computer"
-version = "0.6.1"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "rustix 1.1.6",
@@ -7259,7 +7273,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-core"
-version = "0.6.1"
+version = "0.8.0"
 dependencies = [
  "chrono",
  "serde",
@@ -7268,7 +7282,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-db"
-version = "0.6.1"
+version = "0.8.0"
 dependencies = [
  "rusqlite",
  "serde",
@@ -7280,7 +7294,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-desktop"
-version = "0.6.1"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -7305,7 +7319,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-hub"
-version = "0.6.1"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -7328,7 +7342,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-llm"
-version = "0.6.1"
+version = "0.8.0"
 dependencies = [
  "axum",
  "futures-util",
@@ -7342,8 +7356,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "zaturo-opencode"
+version = "0.8.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "subtle",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "toml 0.8.23",
+ "tower",
+ "uuid",
+ "zaturo-core",
+ "zaturo-llm",
+ "zaturo-youtube",
+]
+
+[[package]]
 name = "zaturo-orchestrator"
-version = "0.6.1"
+version = "0.8.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -7357,7 +7393,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-protocol"
-version = "0.6.1"
+version = "0.8.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -7366,7 +7402,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-security"
-version = "0.6.1"
+version = "0.8.0"
 dependencies = [
  "sha2 0.10.9",
  "subtle",
@@ -7377,7 +7413,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-services"
-version = "0.6.1"
+version = "0.8.0"
 dependencies = [
  "serde_json",
  "tempfile",
@@ -7389,7 +7425,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-tools"
-version = "0.6.1"
+version = "0.8.0"
 dependencies = [
  "serde_json",
  "zaturo-core",
@@ -7397,7 +7433,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-transfer"
-version = "0.6.1"
+version = "0.8.0"
 dependencies = [
  "age",
  "anyhow",
@@ -7416,7 +7452,7 @@ dependencies = [
 
 [[package]]
 name = "zaturo-worker"
-version = "0.6.1"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -7439,6 +7475,7 @@ dependencies = [
  "zaturo-db",
  "zaturo-hub",
  "zaturo-llm",
+ "zaturo-opencode",
  "zaturo-orchestrator",
  "zaturo-protocol",
  "zaturo-security",
@@ -7449,11 +7486,12 @@ dependencies = [
 
 [[package]]
 name = "zaturo-youtube"
-version = "0.6.1"
+version = "0.8.0"
 dependencies = [
  "rustix 1.1.6",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",

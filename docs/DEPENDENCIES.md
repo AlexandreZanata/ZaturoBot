@@ -70,3 +70,11 @@ the hub, and upstream scripts/setup/code-evaluation tools are never forwarded. P
 (AGPL-3.0) is an independently operated API service, not imported or installed on the VPS.
 The BitLupa bridge reads its documented external schema without copying its private source.
 See [computer](COMPUTER_USE.md) and [social](SOCIAL_MANAGEMENT.md) contracts.
+
+
+The installed OpenCode adapter reuses the existing workspace HTTP, serde, hashing, Tokio,
+constant-time authentication, UUID and budget dependencies. It does not embed OpenCode or
+another provider SDK. The separate Wayland helper uses distribution PyGObject/GIO and
+GStreamer1.0 with PipeWire, video conversion/scaling, pngenc and appsink. Those are actual
+local desktop prerequisites, not pip-installed packages or VPS dependencies. No screenshot
+portal, file encoder, persistence token or image/vision model is introduced.

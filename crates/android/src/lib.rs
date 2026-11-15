@@ -2,7 +2,7 @@
 mod adb;
 mod session;
 
-pub use adb::{AdbClient, AdbLimits, SensitiveFrame, parse_devices};
+pub use adb::{AdbClient, AdbLimits, MessagesNavigation, SensitiveFrame, parse_devices};
 pub use session::{SessionLease, SessionManager};
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -32,6 +32,10 @@ pub enum Error {
     Unauthorized,
     #[error("Android operation is not authorized by this active lease")]
     PermissionDenied,
+    #[error("the phone must be physically unlocked before navigation")]
+    ScreenLocked,
+    #[error("the default messaging app is not in the approved package set")]
+    MessagingAppNotApproved,
     #[error("Android device already has an active control lease")]
     Busy,
     #[error("Android session registry is unavailable")]

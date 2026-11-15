@@ -12,5 +12,5 @@ pub use contract::{
     BillingSource, BudgetPort, CallContext, Error, FutureResult, LlmClient, Message, MessageRole,
     ModelBilling, ModelRequest, ModelResponse, PrivacyClass,
 };
-pub use opencode::{GO_CHAT_ENDPOINT, OpenCodeGoClient};
+pub use opencode::{GO_CHAT_ENDPOINT, OpenCodeGoClient, parse_opencode_usage};
 pub use router::{Clock, Router, SystemClock};

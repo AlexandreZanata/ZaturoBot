@@ -367,11 +367,34 @@ async fn unchanged_screen_watch_ends_without_an_image() {
     }));
 }
 
+fn messages_fixture(delay: bool) -> String {
+    let body = r#"elif args==['-s','USB_SYNTHETIC_01','shell','cmd','package','resolve-activity','--brief','-a','android.intent.action.MAIN','-c','android.intent.category.APP_MESSAGING']:
+ print('com.google.android.apps.messaging/.ui.ConversationListActivity')
+elif args==['-s','USB_SYNTHETIC_01','shell','am','start','-W','-n','com.google.android.apps.messaging/com.google.android.apps.messaging.ui.ConversationListActivity']:
+ DELAY
+ print('Status: ok\nActivity: com.google.android.apps.messaging/.main.MainActivity')
+elif args==['-s','USB_SYNTHETIC_01','shell','dumpsys','window','displays']:
+ print('mCurrentFocus=Window{abc u0 com.google.android.apps.messaging/com.google.android.apps.messaging.ui.ConversationListActivity}\nmFocusedApp=ActivityRecord{abc u0 com.google.android.apps.messaging/.ui.ConversationListActivity t1}')
+elif args==['-s','USB_SYNTHETIC_01','shell','dumpsys','window','policy']:
+ print('KeyguardServiceDelegate\n showing=false\n inputRestricted=false\nKeyguardStateMonitor')
+elif args[:3]==['-s','USB_SYNTHETIC_01','shell']:"#;
+    FIXTURE.replace(
+        "elif args[:3]==['-s','USB_SYNTHETIC_01','shell']:",
+        &body.replace(
+            "DELAY",
+            if delay {
+                "import time; time.sleep(10)"
+            } else {
+                "pass"
+            },
+        ),
+    )
+}
 #[tokio::test]
 async fn opening_messages_is_a_fixed_serial_bound_owner_action_without_capture_or_sending() {
     let _fixture = EXECUTABLE_FIXTURES.lock().await;
     let temp = tempfile::tempdir().unwrap();
-    let script=FIXTURE.replace("elif args[:3]==['-s','USB_SYNTHETIC_01','shell']:","elif args==['-s','USB_SYNTHETIC_01','shell','am','start','-W','-a','android.intent.action.MAIN','-c','android.intent.category.LAUNCHER','--selector','-a','android.intent.action.MAIN','-c','android.intent.category.APP_MESSAGING']:\n print('Status: ok')\nelif args[:3]==['-s','USB_SYNTHETIC_01','shell']:");
+    let script = messages_fixture(false);
     let adb = AdbClient::new(&fake(temp.path(), &script)).unwrap();
     let mut registered = registration();
     registered.capabilities = vec![
@@ -400,7 +423,7 @@ async fn opening_messages_is_a_fixed_serial_bound_owner_action_without_capture_o
     assert!(!calls.contains("SENDTO"));
     assert!(!calls.contains("keyevent"));
     let resolver = script.replace(
-        "print('Status: ok')",
+        "print('Status: ok\\nActivity: com.google.android.apps.messaging/.main.MainActivity')",
         "print('Status: ok\\nActivity: android/com.android.internal.app.ResolverActivity')",
     );
     let adb = AdbClient::new(&fake(temp.path(), &resolver)).unwrap();
@@ -418,7 +441,7 @@ async fn opening_messages_is_a_fixed_serial_bound_owner_action_without_capture_o
 async fn messages_navigation_stops_when_the_owner_lease_expires() {
     let _fixture = EXECUTABLE_FIXTURES.lock().await;
     let temp = tempfile::tempdir().unwrap();
-    let script=FIXTURE.replace("elif args[:3]==['-s','USB_SYNTHETIC_01','shell']:","elif args==['-s','USB_SYNTHETIC_01','shell','am','start','-W','-a','android.intent.action.MAIN','-c','android.intent.category.LAUNCHER','--selector','-a','android.intent.action.MAIN','-c','android.intent.category.APP_MESSAGING']:\n import time\n time.sleep(10)\n print('Status: ok')\nelif args[:3]==['-s','USB_SYNTHETIC_01','shell']:");
+    let script = messages_fixture(true);
     let adb = AdbClient::new(&fake(temp.path(), &script)).unwrap();
     let mut registered = registration();
     registered
@@ -437,5 +460,124 @@ async fn messages_navigation_stops_when_the_owner_lease_expires() {
         .unwrap()
         .unwrap_err(),
         Error::PermissionDenied
+    );
+}
+
+#[tokio::test]
+async fn an_unapproved_default_or_locked_phone_never_starts_an_app() {
+    let _fixture = EXECUTABLE_FIXTURES.lock().await;
+    for locked in [false, true] {
+        let temp = tempfile::tempdir().unwrap();
+        let script = messages_fixture(false);
+        let script = if locked {
+            script.replace("showing=false", "showing=true")
+        } else {
+            script.replace(
+                "print('com.google.android.apps.messaging/.ui.ConversationListActivity')",
+                "print('com.unapproved.app/.Activity')",
+            )
+        };
+        let adb = AdbClient::new(&fake(temp.path(), &script)).unwrap();
+        let mut device = registration();
+        device.capabilities.push(AndroidCapability::OpenMessages);
+        let manager = SessionManager::new(vec![device.clone()]).unwrap();
+        let lease = manager
+            .acquire("owner-phone", AndroidControlActor::Owner, 30, 1000)
+            .unwrap();
+        assert_eq!(
+            adb.open_messages(&device, &lease, 1000).await.unwrap_err(),
+            if locked {
+                Error::ScreenLocked
+            } else {
+                Error::MessagingAppNotApproved
+            }
+        );
+        let calls = fs::read_to_string(temp.path().join("arguments.jsonl")).unwrap();
+        assert!(!calls.contains("\"am\""));
+    }
+}
+
+#[tokio::test]
+async fn sms_image_requires_its_own_grant_and_drops_frame_after_focus_takeover() {
+    let _fixture = EXECUTABLE_FIXTURES.lock().await;
+    let dir = tempfile::tempdir().unwrap();
+    let script = messages_fixture(false);
+    let path = fake(dir.path(), &script);
+    let adb = AdbClient::new(&path).unwrap();
+    let mut device = registration();
+    device.capabilities.push(AndroidCapability::OpenMessages);
+    let manager = SessionManager::new(vec![device.clone()]).unwrap();
+    let lease = manager
+        .acquire(&device.device_id, AndroidControlActor::Owner, 30, 1000)
+        .unwrap();
+    assert!(matches!(
+        adb.capture_messages(&device, &lease, 1000, false).await,
+        Err(Error::PermissionDenied)
+    ));
+    assert!(!dir.path().join("arguments.jsonl").exists());
+    device
+        .capabilities
+        .push(AndroidCapability::MessagesScreenView);
+    let manager = SessionManager::new(vec![device.clone()]).unwrap();
+    let lease = manager
+        .acquire(&device.device_id, AndroidControlActor::Owner, 30, 1000)
+        .unwrap();
+    let frame = adb
+        .capture_messages(&device, &lease, 1000, false)
+        .await
+        .unwrap();
+    assert!(frame.bytes().starts_with(b"\x89PNG"));
+    drop(frame);
+    let calls = fs::read_to_string(dir.path().join("arguments.jsonl")).unwrap();
+    assert_eq!(calls.matches("screencap").count(), 1);
+    assert!(
+        !calls.contains("content query")
+            && !calls.contains("input")
+            && !calls.contains("dev.zaturo.bot")
+    );
+    assert!(matches!(
+        adb.capture_messages(&device, &lease, 1000, true).await,
+        Err(Error::PermissionDenied)
+    ));
+    let takeover=script.replace(" print('mCurrentFocus=", " if (root/'captures').exists(): print('mCurrentFocus=Window{abc u0 other.app/.Main}\\nmFocusedApp=ActivityRecord{abc u0 other.app/.Main t1}');sys.exit(0)\n print('mCurrentFocus=");
+    fs::remove_file(dir.path().join("captures")).unwrap();
+    fake(dir.path(), &takeover);
+    assert!(
+        adb.capture_messages(&device, &lease, 1000, false)
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn sms_image_can_return_only_to_the_fixed_companion_with_explicit_grant() {
+    let _fixture = EXECUTABLE_FIXTURES.lock().await;
+    let dir = tempfile::tempdir().unwrap();
+    let script=messages_fixture(false).replace("elif args[:3]==['-s','USB_SYNTHETIC_01','shell']:", "elif args==['-s','USB_SYNTHETIC_01','shell','am','start','-W','--activity-reorder-to-front','-n','dev.zaturo.bot/dev.zaturo.bot.MainActivity']:\n (root/'returned').touch();print('Status: ok')\nelif args[:3]==['-s','USB_SYNTHETIC_01','shell']:")
+        .replace(" print('mCurrentFocus=", " if (root/'returned').exists(): print('mCurrentFocus=Window{abc u0 dev.zaturo.bot/.MainActivity}\\nmFocusedApp=ActivityRecord{abc u0 dev.zaturo.bot/dev.zaturo.bot.MainActivity t1}');sys.exit(0)\n print('mCurrentFocus=");
+    let path = fake(dir.path(), &script);
+    let adb = AdbClient::new(&path).unwrap();
+    let mut device = registration();
+    device.capabilities.extend([
+        AndroidCapability::OpenMessages,
+        AndroidCapability::MessagesScreenView,
+        AndroidCapability::ReturnToHub,
+    ]);
+    let manager = SessionManager::new(vec![device.clone()]).unwrap();
+    let lease = manager
+        .acquire(&device.device_id, AndroidControlActor::Owner, 30, 1000)
+        .unwrap();
+    let frame = adb
+        .capture_messages(&device, &lease, 1000, true)
+        .await
+        .unwrap();
+    assert!(frame.bytes().starts_with(b"\x89PNG"));
+    assert!(dir.path().join("returned").exists());
+    assert_eq!(
+        fs::read_to_string(dir.path().join("arguments.jsonl"))
+            .unwrap()
+            .matches("screencap")
+            .count(),
+        1
     );
 }

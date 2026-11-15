@@ -3,6 +3,17 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ServiceRequest {
+    AssistantRoute {
+        message: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        context: Vec<ConversationTurn>,
+        target_worker: String,
+        planner_worker: String,
+    },
+    YoutubeOpenCodeGenerate {
+        channel: String,
+        count: u32,
+    },
     ComputerTask {
         request: String,
         target_worker: String,
@@ -20,6 +31,18 @@ pub enum ServiceRequest {
     DesktopPrivateView {
         session_id: String,
         recipient: String,
+        owner_confirmed: bool,
+    },
+    BrowserPrivateView {
+        session_id: String,
+        recipient: String,
+        owner_confirmed: bool,
+    },
+    AndroidMessagesPrivateView {
+        device_id: String,
+        session_id: String,
+        recipient: String,
+        return_to_hub: bool,
         owner_confirmed: bool,
     },
     AssistantChat {
@@ -61,6 +84,23 @@ pub enum ServiceRequest {
 impl ServiceRequest {
     pub fn validates(&self) -> bool {
         match self {
+            Self::AssistantRoute {
+                message,
+                context,
+                target_worker,
+                planner_worker,
+            } => {
+                crate::ordinary_text(message, 2048)
+                    && crate::validate_identifier(target_worker).is_ok()
+                    && crate::validate_identifier(planner_worker).is_ok()
+                    && context.len() <= 4
+                    && context.iter().all(|t| t.validates())
+                    && context.iter().map(|t| t.text.len()).sum::<usize>() <= 1024
+            }
+            Self::YoutubeOpenCodeGenerate { channel, count } => {
+                crate::canonical_youtube_channel(channel) == Some(channel.as_str())
+                    && (1..=10).contains(count)
+            }
             Self::ComputerTask {
                 request,
                 target_worker,
@@ -81,6 +121,11 @@ impl ServiceRequest {
             }
             Self::PriceSearch { query } => crate::ordinary_text(query, 256),
             Self::DesktopPrivateView {
+                session_id,
+                recipient,
+                owner_confirmed,
+            }
+            | Self::BrowserPrivateView {
                 session_id,
                 recipient,
                 owner_confirmed,
@@ -118,6 +163,19 @@ impl ServiceRequest {
                     && (*watch_seconds == 0 || (5..=120).contains(watch_seconds))
                     && *owner_confirmed
             }
+            Self::AndroidMessagesPrivateView {
+                device_id,
+                session_id,
+                recipient,
+                owner_confirmed,
+                ..
+            } => {
+                crate::validate_identifier(device_id).is_ok()
+                    && canonical_operation_id(session_id)
+                    && recipient.starts_with("age1")
+                    && recipient.len() <= 128
+                    && *owner_confirmed
+            }
             Self::YoutubeRuns { channel, limit } => {
                 crate::validate_identifier(channel).is_ok() && (1..=20).contains(limit)
             }
@@ -142,10 +200,14 @@ impl ServiceRequest {
     }
     pub fn capability(&self) -> &'static str {
         match self {
+            Self::AssistantRoute { .. } => "assistant.route.v1",
+            Self::YoutubeOpenCodeGenerate { .. } => "youtube.opencode.v1",
             Self::ComputerTask { .. } => "computer.agent.v1",
             Self::ComputerStep { .. } => "computer.action.v1",
             Self::PriceSearch { .. } => "price.search.v1",
             Self::DesktopPrivateView { .. } => "computer.private.v1",
+            Self::BrowserPrivateView { .. } => "browser.private.v1",
+            Self::AndroidMessagesPrivateView { .. } => "android.messages.private.v1",
             Self::AndroidOpenMessages { .. } => "android.messages.v1",
             Self::AssistantChat { .. } => "assistant.chat.v1",
             Self::YoutubeGenerate { .. } => "youtube.generate.v1",
@@ -157,10 +219,14 @@ impl ServiceRequest {
     }
     pub fn name(&self) -> &'static str {
         match self {
+            Self::AssistantRoute { .. } => "assistant_route",
+            Self::YoutubeOpenCodeGenerate { .. } => "youtube_opencode_generate",
             Self::ComputerTask { .. } => "computer_task",
             Self::ComputerStep { .. } => "computer_step",
             Self::PriceSearch { .. } => "price_search",
             Self::DesktopPrivateView { .. } => "desktop_private_view",
+            Self::BrowserPrivateView { .. } => "browser_private_view",
+            Self::AndroidMessagesPrivateView { .. } => "android_messages_private_view",
             Self::AndroidOpenMessages { .. } => "android_open_messages",
             Self::AssistantChat { .. } => "assistant_chat",
             Self::YoutubeGenerate { .. } => "youtube_generate",
@@ -176,6 +242,10 @@ impl ServiceRequest {
         matches!(
             self,
             Self::DesktopPrivateView { .. }
+                | Self::BrowserPrivateView { .. }
+                | Self::AndroidMessagesPrivateView { .. }
+                | Self::AssistantRoute { .. }
+                | Self::YoutubeOpenCodeGenerate { .. }
                 | Self::ComputerTask { .. }
                 | Self::ComputerStep { .. }
                 | Self::AndroidOpenMessages { .. }
@@ -212,6 +282,7 @@ impl ServiceResult {
                 > if matches!(
                     request,
                     ServiceRequest::AssistantChat { .. }
+                        | ServiceRequest::AssistantRoute { .. }
                         | ServiceRequest::ComputerTask { .. }
                         | ServiceRequest::PriceSearch { .. }
                 ) {
@@ -236,8 +307,41 @@ impl ServiceResult {
             return false;
         }
         let session_id = match request {
+            ServiceRequest::YoutubeOpenCodeGenerate { channel, count } => {
+                return self.outcome == "blocked"
+                    || self
+                        .data
+                        .get("opencode")
+                        .cloned()
+                        .and_then(|v| serde_json::from_value::<crate::OpenCodeEvidence>(v).ok())
+                        .is_some_and(|proof| proof.validates(operation, channel, *count));
+            }
+            ServiceRequest::AssistantRoute { message, .. } => {
+                return self.outcome == "blocked"
+                    || (self.outcome == "completed"
+                        && self.data["model"] == "deepseek-v4.1-flash"
+                        && self.data["model_calls"] == 1
+                        && matches!(
+                            self.data["billing"]["source"].as_str(),
+                            Some("go" | "go_plus" | "go-plus")
+                        )
+                        && self
+                            .data
+                            .get("usage")
+                            .cloned()
+                            .and_then(|v| serde_json::from_value::<crate::ModelUsage>(v).ok())
+                            .is_some_and(|u| u.validates() && u.cost_microusd == Some(0))
+                        && self
+                            .data
+                            .get("decision")
+                            .cloned()
+                            .and_then(|v| serde_json::from_value::<crate::IntentDecision>(v).ok())
+                            .is_some_and(|v| v.validates_for(message)));
+            }
             ServiceRequest::AndroidPrivateView { session_id, .. }
-            | ServiceRequest::DesktopPrivateView { session_id, .. } => session_id,
+            | ServiceRequest::DesktopPrivateView { session_id, .. }
+            | ServiceRequest::BrowserPrivateView { session_id, .. }
+            | ServiceRequest::AndroidMessagesPrivateView { session_id, .. } => session_id,
             ServiceRequest::ComputerStep { .. } => {
                 return self
                     .data
@@ -305,6 +409,48 @@ pub struct PrivateViewGrant {
     pub recipient: String,
     pub watch_seconds: u64,
     pub expires_at: i64,
+    #[serde(default, skip_serializing_if = "PrivateCapture::is_current")]
+    pub capture: PrivateCapture,
+}
+
+/// Selection is private grant data, never model context or persisted task text.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum PrivateCapture {
+    #[default]
+    Current,
+    Browser {
+        url: String,
+    },
+    Messages {
+        return_to_hub: bool,
+    },
+}
+impl std::fmt::Debug for PrivateCapture {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::Current => "Current",
+            Self::Browser { .. } => "Browser([REDACTED])",
+            Self::Messages { .. } => "Messages",
+        })
+    }
+}
+impl PrivateCapture {
+    pub fn is_current(&self) -> bool {
+        matches!(self, Self::Current)
+    }
+}
+/// Lexical bound only. The reviewed browser also validates parsed URL and every network address.
+pub fn valid_private_page_url(value: &str) -> bool {
+    let authority = value
+        .strip_prefix("https://")
+        .or_else(|| value.strip_prefix("http://"))
+        .and_then(|v| v.split(['/', '?', '#']).next());
+    value.len() <= 2048
+        && !value
+            .chars()
+            .any(|c| c.is_whitespace() || c.is_control() || c == '\\')
+        && authority.is_some_and(|v| !v.is_empty() && !v.contains(['@', '%']))
 }
 
 pub(crate) fn canonical_operation_id(value: &str) -> bool {

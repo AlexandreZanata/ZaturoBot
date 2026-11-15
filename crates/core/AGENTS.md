@@ -27,3 +27,13 @@ Generation requests do not imply publication. Opening SMS is a separate confirme
 
 
 `computer.rs` owns bounded semantic actions, leases, observations and capture-request recognition. Models never supply approval authority or executable paths.
+
+`intent_router.rs` validates bounded registered proposals against original owner text; `opencode.rs` owns work orders/process/billing evidence and `video_artifact.rs` owns opaque media proof. No model proposal grants additional operations.
+
+
+The owner authorized0.8 remote private URL and SMS images plus source publication.
+Follow docs/REMOTE_PRIVATE_CAPTURE.md (repository root): native URL grant is RAM-only,
+private browser profile separate from semantic sessions; SMS verifies unlocked foreground
+before/after capture and optional fixed companion return needs its own grant. Never
+self-approve capture, copy account profiles or publish private evidence. Preserve the
+main-PC administration/same-signature APK boundary.

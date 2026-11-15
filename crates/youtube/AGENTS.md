@@ -24,3 +24,5 @@ actor, never the scheduled-upload command. Reconcile only status with matching o
 channel/count/mode. Curate readiness codes from actual browser evidence; unknown state is
 not logout. Count only ready video artifacts as generation completion. Preserve default
 scheduled submissions and report authentication/setup/uncertainty without raw exceptions.
+
+`artifacts.rs` performs read-only fixed ffprobe/full ffmpeg decoding of matched completed ready runs. Paths derive only from those run IDs under the configured root. Return opaque references and curated metadata; preserve original files and reject changed/duplicate bytes.

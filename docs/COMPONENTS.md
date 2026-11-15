@@ -30,6 +30,9 @@ stable discovery keys; [architecture.toml](../architecture.toml) is the dependen
   bounded local subprocesses, local grants, exact plan digests, observed price formatting
   and separate zeroizing desktop PNG transport. `deploy/computer` owns reviewed upstream
   stdio/API transport, external read-only BitLupa compatibility and private setup.
+- `zaturo-opencode` — `crates/opencode`: hash-pinned installed-program execution, a
+  one-attempt budgeted Personal Go gateway, exact job MCP broker and private process,
+  cancellation and media receipts. See [execution contract](OPENCODE_EXECUTION.md).
 - `zaturo-youtube` — `crates/youtube`: fixed JSON CLI adapter to the existing Python
   YoutubeBot, explicit scheduling grants, result curation and uncertain-job reconciliation.
 - `zaturo-desktop` — `apps/zaturo-desktop`: Linux Rust/Slint owner hub, daily activity,
@@ -61,3 +64,10 @@ Read the [prompt contract](../prompts/README.md) and
 Reusable interfaces are in the owning crate, and crate `AGENTS.md` files identify
 local files and tests. [Recipes](recipes/README.md) explain change paths. Add an item
 here whenever a new reusable component or workspace crate is introduced.
+
+
+[Remote private capture](REMOTE_PRIVATE_CAPTURE.md): browser_private.py/.mjs supplies
+native-confirmed URL → bounded PNG memory transport using a separate profile and the
+existing subreaper. Typed USB SMS capture verifies foreground/keyguard around the frame
+and optionally returns to the companion under a separate grant. Native Android commands
+intercept private capture requests before ordinary chat/model submission.

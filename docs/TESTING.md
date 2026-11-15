@@ -119,3 +119,12 @@ continuity across that race. Keep recipient/one-time/no-disk/unchanged-watch/can
 assertions intact and verify that the subsequent session completes within its bound.
 The work-services updater also tests all nine typed capabilities together, retained grants,
 private scoped MCP installation and refusal to rebind an existing USB serial.
+
+
+Installed-executor fixtures use local HTTP, synthetic usage, fake budgets and metadata.
+They verify one forward despite retry, billing rejection before tool release, strict
+arguments, typed intent authority/idempotency, navigation/lock evidence and portal source
+bounds. They never call production Go, YoutubeBot, ADB, accounts or capture a desktop.
+Physical acceptance is separately owner-authorized and recorded with exact identities;
+see [the acceptance contract](OPENCODE_EXECUTION.md). Android source/build validation must
+run in the existing SDK environment without replacing the enrolled signing identity.

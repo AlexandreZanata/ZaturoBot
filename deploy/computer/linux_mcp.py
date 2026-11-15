@@ -125,9 +125,11 @@ class Config:
         self.value = tomllib.loads(private_read(self.path).decode())
         common = {"enabled", "state_dir", "timeout_seconds", "allow_input", "allow_capture"}
         fields = {"binary", "binary_sha256", "allowed_apps"} if backend == "desktop" else {"node", "node_sha256", "playwright_cli", "playwright_cli_sha256", "playwright_tree_sha256", "cdp_endpoint", "profile_dir", "browser_pid", "allowed_origins"}
+        if backend == "private_browser":
+            fields = {"node", "node_sha256", "playwright_cli", "playwright_cli_sha256", "playwright_tree_sha256", "profile_dir", "browser_executable", "browser_sha256"}
         need(set(self.value) <= common | fields, "invalid_configuration")
         need(self.value.get("enabled", False) is True, "backend_disabled")
-        if backend == "browser":
+        if backend in {"browser", "private_browser"}:
             tree_hash = self.value.get("playwright_tree_sha256")
             need(isinstance(tree_hash, str) and re.fullmatch(r"[0-9a-f]{64}", tree_hash), "package_tree_hash_required")
         self.allow_input = self.value.get("allow_input", False) is True
@@ -381,12 +383,15 @@ def guardian(config_path, backend):
     """
     child = None
     try:
-        need(backend in {"desktop", "browser"}, "invalid_configuration")
+        need(backend in {"desktop", "browser", "private_browser"}, "invalid_configuration")
         config = Config(Path(config_path), backend=backend)
         if backend == "desktop": argv = [str(config.binary), "mcp"]
-        else:
+        elif backend == "browser":
             import browser_mcp
             argv = browser_mcp.backend_argv(config)
+        else:
+            import browser_private
+            argv = browser_private.node_argv(config)
         libc = ctypes.CDLL(None, use_errno=True)
         need(libc.prctl(36, 1, 0, 0, 0) == 0 and hasattr(os, "pidfd_open") and hasattr(signal, "pidfd_send_signal"), "supervision_unavailable")
         child = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, bufsize=0)

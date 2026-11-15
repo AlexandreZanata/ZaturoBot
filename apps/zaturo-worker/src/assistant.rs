@@ -69,12 +69,12 @@ pub(crate) async fn run(
         .service
         .as_ref()
         .ok_or(FailureCode::PolicyDenied)?;
-    let ServiceRequest::AssistantChat {
-        message,
-        context: history,
-    } = request
-    else {
-        return Err(FailureCode::PolicyDenied);
+    let (message, history, interpret) = match request {
+        ServiceRequest::AssistantChat { message, context } => (message, context, false),
+        ServiceRequest::AssistantRoute {
+            message, context, ..
+        } => (message, context, true),
+        _ => return Err(FailureCode::PolicyDenied),
     };
     if !request.validates()
         || work.task.kind != zaturo_core::TaskKind::Service
@@ -83,7 +83,7 @@ pub(crate) async fn run(
         || work.task.lease_token.as_deref() != Some(&work.lease_token)
         || work.task.deadline_at <= now_ms()
         || work.lease_expires_at <= now_ms()
-        || work.task.required_capabilities != ["assistant.chat.v1"]
+        || work.task.required_capabilities != [request.capability()]
     {
         return Err(FailureCode::PolicyDenied);
     }
@@ -120,16 +120,26 @@ pub(crate) async fn run(
             deadline_at: work.task.deadline_at,
             privacy: PrivacyClass::Personal,
         };
-        match zaturo_orchestrator::chat(&router, &context, message, history, &budget, cancel).await
-        {
-            Ok(response) if zaturo_core::ordinary_text(&response.content, 1500) => {
+        let answer = if interpret {
+            zaturo_orchestrator::route_intent(&router, &context, message, history, &budget, cancel).await.map(|(decision,response)| {
+                let summary = match &decision {
+                    zaturo_core::IntentDecision::Reply { text } => text.clone(),
+                    zaturo_core::IntentDecision::Clarify { question } => question.clone(),
+                    zaturo_core::IntentDecision::Action { .. } => "Pedido interpretado. O Hub verificará o destino e registrará a execução separadamente.".into(),
+                };
+                (summary, serde_json::json!({"decision":decision,"model":response.model,"usage":response.usage,"model_calls":response.model_calls,"billing":response.billing}))
+            })
+        } else {
+            zaturo_orchestrator::chat(&router, &context, message, history, &budget, cancel).await.and_then(|response| {
+                if !zaturo_core::ordinary_text(&response.content,1500) { return Err(Error::InvalidResponse); }
+                Ok((response.content,serde_json::json!({"model":response.model,"usage":response.usage,"model_calls":response.model_calls,"billing":response.billing})))
+            })
+        };
+        match answer {
+            Ok((summary, data)) => {
                 result.outcome = "completed".into();
-                result.summary = response.content;
-                result.data = serde_json::json!({"model":response.model,"usage":response.usage,"model_calls":response.model_calls,"billing":response.billing});
-            }
-            Ok(_) => {
-                result.summary="A resposta da IA excedeu o contrato de texto seguro. Nenhuma ação foi executada.".into();
-                result.data = serde_json::json!({"code":"invalid_response"});
+                result.summary = summary;
+                result.data = data;
             }
             Err(error) => {
                 let (code, text) = failure(&error);

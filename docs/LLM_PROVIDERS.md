@@ -119,3 +119,10 @@ so this fix requires no Android or desktop UI update. This does not establish ph
 phone/work-PC GUI acceptance or a real social publication. Beyond this explicitly
 authorized slice, new models, data categories, vision and general agent workloads require
 their own contracts and tests.
+
+
+Installed OpenCode jobs use the same strict usage parser and worker aggregate budget port.
+The job gateway admits one fixed-Go forward even if OpenCode retries internally. It
+discards automatic file/history context, strips reasoning and releases a native tool call
+only after actual Go/go-plus and zero reported additional charge. The protected OpenCode
+integration retains its key; no home key is copied. See [installed execution](OPENCODE_EXECUTION.md).

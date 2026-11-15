@@ -104,3 +104,60 @@ impl YoutubeClient {
         }
     }
 }
+
+/// Internal fixed media tools only. Bounded read-only decoding inherits no account credentials.
+pub(crate) async fn media(
+    executable: &str,
+    args: &[&str],
+    timeout: Duration,
+) -> Result<Zeroizing<Vec<u8>>, Error> {
+    if !matches!(executable, "/usr/bin/ffprobe" | "/usr/bin/ffmpeg") {
+        return Err(Error::PolicyDenied);
+    }
+    let metadata = std::fs::metadata(executable).map_err(|_| Error::Unavailable)?;
+    use std::os::unix::fs::PermissionsExt;
+    if !metadata.is_file()
+        || metadata.permissions().mode() & 0o022 != 0
+        || metadata.permissions().mode() & 0o111 == 0
+    {
+        return Err(Error::PolicyDenied);
+    }
+    let mut child = Command::new(executable)
+        .args(args)
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("LANG", "C.UTF-8")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .process_group(0)
+        .spawn()
+        .map_err(|_| Error::Unavailable)?;
+    let pid = child
+        .id()
+        .and_then(|v| i32::try_from(v).ok())
+        .and_then(Pid::from_raw)
+        .ok_or(Error::Unavailable)?;
+    let mut group = Group(Some(pid));
+    let stdout = child.stdout.take().ok_or(Error::Unavailable)?;
+    let stderr = child.stderr.take().ok_or(Error::Unavailable)?;
+    let result = tokio::time::timeout(timeout, async {
+        tokio::try_join!(read(stdout, 16384), read(stderr, 4096), async {
+            child.wait().await.map_err(|_| Error::Rejected)
+        })
+    })
+    .await;
+    match result {
+        Ok(Ok((output, errors, status))) if status.success() && errors.is_empty() => {
+            group.0 = None;
+            Ok(output)
+        }
+        _ => {
+            group.kill();
+            let _ = child.start_kill();
+            let _ = child.wait().await;
+            Err(Error::Rejected)
+        }
+    }
+}

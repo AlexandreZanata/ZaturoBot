@@ -43,7 +43,7 @@ impl SessionLease {
     pub fn authorize_messages(&self, device: &RegisteredAndroidDevice, now: i64) -> Result<()> {
         self.authorize(device, now, AndroidCapability::OpenMessages)
     }
-    fn authorize(
+    pub(crate) fn authorize(
         &self,
         device: &RegisteredAndroidDevice,
         now: i64,

@@ -128,3 +128,28 @@ charge after send. No Console fallback, credit purchase or top-up is authorized.
 The supplied account screenshot showing Extra Usage off/$0 is a point-in-time setting,
 not proof of a later request. Record new live acceptance only after actual observation;
 preserve the historical Console402 without treating it as a current Go prerequisite.
+
+
+## Owner-authorized real work-PC execution
+
+Natural requests must produce validated registered actions, with the exact `falllem price`
+alias and no publication inferred from generation. Actual installed OpenCode/DeepSeek Go
+and typed broker receipts must distinguish dispatch from media completion. Preserve the
+existing independent YoutubeBot pipeline, strict budgets/billing, operation identity and
+uncertain fences. Full media proof and opaque/encrypted owner access are required for
+acceptance. Actual browser/backend research, native-consented memory-only Wayland capture,
+enrolled USB navigation and phone images visible in Android Hub require physical evidence.
+No generic shell, arbitrary ADB, self-approved input, copied home provider key or weakened
+private-view lifecycle is authorized. See [installed execution](OPENCODE_EXECUTION.md).
+
+
+## Owner-authorized remote page and SMS images
+
+Android must accept a native-confirmed page URL, open it in the bot-owned private browser
+when necessary and relay a real memory-only viewport image without a PC chooser. Private
+URLs never enter durable chat/tasks/model context. SMS capture must show the actual
+approved messaging foreground, with fresh unlocked/focus checks and separate typed grants.
+Optional fixed return to the companion is native-confirmed and never approves UI itself.
+Preserve all private-view protections and existing account/session boundaries. Publish
+reviewed source/services/update instructions to GitHub without private state or media.
+See [remote private capture](REMOTE_PRIVATE_CAPTURE.md).

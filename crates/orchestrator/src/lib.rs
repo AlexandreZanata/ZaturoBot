@@ -1,4 +1,6 @@
 //! A bounded coding-diagnostic planner. Model proposals never grant tool permissions.
+mod intent_router;
+pub use intent_router::route_intent;
 use serde::Deserialize;
 use zaturo_core::{DiagnosticResult, ModelUsage, OrchestrationResult};
 use zaturo_llm::{BudgetPort, CallContext, Cancellation, Message, PrivacyClass, Router};

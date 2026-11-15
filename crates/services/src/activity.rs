@@ -43,7 +43,10 @@ pub(crate) fn notice(task: &Task) -> FeedItem {
     FeedItem {
         id: Uuid::new_v4().to_string(),
         created_at: task.updated_at,
-        kind: if matches!(task.service, Some(ServiceRequest::AssistantChat { .. })) {
+        kind: if matches!(
+            task.service,
+            Some(ServiceRequest::AssistantChat { .. } | ServiceRequest::AssistantRoute { .. })
+        ) {
             FeedKind::Chat
         } else if task.kind == TaskKind::Service {
             FeedKind::Service
@@ -51,8 +54,10 @@ pub(crate) fn notice(task: &Task) -> FeedItem {
             FeedKind::Task
         },
         role: "assistant".into(),
-        text: if matches!(task.service, Some(ServiceRequest::AssistantChat { .. }))
-            && task.service_result.is_some()
+        text: if matches!(
+            task.service,
+            Some(ServiceRequest::AssistantChat { .. } | ServiceRequest::AssistantRoute { .. })
+        ) && task.service_result.is_some()
         {
             if task
                 .service_result
@@ -155,10 +160,15 @@ impl Engine {
                     zaturo_core::ChatIntent::Diagnostic=>Some(ChatAction::Diagnostic),
                     zaturo_core::ChatIntent::YoutubeProfiles=>Some(ChatAction::YoutubeProfiles),
                     zaturo_core::ChatIntent::AndroidDevices=>Some(ChatAction::AndroidDevices),
-                    zaturo_core::ChatIntent::YoutubeGenerate{channel,count}=>{service=Some(ServiceRequest::YoutubeGenerate{channel,count});Some(ChatAction::Assistant)},
+                    zaturo_core::ChatIntent::YoutubeGenerate{channel,count}=>{service=Some(ServiceRequest::YoutubeOpenCodeGenerate{channel,count});Some(ChatAction::Assistant)},
                     zaturo_core::ChatIntent::Conversation=>{
-                        selected_target=default_worker.to_owned();
-                        if request.message.len()<=2048 {service=Some(ServiceRequest::AssistantChat{message:request.message.clone(),context:conversation_context(r)?});}
+                        selected_target=if r.worker(&target)?.is_some_and(|w|w.capabilities.iter().any(|c|c=="assistant.route.v1")){target.clone()}else{default_worker.to_owned()};
+                        if request.message.len()<=2048 {
+                            let context=conversation_context(r)?;
+                            service=Some(if r.worker(&selected_target)?.is_some_and(|w|w.capabilities.iter().any(|c|c=="assistant.route.v1")) {
+                                ServiceRequest::AssistantRoute{message:request.message.clone(),context,target_worker:target.clone(),planner_worker:default_worker.to_owned()}
+                            }else{ServiceRequest::AssistantChat{message:request.message.clone(),context}});
+                        }
                         else {response="Para conversar com a IA, reduza a mensagem para até 2048 bytes.".into();}
                         service.as_ref().map(|_|ChatAction::Assistant)
                     }
@@ -175,7 +185,7 @@ impl Engine {
                     ChatAction::Assistant=>{},
                     ChatAction::ComputerConfirm=>return Err(Error::Invalid("confirmation cannot create a task".into())),
                 }
-                if let Some(service)=service {task.kind=TaskKind::Service;task.max_attempts=1;task.timeout_seconds=if matches!(service,ServiceRequest::ComputerTask{..}){300}else{60};task.service=Some(service);}
+                if let Some(service)=service {task.kind=TaskKind::Service;task.max_attempts=1;task.timeout_seconds=if matches!(service,ServiceRequest::ComputerTask{..}){300}else if matches!(service,ServiceRequest::YoutubeOpenCodeGenerate{..}|ServiceRequest::AssistantRoute{..}){180}else{60};task.service=Some(service);}
                 let capability=task.service.as_ref().map(|s|s.capability()).unwrap_or("diagnostic.v1");
                 let worker=r.worker(&selected_target)?;
                 // Legacy explicit service buttons retain their durable offline queue semantics.
@@ -184,7 +194,7 @@ impl Engine {
                 if let Some((missing_worker,missing_capability))=unsupported {
                     response=format!("O computador {missing_worker} ainda não anunciou a funcionalidade {missing_capability}. A ação não foi executada. Atualize ou conecte o worker pelo Codex desse computador.");None
                 } else {
-                    response=if worker.as_ref().is_some_and(|w|now.saturating_sub(w.last_seen_at)>30000){"O computador está sem contato recente. A tarefa ficou na fila persistente e será enviada quando ele reconectar.".into()}else if matches!(task.service,Some(ServiceRequest::YoutubeGenerate{..})){"Solicitação de geração enviada. O PC verificará os logins antes de criar os vídeos. Publicar ou agendar exige uma ação separada.".into()}else{"Solicitação enviada ao worker. O resultado aparecerá neste histórico.".into()};
+                    response=if worker.as_ref().is_some_and(|w|now.saturating_sub(w.last_seen_at)>30000){"O computador está sem contato recente. A tarefa ficou na fila persistente e será enviada quando ele reconectar.".into()}else if matches!(task.service,Some(ServiceRequest::YoutubeGenerate{..}|ServiceRequest::YoutubeOpenCodeGenerate{..})){"Solicitação de geração enviada. O PC verificará os logins antes de criar os vídeos. Publicar ou agendar exige uma ação separada.".into()}else{"Solicitação enviada ao worker. O resultado aparecerá neste histórico.".into()};
                     Some(crate::create_record(r,task,now,&self.limits)?)
                 }
             }else{None};
@@ -246,6 +256,7 @@ impl Engine {
                     Some(
                         ServiceRequest::YoutubeSubmit { .. }
                             | ServiceRequest::YoutubeGenerate { .. }
+                            | ServiceRequest::YoutubeOpenCodeGenerate { .. }
                     )
                 )
                 || task

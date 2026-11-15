@@ -1,5 +1,14 @@
 # Static trusted instructions; untrusted requests/observations are separate JSON messages.
 [[prompts]]
+id = "intent-router"
+purpose = "Interpret one Personal request into a validated relevant registered action or clarification"
+owner = "zaturo-orchestrator"
+version = 1
+path = "prompts/intent-router.md"
+variables = []
+output_schema = "prompts/intent-router.schema.json"
+
+[[prompts]]
 id = "diagnostic-planner"
 purpose = "Choose the permitted diagnostic and summarize its evidence"
 owner = "zaturo-orchestrator"

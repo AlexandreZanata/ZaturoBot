@@ -26,3 +26,16 @@ See [Android integration](../../docs/ANDROID_INTEGRATION.md) and
 owner lease and OpenMessages device grant. It never sends a message, selects a contact,
 reads SMS storage, types, unlocks or accepts USB consent. Device instructions are local
 metadata only and mark verified operations honestly. Private captures still use age/RAM.
+
+The default MAIN/APP_MESSAGING component is resolved and restricted to approved Google/
+Samsung packages before fixed component launch. A locked phone is blocked before input;
+unknown keyguard state is not relabeled as a lock. Matching focused window/application and a fresh
+unlocked keyguard are still required afterwards. No task supplies the component.
+
+
+The owner authorized0.8 remote private URL and SMS images plus source publication.
+Follow docs/REMOTE_PRIVATE_CAPTURE.md (repository root): native URL grant is RAM-only,
+private browser profile separate from semantic sessions; SMS verifies unlocked foreground
+before/after capture and optional fixed companion return needs its own grant. Never
+self-approve capture, copy account profiles or publish private evidence. Preserve the
+main-PC administration/same-signature APK boundary.

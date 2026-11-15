@@ -343,7 +343,7 @@ class WorkServicesTests(unittest.TestCase):
             "--android-serial", "SYNTHETIC_USB_123", "--enable-private-view", "--enable-messages")
         self.assertEqual(status, 0, report)
         updated = tomllib.loads(self.worker_config.read_text())
-        self.assertEqual(set(updated["capabilities"]), updater.KNOWN_CAPS - {"computer.agent.v1", "computer.action.v1", "computer.private.v1", "price.search.v1"})
+        self.assertEqual(set(updated["capabilities"]), updater.KNOWN_CAPS - {"browser.private.v1", "android.messages.private.v1", "computer.agent.v1", "computer.action.v1", "computer.private.v1", "price.search.v1", "assistant.route.v1", "youtube.opencode.v1"})
         self.assertEqual(updated["assistant_models_config"], str(profile))
         self.assertEqual(updated["files"], original["files"])
         self.assertTrue(report["generation_granted"] and report["messages_granted"])
@@ -376,6 +376,33 @@ class WorkServicesTests(unittest.TestCase):
         self.assertNotEqual(status, 0)
         self.assertIn("explicitly supplied USB serial", error)
         self.assertEqual(self.worker_config.read_bytes(), before)
+
+    def test_opencode_profile_adds_only_explicit_bounded_capabilities(self):
+        from types import SimpleNamespace
+        model=write(self.config_dir/"personal-go.toml","# synthetic configuration, not an API key\n")
+        profile=write(self.base/"opencode.toml",updater.render_toml({"executable":"/synthetic/installed/opencode","executable_sha256":"a"*64,"state_root":str(self.home/"jobs"),"models_config":str(model)}))
+        config={"youtube":{"allow_generate":True}};caps=[]
+        updater.extend_opencode(config,caps,SimpleNamespace(opencode_config=profile,enable_opencode=False))
+        self.assertEqual(caps,[])
+        updater.extend_opencode(config,caps,SimpleNamespace(opencode_config=None,enable_opencode=True))
+        self.assertEqual(set(caps),{"assistant.route.v1","youtube.opencode.v1"})
+        config["youtube"]["allow_generate"]=False
+        with self.assertRaises(ValueError):updater.extend_opencode(config,[],SimpleNamespace(opencode_config=None,enable_opencode=True))
+
+    @unittest.skipUnless(Path("/usr/bin/adb").is_file(), "host has no adb binary")
+    def test_private_browser_and_sms_require_separate_explicit_grants(self):
+        profile, value, protected = self.computer_fixture()
+        value["private_browser_profile"]=str(write(self.config_dir/"capture-browser.toml","enabled=false\n"))
+        write(profile,updater.render_toml(value))
+        args=("--apply","--computer-config",str(profile),"--enable-browser-capture","--android-serial","SYNTHETIC_USB_123","--enable-private-view","--enable-messages","--enable-messages-capture","--enable-return-to-hub")
+        status, report=self.run_update(*args)
+        self.assertEqual(status,0,report)
+        updated=tomllib.loads(self.worker_config.read_text())
+        self.assertIn("browser.private.v1",updated["capabilities"])
+        self.assertIn("android.messages.private.v1",updated["capabilities"])
+        self.assertIn("messages_screen_view",updated["android"]["devices"][0]["capabilities"])
+        self.assertIn("return_to_hub",updated["android"]["devices"][0]["capabilities"])
+        self.assertFalse(tomllib.loads(Path(value["private_browser_profile"]).read_text())["enabled"])
 
     def computer_fixture(self):
         profiles = self.config_dir / "native-profiles"
@@ -410,7 +437,7 @@ class WorkServicesTests(unittest.TestCase):
             "--enable-private-view", "--enable-messages")
         self.assertEqual(status, 0, report)
         updated = tomllib.loads(self.worker_config.read_text())
-        self.assertEqual(set(updated["capabilities"]), updater.KNOWN_CAPS)
+        self.assertEqual(set(updated["capabilities"]), updater.KNOWN_CAPS - {"assistant.route.v1","youtube.opencode.v1","browser.private.v1","android.messages.private.v1"})
         self.assertEqual(len(updated["capabilities"]), 13)
         expected = dict(value)
         installed = self.home / ".local/lib/zaturobot/computer"

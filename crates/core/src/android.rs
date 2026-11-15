@@ -37,6 +37,8 @@ pub enum AndroidCapability {
     DeviceStatus,
     SensitiveScreenView,
     OpenMessages,
+    MessagesScreenView,
+    ReturnToHub,
 }
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -68,7 +70,7 @@ impl RegisteredAndroidDevice {
             return Err("invalid Android display name");
         }
         if self.capabilities.is_empty()
-            || self.capabilities.len() > 3
+            || self.capabilities.len() > 5
             || self
                 .capabilities
                 .iter()
@@ -184,4 +186,13 @@ mod tests {
             .validate()
         );
     }
+}
+
+/// Metadata-only proof from fixed ADB navigation and keyguard observations.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MessagesNavigation {
+    pub package: String,
+    pub activity: String,
+    pub verified_at: i64,
 }

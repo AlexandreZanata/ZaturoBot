@@ -72,6 +72,7 @@ fn worker(path: &Path, base: &str) -> WorkerConfig {
         models_config: Some(path.join("injected-models.toml")),
         assistant_models_config: None,
         computer_models_config: None,
+        opencode: None,
         computer: None,
     }
 }

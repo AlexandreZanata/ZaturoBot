@@ -50,3 +50,11 @@ and cannot overwrite improved code. Existing work-PC SSH/age keys and worker.db 
 in place. Browser cookies may be OS-bound, so owner Google sign-in on the destination is
 still interactive. The restore helper preserves conflicts and existing profile files.
 See [migration helper](../deploy/services/restore_youtube.py) and its adjacent runbook.
+
+
+Natural generation now requires `youtube.opencode.v1` and the separate
+[installed OpenCode executor](OPENCODE_EXECUTION.md). Legacy explicit typed direct actions
+remain compatible but cannot be presented as OpenCode acceptance. `generate` is distinct
+from `submit`; the actual newer YoutubeBot revision/interpreter/account readiness must be
+verified without downgrade. Full matched ready-file SHA/duration/stream/decode evidence
+precedes a new OpenCode completion notice. Readiness unknown/timeouts never imply logout.

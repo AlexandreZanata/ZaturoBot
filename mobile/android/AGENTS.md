@@ -10,3 +10,11 @@ remote forwarding. `HostPin.kt` hashes the SSH wire key with constant-time compa
 never log an enrollment or persist a decrypted SSH key. Backups are disabled. Poll only
 while visible. Normal hub feed rejects sensitive images. No plaintext SMS/code cache.
 Tests use generated keys/synthetic origins; real-device testing must be explicit.
+
+
+The owner authorized0.8 remote private URL and SMS images plus source publication.
+Follow docs/REMOTE_PRIVATE_CAPTURE.md (repository root): native URL grant is RAM-only,
+private browser profile separate from semantic sessions; SMS verifies unlocked foreground
+before/after capture and optional fixed companion return needs its own grant. Never
+self-approve capture, copy account profiles or publish private evidence. Preserve the
+main-PC administration/same-signature APK boundary.

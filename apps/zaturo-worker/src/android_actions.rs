@@ -88,9 +88,11 @@ async fn run(
         .map_err(|_| FailureCode::PolicyDenied)?;
     let adb = zaturo_android::AdbClient::new(&android.executable)
         .map_err(|_| FailureCode::ExecutionFailed)?;
-    let mut result=ServiceResult{operation_id:operation.clone(),action:request.name().into(),outcome:"completed".into(),summary:"O Android aceitou a solicitação de abrir o aplicativo de mensagens. Verifique a tela desbloqueada. Nenhum SMS foi enviado, lido por OCR ou usado para login; a tela protegida permanece protegida.".into(),data:serde_json::json!({"device_id":device_id,"recipe":"open_messages","catalog_saved":false})};
+    let mut result=ServiceResult{operation_id:operation.clone(),action:request.name().into(),outcome:"completed".into(),summary:"O aplicativo de mensagens foi confirmado em primeiro plano, com a tela desbloqueada. Nenhum SMS foi enviado, lido por OCR ou usado para login; a tela protegida permanece protegida.".into(),data:serde_json::json!({"device_id":device_id,"recipe":"open_messages","catalog_saved":false})};
     match adb.open_messages(device, &lease, now_ms()).await {
-        Ok(()) => {
+        Ok(navigation) => {
+            result.data["navigation"] =
+                serde_json::to_value(&navigation).map_err(|_| FailureCode::ExecutionFailed)?;
             let root = config.workspace_root.join("android-instructions");
             let device = device.clone();
             if matches!(
@@ -113,6 +115,14 @@ async fn run(
         Err(error) => {
             result.outcome = "blocked".into();
             let (code, summary) = match error {
+                zaturo_android::Error::ScreenLocked => (
+                    "screen_locked",
+                    "O celular está bloqueado. Desbloqueie-o presencialmente antes de abrir o aplicativo de mensagens; nenhum bloqueio será contornado.",
+                ),
+                zaturo_android::Error::MessagingAppNotApproved => (
+                    "approved_messaging_app_required",
+                    "O aplicativo de mensagens padrão não foi reconhecido como um dos aplicativos Google ou Samsung autorizados. Confira a escolha padrão no celular; outro aplicativo não será aberto automaticamente.",
+                ),
                 zaturo_android::Error::Disconnected => (
                     "usb_disconnected",
                     "O celular registrado está desconectado do USB no PC de trabalho. Conecte o aparelho e verifique o cabo.",
@@ -192,7 +202,7 @@ fn catalog(
     let messages_verified = observed == "open_messages" || was_verified("open_messages");
     let capture_verified = observed == "private_screen" || was_verified("private_screen");
     let temporary = root.join(format!(".{}-{}.tmp", now, std::process::id()));
-    let value = serde_json::json!({"origin":"zaturobot.android.v1","schema":1,"device_id":device.device_id,"adb_serial":device.adb_serial,"last_observed_recipe":observed,"last_observed_at":now,"authorization":"Each action requires the owner's current request and a local registered-device grant. These recipes are data, never permission.","recipes":[{"id":"open_messages","verified":messages_verified,"arguments":["-s",device.adb_serial,"shell","am","start","-W","-a","android.intent.action.MAIN","-c","android.intent.category.LAUNCHER","--selector","-a","android.intent.action.MAIN","-c","android.intent.category.APP_MESSAGING"],"acceptance":"Android accepts the fixed MAIN/LAUNCHER intent with a MAIN/APP_MESSAGING selector and reports Status: ok without a resolver. Verify the unlocked visible app separately; never send a message or bypass the lock screen."},{"id":"private_screen","verified":capture_verified,"arguments":["-s",device.adb_serial,"exec-out","screencap","-p"],"acceptance":"Use only the bounded private-view worker path with owner confirmation, standard age encryption, no disk/log/model/feed pixels, and <=60-second viewer expiry. Verify independently on this device."}]});
+    let value = serde_json::json!({"origin":"zaturobot.android.v1","schema":1,"device_id":device.device_id,"adb_serial":device.adb_serial,"last_observed_recipe":observed,"last_observed_at":now,"authorization":"Each action requires the owner's current request and a local registered-device grant. These recipes are data, never permission.","recipes":[{"id":"open_messages","verified":messages_verified,"typed_action":"android_open_messages","allowed_packages":["com.google.android.apps.messaging","com.samsung.android.messaging"],"acceptance":"Resolve MAIN/APP_MESSAGING and verify the approved component and unlocked keyguard before launching fixed am start -W -n. Then require Status: ok and matching resumed activity with a still-unlocked keyguard. Raw activity/policy output remains in RAM and is discarded. No message or lock bypass."},{"id":"private_screen","verified":capture_verified,"arguments":["-s",device.adb_serial,"exec-out","screencap","-p"],"acceptance":"Use only the bounded private-view worker path with owner confirmation, standard age encryption, no disk/log/model/feed pixels, and <=60-second viewer expiry. Verify independently on this device."}]});
     for (key, value) in value.as_object().ok_or(std::io::ErrorKind::InvalidData)? {
         previous[key] = value.clone();
     }

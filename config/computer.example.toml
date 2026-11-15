@@ -2,10 +2,14 @@
 python = "/usr/bin/python3"
 scripts_root = "/home/owner/.local/lib/zaturobot/computer"
 linux_profile = "/home/owner/.config/zaturobot/computer-linux.toml"
+# Native URL capture uses a separate private browser; never reuse a semantic/normal profile.
+# private_browser_profile = "/home/owner/.config/zaturobot/computer-private-browser.toml"
 # browser_profile = "/home/owner/.config/zaturobot/computer-browser.toml"
 # bitlupa_project = "/home/owner/BitLupa"
 # bitlupa_database = "/home/owner/.local/share/bitlupa/offers.db"
 # social_profile = "/home/owner/.config/zaturobot/social.toml"
+# Separate native Wayland chooser; never combine with capture_target.
+wayland_portal_capture = false
 # [capture_target]
 # window_id = 1
 # pid = 1234

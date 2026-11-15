@@ -123,3 +123,6 @@ and device endpoints retain their independent boundaries. Types in core/activity
 core/service.rs and source validators are canonical; documentation is not another schema.
 
 The shared area and explicit assistant chat mode are documented in [assistant/shared contracts](ASSISTANT_AND_SHARED_TASKS.md). Private phone actions remain separate confirmed controls.
+
+
+Version0.8 adds native URL and actual SMS-screen capture; see the [remote private capture contract](REMOTE_PRIVATE_CAPTURE.md) for grants, transport, update and physical acceptance.

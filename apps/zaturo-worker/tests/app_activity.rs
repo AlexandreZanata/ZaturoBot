@@ -430,6 +430,7 @@ async fn explicit_app_diagnostic_reaches_real_worker_and_publishes_one_completio
         models_config: None,
         assistant_models_config: None,
         computer_models_config: None,
+        opencode: None,
         computer: None,
         files: None,
         youtube: None,
