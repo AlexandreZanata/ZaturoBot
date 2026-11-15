@@ -453,6 +453,7 @@ print(json.dumps(result))
                     scripts_root: scripts,
                     linux_profile: Some(profile),
                     browser_profile: None,
+                    private_browser_profile: None,
                     bitlupa_project: None,
                     bitlupa_database: None,
                     social_profile: None,

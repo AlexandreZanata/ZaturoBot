@@ -279,3 +279,6 @@ process allowance appropriate to Chrome; the work acceptance instance uses Tasks
 MemoryMax1GiB and CPU50%, with its exact profile/loopback/PID marker. Startup/read-only
 connection failures can be observed again; a crashed target is not an authentication
 failure. There is no sandbox-disable switch or normal-account-profile fallback.
+
+
+Version0.8 adds native URL and actual SMS-screen capture; see the [remote private capture contract](REMOTE_PRIVATE_CAPTURE.md) for grants, transport, update and physical acceptance.

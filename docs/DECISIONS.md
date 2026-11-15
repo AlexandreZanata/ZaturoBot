@@ -296,3 +296,21 @@ The owner directed administrative hub deployment and same-signature Android buil
 main PC. Publish only tested source and an inert revision-pinned shared handoff; preserve
 this work PC's restricted forwarding key and all enrollment/application data. Actual
 physical/account acceptance remains separate from synthetic tests and source status.
+
+
+## ADR-0023 — Native remote URL and messaging images
+
+The owner confirmed actual desktop image delivery and requested phone-side selection of
+any page URL, opening it if needed, plus a real SMS-screen image and GitHub publication.
+Use a separate private browser profile and exact ephemeral native URL grant rather than
+broadening GNOME portal privileges or attaching normal/semantic account sessions. Keep
+URL out of durable ServiceRequest and Debug. Use pinned Playwright buffer capture under
+the existing owned-tree guardian, public-address checks and enabled Chromium sandbox.
+
+Add MessagesScreenView and optional ReturnToHub USB grants. The native-confirmed fixed
+15-second capture opens approved Messages, verifies unlocked/focused target before and
+after the frame, and optionally returns only to the companion activity. That original
+confirmation permits focused automatic opening of its opaque pending image after return;
+ADR-0022's generic prepared capture still requires its explicit open button. Never fetch
+images in background or change FLAG_SECURE/focus clearing. Main-PC Hub deployment and
+same-signature APK boundary remain. See the [contract](REMOTE_PRIVATE_CAPTURE.md).

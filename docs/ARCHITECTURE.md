@@ -99,3 +99,10 @@ SQLite-backed aggregate budget; the new crate owns no SQL. Services own atomic v
 intent children. The hub holds no model runtime or provider key. Separate portal capture
 feeds only the existing age/RAM viewer, never orchestration. See
 [installed execution](OPENCODE_EXECUTION.md) and ADR-0022.
+
+
+Native remote capture keeps PrivateCapture targets in Hub RAM grants; durable jobs carry
+opaque sessions only. BrowserPrivateView uses zaturo-computer's separate pinned private
+renderer; AndroidMessagesPrivateView uses zaturo-android's fixed focus-bound SMS bundle.
+Both reuse the existing encrypted ephemeral private relay and native viewer lifecycle.
+No dependency edge or SQL schema is added. See [capture](REMOTE_PRIVATE_CAPTURE.md).

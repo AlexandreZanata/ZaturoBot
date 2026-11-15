@@ -141,3 +141,15 @@ acceptance. Actual browser/backend research, native-consented memory-only Waylan
 enrolled USB navigation and phone images visible in Android Hub require physical evidence.
 No generic shell, arbitrary ADB, self-approved input, copied home provider key or weakened
 private-view lifecycle is authorized. See [installed execution](OPENCODE_EXECUTION.md).
+
+
+## Owner-authorized remote page and SMS images
+
+Android must accept a native-confirmed page URL, open it in the bot-owned private browser
+when necessary and relay a real memory-only viewport image without a PC chooser. Private
+URLs never enter durable chat/tasks/model context. SMS capture must show the actual
+approved messaging foreground, with fresh unlocked/focus checks and separate typed grants.
+Optional fixed return to the companion is native-confirmed and never approves UI itself.
+Preserve all private-view protections and existing account/session boundaries. Publish
+reviewed source/services/update instructions to GitHub without private state or media.
+See [remote private capture](REMOTE_PRIVATE_CAPTURE.md).

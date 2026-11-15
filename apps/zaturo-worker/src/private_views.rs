@@ -1,8 +1,8 @@
 //! Sensitive owner capture/watch: memory-only standard age transport, never task result bytes.
 use crate::{config::WorkerConfig, now_ms};
 use zaturo_core::{
-    AndroidControlActor, AndroidWatchRequest, Assignment, FailureCode, PrivateViewGrant,
-    ServiceRequest, ServiceResult,
+    AndroidControlActor, AndroidWatchRequest, Assignment, FailureCode, PrivateCapture,
+    PrivateViewGrant, ServiceRequest, ServiceResult,
 };
 use zaturo_llm::Cancellation;
 use zaturo_protocol::ClientMessage;
@@ -31,17 +31,24 @@ async fn run(
     config: &WorkerConfig,
     token: &str,
 ) -> Result<ServiceResult, FailureCode> {
-    let Some(ServiceRequest::AndroidPrivateView {
-        device_id,
-        session_id,
-        recipient,
-        watch_seconds,
-        owner_confirmed,
-    }) = &work.task.service
-    else {
-        return Err(FailureCode::PolicyDenied);
+    let (device_id, session_id, recipient, watch_seconds, messages) = match &work.task.service {
+        Some(ServiceRequest::AndroidPrivateView {
+            device_id,
+            session_id,
+            recipient,
+            watch_seconds,
+            owner_confirmed: true,
+        }) => (device_id, session_id, recipient, *watch_seconds, None),
+        Some(ServiceRequest::AndroidMessagesPrivateView {
+            device_id,
+            session_id,
+            recipient,
+            return_to_hub,
+            owner_confirmed: true,
+        }) => (device_id, session_id, recipient, 0, Some(*return_to_hub)),
+        _ => return Err(FailureCode::PolicyDenied),
     };
-    if !owner_confirmed || !zaturo_transfer::crypto::valid_recipient(recipient) {
+    if !zaturo_transfer::crypto::valid_recipient(recipient) {
         return Err(FailureCode::PolicyDenied);
     }
     let android = config
@@ -58,23 +65,35 @@ async fn run(
         || grant.worker_id != config.worker_id
         || grant.device_id != *device_id
         || grant.recipient != *recipient
-        || grant.watch_seconds != *watch_seconds
+        || grant.watch_seconds != watch_seconds
         || grant.expires_at <= now_ms()
     {
         return Err(FailureCode::PolicyDenied);
+    }
+    match (&grant.capture, messages) {
+        (PrivateCapture::Current, None) => {}
+        (PrivateCapture::Messages { return_to_hub }, Some(expected))
+            if *return_to_hub == expected => {}
+        _ => return Err(FailureCode::PolicyDenied),
     }
     let manager = zaturo_android::SessionManager::new(android.devices.clone())
         .map_err(|_| FailureCode::PolicyDenied)?;
     let device = manager
         .device(device_id)
         .map_err(|_| FailureCode::PolicyDenied)?;
-    let seconds = (*watch_seconds + 30).min(180);
+    let seconds = (watch_seconds + 30).min(180);
     let lease = manager
         .acquire(device_id, AndroidControlActor::Owner, seconds, now_ms())
         .map_err(|_| FailureCode::PolicyDenied)?;
     let adb = zaturo_android::AdbClient::new(&android.executable)
         .map_err(|_| FailureCode::ExecutionFailed)?;
-    let frame = if *watch_seconds == 0 {
+    let frame = if let Some(return_to_hub) = messages {
+        Some(
+            adb.capture_messages(device, &lease, now_ms(), return_to_hub)
+                .await
+                .map_err(classify)?,
+        )
+    } else if watch_seconds == 0 {
         Some(
             adb.capture(device, &lease, now_ms())
                 .await
@@ -85,7 +104,7 @@ async fn run(
             device,
             &lease,
             &AndroidWatchRequest {
-                duration_seconds: *watch_seconds,
+                duration_seconds: watch_seconds,
                 poll_seconds: 3,
             },
             now_ms(),
@@ -103,7 +122,12 @@ async fn run(
             .map_err(|_| FailureCode::ExecutionFailed)?;
         return Ok(ServiceResult {
             operation_id: work.task.operation_id.clone(),
-            action: "android_private_view".into(),
+            action: if messages.is_some() {
+                "android_messages_private_view"
+            } else {
+                "android_private_view"
+            }
+            .into(),
             outcome: "completed".into(),
             summary: zaturo_core::PRIVATE_VIEW_UNCHANGED_SUMMARY.into(),
             data: serde_json::json!({"session_id":session_id,"state":"unchanged"}),
@@ -125,7 +149,12 @@ async fn run(
     .await;
     Ok(ServiceResult {
         operation_id: work.task.operation_id.clone(),
-        action: "android_private_view".into(),
+        action: if messages.is_some() {
+            "android_messages_private_view"
+        } else {
+            "android_private_view"
+        }
+        .into(),
         outcome: "completed".into(),
         summary: zaturo_core::PRIVATE_VIEW_READY_SUMMARY.into(),
         data: serde_json::json!({"session_id":session_id,"delivery":"ephemeral_encrypted_memory","max_view_seconds":60}),

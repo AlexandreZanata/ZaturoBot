@@ -19,7 +19,9 @@ use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
 };
-use zaturo_core::{ControlAction, NewTask, PrivateViewGrant, ServiceRequest, TaskKind};
+use zaturo_core::{
+    ControlAction, NewTask, PrivateCapture, PrivateViewGrant, ServiceRequest, TaskKind,
+};
 const MAX_FRAME: usize = 8 * 1024 * 1024 + 65536;
 #[derive(Clone, Default)]
 pub struct PrivateViews(Arc<Mutex<HashMap<String, Session>>>);
@@ -212,6 +214,53 @@ struct RequestView {
     explicit_owner_confirmation: bool,
     #[serde(default)]
     prepared: bool,
+    #[serde(default)]
+    url: Option<String>,
+    #[serde(default)]
+    return_to_hub: bool,
+}
+impl RequestView {
+    fn capture(&self) -> Result<PrivateCapture, ApiFailure> {
+        match self.source.as_str() {
+            "browser"
+                if self.device_id == "browser"
+                    && self.watch_seconds == 0
+                    && !self.prepared
+                    && !self.return_to_hub =>
+            {
+                let url = self
+                    .url
+                    .as_ref()
+                    .filter(|u| zaturo_core::valid_private_page_url(u))
+                    .ok_or_else(denied)?;
+                Ok(PrivateCapture::Browser { url: url.clone() })
+            }
+            "android_messages"
+                if self.watch_seconds == 0 && self.prepared && self.url.is_none() =>
+            {
+                Ok(PrivateCapture::Messages {
+                    return_to_hub: self.return_to_hub,
+                })
+            }
+            "desktop"
+                if self.device_id == "desktop"
+                    && self.watch_seconds == 0
+                    && !self.prepared
+                    && self.url.is_none()
+                    && !self.return_to_hub =>
+            {
+                Ok(PrivateCapture::Current)
+            }
+            "android"
+                if self.url.is_none()
+                    && !self.return_to_hub
+                    && (!self.prepared || self.watch_seconds == 0) =>
+            {
+                Ok(PrivateCapture::Current)
+            }
+            _ => Err(denied()),
+        }
+    }
 }
 fn android_source() -> String {
     "android".into()
@@ -222,11 +271,8 @@ async fn create(
     Json(request): Json<RequestView>,
 ) -> Result<Json<Metadata>, ApiFailure> {
     let viewer = viewer(&state, &headers)?;
-    if !matches!(request.source.as_str(), "android" | "desktop")
-        || (request.source == "desktop"
-            && (request.device_id != "desktop" || request.watch_seconds != 0))
-        || (request.prepared && (request.source != "android" || request.watch_seconds != 0))
-        || !request.explicit_owner_confirmation
+    let capture = request.capture()?;
+    if !request.explicit_owner_confirmation
         || request.watch_seconds > 120
         || (request.watch_seconds > 0 && request.watch_seconds < 5)
         || zaturo_core::validate_identifier(&request.device_id).is_err()
@@ -241,18 +287,26 @@ async fn create(
     if !peers.iter().any(|p| p.id == request.worker_id) {
         return Err(denied());
     }
-    if request.source == "desktop" {
+    if matches!(
+        request.source.as_str(),
+        "desktop" | "browser" | "android_messages"
+    ) {
+        let capability = match request.source.as_str() {
+            "browser" => "browser.private.v1",
+            "android_messages" => "android.messages.private.v1",
+            _ => "computer.private.v1",
+        };
         let worker = request.worker_id.clone();
         let supported = database(&state, move |e| {
-            Ok(e.workers(100, 0)?.into_iter().any(|w| {
-                w.id == worker && w.capabilities.iter().any(|c| c == "computer.private.v1")
-            }))
+            Ok(e.workers(100, 0)?
+                .into_iter()
+                .any(|w| w.id == worker && w.capabilities.iter().any(|c| c == capability)))
         })
         .await?;
         if !supported {
             return Err(ApiFailure(
                 StatusCode::FORBIDDEN,
-                "computer_private_not_configured",
+                "private_source_not_configured",
             ));
         }
     }
@@ -278,6 +332,7 @@ async fn create(
         recipient,
         watch_seconds: request.watch_seconds,
         expires_at: now + (request.watch_seconds as i64 + 60) * 1000,
+        capture,
     };
     {
         let mut sessions = state.private_views.0.lock().map_err(|_| missing())?;
@@ -310,6 +365,7 @@ async fn create(
     if request.prepared {
         let delayed = state.clone();
         let prepared_id = id.clone();
+        let source = request.source.clone();
         tokio::spawn(async move {
             tokio::time::sleep(std::time::Duration::from_secs(15)).await;
             let grant = delayed
@@ -326,7 +382,7 @@ async fn create(
                     Some(session.grant.clone())
                 });
             if let Some(grant) = grant {
-                let _ = dispatch_view(&delayed, grant, "android").await;
+                let _ = dispatch_view(&delayed, grant, &source).await;
             }
         });
         let sessions = state.private_views.0.lock().map_err(|_| missing())?;
@@ -346,7 +402,24 @@ async fn dispatch_view(
     task.timeout_seconds = (grant.expires_at.saturating_sub(now_ms()) / 1000).clamp(1, 165) as u64;
     task.request =
         "Visualização privada autorizada; nenhum conteúdo da tela será salvo no histórico.".into();
-    task.service = Some(if source == "desktop" {
+    task.service = Some(if source == "browser" {
+        ServiceRequest::BrowserPrivateView {
+            session_id: id.clone(),
+            recipient: grant.recipient.clone(),
+            owner_confirmed: true,
+        }
+    } else if source == "android_messages" {
+        let PrivateCapture::Messages { return_to_hub } = grant.capture else {
+            return Err(denied());
+        };
+        ServiceRequest::AndroidMessagesPrivateView {
+            device_id: grant.device_id.clone(),
+            session_id: id.clone(),
+            recipient: grant.recipient.clone(),
+            return_to_hub,
+            owner_confirmed: true,
+        }
+    } else if source == "desktop" {
         ServiceRequest::DesktopPrivateView {
             session_id: id.clone(),
             recipient: grant.recipient.clone(),
@@ -563,6 +636,7 @@ mod tests {
                 recipient: "age1synthetic-public-recipient".into(),
                 watch_seconds: 0,
                 expires_at: 60_000,
+                capture: PrivateCapture::Current,
             },
             viewer: "home".into(),
             task_id: Some("synthetic-task".into()),
@@ -574,6 +648,53 @@ mod tests {
             prepared: false,
             displayed: false,
         }
+    }
+    #[test]
+    fn private_source_options_cannot_cross_capture_boundaries() {
+        let base = serde_json::json!({"source":"browser","worker_id":"work","device_id":"browser","watch_seconds":0,"explicit_owner_confirmation":true,"url":"https://example.test/private?fixture=one"});
+        let request: RequestView = serde_json::from_value(base.clone()).unwrap();
+        let capture = request
+            .capture()
+            .unwrap_or_else(|_| panic!("valid native request"));
+        assert!(!format!("{capture:?}").contains("fixture"));
+        for (key, value) in [
+            ("source", serde_json::json!("desktop")),
+            ("device_id", serde_json::json!("owner-phone")),
+            ("prepared", serde_json::json!(true)),
+            ("return_to_hub", serde_json::json!(true)),
+            ("watch_seconds", serde_json::json!(5)),
+            ("url", serde_json::json!("file:///etc/passwd")),
+        ] {
+            let mut bad = base.clone();
+            bad[key] = value;
+            assert!(
+                serde_json::from_value::<RequestView>(bad)
+                    .unwrap()
+                    .capture()
+                    .is_err()
+            );
+        }
+        let mut sms = base;
+        sms.as_object_mut().unwrap().remove("url");
+        sms["source"] = serde_json::json!("android_messages");
+        sms["device_id"] = serde_json::json!("owner-phone");
+        sms["prepared"] = serde_json::json!(true);
+        sms["return_to_hub"] = serde_json::json!(true);
+        assert!(matches!(
+            serde_json::from_value::<RequestView>(sms.clone())
+                .unwrap()
+                .capture(),
+            Ok(PrivateCapture::Messages {
+                return_to_hub: true
+            })
+        ));
+        sms["prepared"] = serde_json::json!(false);
+        assert!(
+            serde_json::from_value::<RequestView>(sms)
+                .unwrap()
+                .capture()
+                .is_err()
+        );
     }
     #[test]
     fn a_private_grant_is_bound_to_one_worker_and_claimable_only_once() {

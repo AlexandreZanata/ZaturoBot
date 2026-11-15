@@ -74,3 +74,8 @@ and ADR-0020.
 `installed-opencode` is the separate installed-program execution adapter for validated
 generation and intent orders. It reuses YoutubeBot rather than replacing media/account
 behavior. See [execution, billing and physical acceptance](OPENCODE_EXECUTION.md).
+
+The `private-browser-capture` integration renders one native-confirmed URL in a separate
+private browser; `private-android-messages` captures the verified unlocked messaging
+foreground under explicit USB grants. Both reuse the encrypted ephemeral viewer and
+keep pixels/URLs out of model and durable history. See [remote private capture](REMOTE_PRIVATE_CAPTURE.md).

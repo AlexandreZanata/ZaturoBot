@@ -33,6 +33,18 @@ pub enum ServiceRequest {
         recipient: String,
         owner_confirmed: bool,
     },
+    BrowserPrivateView {
+        session_id: String,
+        recipient: String,
+        owner_confirmed: bool,
+    },
+    AndroidMessagesPrivateView {
+        device_id: String,
+        session_id: String,
+        recipient: String,
+        return_to_hub: bool,
+        owner_confirmed: bool,
+    },
     AssistantChat {
         message: String,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -112,6 +124,11 @@ impl ServiceRequest {
                 session_id,
                 recipient,
                 owner_confirmed,
+            }
+            | Self::BrowserPrivateView {
+                session_id,
+                recipient,
+                owner_confirmed,
             } => {
                 canonical_operation_id(session_id)
                     && recipient.starts_with("age1")
@@ -146,6 +163,19 @@ impl ServiceRequest {
                     && (*watch_seconds == 0 || (5..=120).contains(watch_seconds))
                     && *owner_confirmed
             }
+            Self::AndroidMessagesPrivateView {
+                device_id,
+                session_id,
+                recipient,
+                owner_confirmed,
+                ..
+            } => {
+                crate::validate_identifier(device_id).is_ok()
+                    && canonical_operation_id(session_id)
+                    && recipient.starts_with("age1")
+                    && recipient.len() <= 128
+                    && *owner_confirmed
+            }
             Self::YoutubeRuns { channel, limit } => {
                 crate::validate_identifier(channel).is_ok() && (1..=20).contains(limit)
             }
@@ -176,6 +206,8 @@ impl ServiceRequest {
             Self::ComputerStep { .. } => "computer.action.v1",
             Self::PriceSearch { .. } => "price.search.v1",
             Self::DesktopPrivateView { .. } => "computer.private.v1",
+            Self::BrowserPrivateView { .. } => "browser.private.v1",
+            Self::AndroidMessagesPrivateView { .. } => "android.messages.private.v1",
             Self::AndroidOpenMessages { .. } => "android.messages.v1",
             Self::AssistantChat { .. } => "assistant.chat.v1",
             Self::YoutubeGenerate { .. } => "youtube.generate.v1",
@@ -193,6 +225,8 @@ impl ServiceRequest {
             Self::ComputerStep { .. } => "computer_step",
             Self::PriceSearch { .. } => "price_search",
             Self::DesktopPrivateView { .. } => "desktop_private_view",
+            Self::BrowserPrivateView { .. } => "browser_private_view",
+            Self::AndroidMessagesPrivateView { .. } => "android_messages_private_view",
             Self::AndroidOpenMessages { .. } => "android_open_messages",
             Self::AssistantChat { .. } => "assistant_chat",
             Self::YoutubeGenerate { .. } => "youtube_generate",
@@ -208,6 +242,8 @@ impl ServiceRequest {
         matches!(
             self,
             Self::DesktopPrivateView { .. }
+                | Self::BrowserPrivateView { .. }
+                | Self::AndroidMessagesPrivateView { .. }
                 | Self::AssistantRoute { .. }
                 | Self::YoutubeOpenCodeGenerate { .. }
                 | Self::ComputerTask { .. }
@@ -303,7 +339,9 @@ impl ServiceResult {
                             .is_some_and(|v| v.validates_for(message)));
             }
             ServiceRequest::AndroidPrivateView { session_id, .. }
-            | ServiceRequest::DesktopPrivateView { session_id, .. } => session_id,
+            | ServiceRequest::DesktopPrivateView { session_id, .. }
+            | ServiceRequest::BrowserPrivateView { session_id, .. }
+            | ServiceRequest::AndroidMessagesPrivateView { session_id, .. } => session_id,
             ServiceRequest::ComputerStep { .. } => {
                 return self
                     .data
@@ -371,6 +409,48 @@ pub struct PrivateViewGrant {
     pub recipient: String,
     pub watch_seconds: u64,
     pub expires_at: i64,
+    #[serde(default, skip_serializing_if = "PrivateCapture::is_current")]
+    pub capture: PrivateCapture,
+}
+
+/// Selection is private grant data, never model context or persisted task text.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum PrivateCapture {
+    #[default]
+    Current,
+    Browser {
+        url: String,
+    },
+    Messages {
+        return_to_hub: bool,
+    },
+}
+impl std::fmt::Debug for PrivateCapture {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::Current => "Current",
+            Self::Browser { .. } => "Browser([REDACTED])",
+            Self::Messages { .. } => "Messages",
+        })
+    }
+}
+impl PrivateCapture {
+    pub fn is_current(&self) -> bool {
+        matches!(self, Self::Current)
+    }
+}
+/// Lexical bound only. The reviewed browser also validates parsed URL and every network address.
+pub fn valid_private_page_url(value: &str) -> bool {
+    let authority = value
+        .strip_prefix("https://")
+        .or_else(|| value.strip_prefix("http://"))
+        .and_then(|v| v.split(['/', '?', '#']).next());
+    value.len() <= 2048
+        && !value
+            .chars()
+            .any(|c| c.is_whitespace() || c.is_control() || c == '\\')
+        && authority.is_some_and(|v| !v.is_empty() && !v.contains(['@', '%']))
 }
 
 pub(crate) fn canonical_operation_id(value: &str) -> bool {

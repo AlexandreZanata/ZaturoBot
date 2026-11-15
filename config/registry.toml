@@ -222,3 +222,21 @@ status = "implemented"
 id = "wayland-private-capture"
 phase = 3
 status = "implemented"
+
+
+[[features]]
+id = "remote-private-capture"
+phase = 3
+status = "implemented"
+
+[[integrations]]
+id = "private-browser-capture"
+status = "implemented"
+source = "deploy/computer/browser_private.py"
+documentation = "docs/REMOTE_PRIVATE_CAPTURE.md"
+
+[[integrations]]
+id = "private-android-messages"
+source = "crates/android/src/adb.rs"
+status = "implemented"
+documentation = "docs/REMOTE_PRIVATE_CAPTURE.md"

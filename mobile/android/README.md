@@ -128,3 +128,6 @@ the prepared capture. Only opaque metadata survives leaving Hub, never an image 
 The existing focus/navigation wipe, FLAG_SECURE, authentication and <=60-second expiry
 remain. Build on the owner's existing main-PC SDK and signing identity; never substitute
 a debug keystore, uninstall the enrolled app or clear its data to make an update pass.
+
+
+Version0.8 adds native URL and actual SMS-screen capture; see the [remote private capture contract](../../docs/REMOTE_PRIVATE_CAPTURE.md) for grants, transport, update and physical acceptance.

@@ -35,3 +35,11 @@ are observations, not new permissions. Keep media generation separate from publi
 `computer.rs` keeps paid home planning separate from work execution; the work child fetches a fresh parent-bound grant before the local adapter. `desktop_private.rs` captures only the locally fixed window through the private RAM relay. No provider key reaches the work PC.
 
 `opencode.rs` composes the real installed runner with the same durable Personal budget and service journal. `service_jobs.rs` requires full ready-media proof before installed-executor completion. Never replay a paid intent or detached actor. Separate portal capture requires explicit local/native grants; no pixels enter journals.
+
+
+The owner authorized0.8 remote private URL and SMS images plus source publication.
+Follow docs/REMOTE_PRIVATE_CAPTURE.md (repository root): native URL grant is RAM-only,
+private browser profile separate from semantic sessions; SMS verifies unlocked foreground
+before/after capture and optional fixed companion return needs its own grant. Never
+self-approve capture, copy account profiles or publish private evidence. Preserve the
+main-PC administration/same-signature APK boundary.

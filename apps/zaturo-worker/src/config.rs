@@ -61,12 +61,14 @@ impl WorkerConfig {
         ensure!(
             self.max_concurrent_tasks == 1
                 && self.capabilities.contains(&"diagnostic.v1".into())
-                && self.capabilities.len() <= 15
+                && self.capabilities.len() <= 17
                 && self.capabilities.iter().all(|c| matches!(
                     c.as_str(),
                     "computer.agent.v1"
                         | "computer.action.v1"
                         | "computer.private.v1"
+                        | "browser.private.v1"
+                        | "android.messages.private.v1"
                         | "price.search.v1"
                         | "diagnostic.v1"
                         | "assistant.chat.v1"
@@ -101,9 +103,33 @@ impl WorkerConfig {
         ensure!(
             !self.capabilities.iter().any(|c| matches!(
                 c.as_str(),
-                "computer.action.v1" | "computer.private.v1" | "price.search.v1"
+                "computer.action.v1"
+                    | "computer.private.v1"
+                    | "browser.private.v1"
+                    | "price.search.v1"
             )) || self.computer.is_some(),
             "computer actions require an explicit local profile"
+        );
+        ensure!(
+            !self.capabilities.iter().any(|c| c == "browser.private.v1")
+                || self
+                    .computer
+                    .as_ref()
+                    .is_some_and(|c| c.private_browser_profile.is_some()),
+            "private page capture requires its separate profile"
+        );
+        ensure!(
+            !self
+                .capabilities
+                .iter()
+                .any(|c| c == "android.messages.private.v1")
+                || self
+                    .android
+                    .as_ref()
+                    .is_some_and(|a| a.devices.iter().any(|d| d
+                        .capabilities
+                        .contains(&zaturo_core::AndroidCapability::MessagesScreenView))),
+            "SMS capture requires a registered device grant"
         );
         if let Some(opencode) = &self.opencode {
             opencode.validate()?;
@@ -154,11 +180,13 @@ impl WorkerConfig {
             }
         }
         ensure!(
-            !self.capabilities.iter().any(|c| c == "android.private.v1")
-                || self
-                    .android
-                    .as_ref()
-                    .is_some_and(|a| a.allow_sensitive_views && !a.devices.is_empty()),
+            !self.capabilities.iter().any(|c| matches!(
+                c.as_str(),
+                "android.private.v1" | "android.messages.private.v1"
+            )) || self
+                .android
+                .as_ref()
+                .is_some_and(|a| a.allow_sensitive_views && !a.devices.is_empty()),
             "sensitive Android views require explicit registered devices and a local grant"
         );
         ensure!(

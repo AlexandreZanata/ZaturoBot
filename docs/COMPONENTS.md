@@ -64,3 +64,10 @@ Read the [prompt contract](../prompts/README.md) and
 Reusable interfaces are in the owning crate, and crate `AGENTS.md` files identify
 local files and tests. [Recipes](recipes/README.md) explain change paths. Add an item
 here whenever a new reusable component or workspace crate is introduced.
+
+
+[Remote private capture](REMOTE_PRIVATE_CAPTURE.md): browser_private.py/.mjs supplies
+native-confirmed URL → bounded PNG memory transport using a separate profile and the
+existing subreaper. Typed USB SMS capture verifies foreground/keyguard around the frame
+and optionally returns to the companion under a separate grant. Native Android commands
+intercept private capture requests before ordinary chat/model submission.

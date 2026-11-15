@@ -1,7 +1,8 @@
 //! One owner-confirmed capture of the fixed local window, encrypted in memory only.
 use crate::{config::WorkerConfig, now_ms};
 use zaturo_core::{
-    Assignment, ComputerLease, FailureCode, PrivateViewGrant, ServiceRequest, ServiceResult,
+    Assignment, ComputerLease, FailureCode, PrivateCapture, PrivateViewGrant, ServiceRequest,
+    ServiceResult,
 };
 use zaturo_llm::Cancellation;
 use zaturo_protocol::ClientMessage;
@@ -30,13 +31,18 @@ async fn run(
     config: &WorkerConfig,
     token: &str,
 ) -> Result<ServiceResult, FailureCode> {
-    let Some(ServiceRequest::DesktopPrivateView {
-        session_id,
-        recipient,
-        owner_confirmed: true,
-    }) = &work.task.service
-    else {
-        return Err(FailureCode::PolicyDenied);
+    let (session_id, recipient, browser) = match &work.task.service {
+        Some(ServiceRequest::DesktopPrivateView {
+            session_id,
+            recipient,
+            owner_confirmed: true,
+        }) => (session_id, recipient, false),
+        Some(ServiceRequest::BrowserPrivateView {
+            session_id,
+            recipient,
+            owner_confirmed: true,
+        }) => (session_id, recipient, true),
+        _ => return Err(FailureCode::PolicyDenied),
     };
     let computer = config.computer.as_ref().ok_or(FailureCode::PolicyDenied)?;
 
@@ -47,7 +53,7 @@ async fn run(
         .map_err(|_| FailureCode::PolicyDenied)?;
     if grant.id != *session_id
         || grant.worker_id != config.worker_id
-        || grant.device_id != "desktop"
+        || grant.device_id != if browser { "browser" } else { "desktop" }
         || grant.recipient != *recipient
         || grant.watch_seconds != 0
         || grant.expires_at <= now_ms()
@@ -61,7 +67,14 @@ async fn run(
         deadline_at: work.task.deadline_at,
         owner_approved: true,
     };
-    let pixels = if computer.wayland_portal_capture {
+    let pixels = if browser {
+        let PrivateCapture::Browser { url } = &grant.capture else {
+            return Err(FailureCode::PolicyDenied);
+        };
+        zaturo_computer::capture_browser(computer, &lease, url).await
+    } else if !grant.capture.is_current() {
+        return Err(FailureCode::PolicyDenied);
+    } else if computer.wayland_portal_capture {
         zaturo_computer::capture_wayland(computer, &lease).await
     } else {
         let target = computer
@@ -80,7 +93,12 @@ async fn run(
         .map_err(|_| FailureCode::ExecutionFailed)?;
     Ok(ServiceResult {
         operation_id: work.task.operation_id.clone(),
-        action: "desktop_private_view".into(),
+        action: if browser {
+            "browser_private_view"
+        } else {
+            "desktop_private_view"
+        }
+        .into(),
         outcome: "completed".into(),
         summary: zaturo_core::PRIVATE_VIEW_READY_SUMMARY.into(),
         data: serde_json::json!({"session_id":session_id,"delivery":"ephemeral_encrypted_memory","max_view_seconds":60}),

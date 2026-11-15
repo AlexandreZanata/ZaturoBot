@@ -96,3 +96,6 @@ The0.7 additive `assistant_route` and `youtube_opencode_generate` service varian
 Advertise only after hub support. A routing order binds original target and trusted
 planner separately; the model cannot select a worker. Older text-only assistant workers
 retain ordinary `assistant_chat` compatibility. See [execution](OPENCODE_EXECUTION.md).
+
+
+Version0.8 adds native URL and actual SMS-screen capture; see the [remote private capture contract](REMOTE_PRIVATE_CAPTURE.md) for grants, transport, update and physical acceptance.

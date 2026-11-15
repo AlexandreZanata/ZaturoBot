@@ -343,7 +343,7 @@ class WorkServicesTests(unittest.TestCase):
             "--android-serial", "SYNTHETIC_USB_123", "--enable-private-view", "--enable-messages")
         self.assertEqual(status, 0, report)
         updated = tomllib.loads(self.worker_config.read_text())
-        self.assertEqual(set(updated["capabilities"]), updater.KNOWN_CAPS - {"computer.agent.v1", "computer.action.v1", "computer.private.v1", "price.search.v1", "assistant.route.v1", "youtube.opencode.v1"})
+        self.assertEqual(set(updated["capabilities"]), updater.KNOWN_CAPS - {"browser.private.v1", "android.messages.private.v1", "computer.agent.v1", "computer.action.v1", "computer.private.v1", "price.search.v1", "assistant.route.v1", "youtube.opencode.v1"})
         self.assertEqual(updated["assistant_models_config"], str(profile))
         self.assertEqual(updated["files"], original["files"])
         self.assertTrue(report["generation_granted"] and report["messages_granted"])
@@ -389,6 +389,21 @@ class WorkServicesTests(unittest.TestCase):
         config["youtube"]["allow_generate"]=False
         with self.assertRaises(ValueError):updater.extend_opencode(config,[],SimpleNamespace(opencode_config=None,enable_opencode=True))
 
+    @unittest.skipUnless(Path("/usr/bin/adb").is_file(), "host has no adb binary")
+    def test_private_browser_and_sms_require_separate_explicit_grants(self):
+        profile, value, protected = self.computer_fixture()
+        value["private_browser_profile"]=str(write(self.config_dir/"capture-browser.toml","enabled=false\n"))
+        write(profile,updater.render_toml(value))
+        args=("--apply","--computer-config",str(profile),"--enable-browser-capture","--android-serial","SYNTHETIC_USB_123","--enable-private-view","--enable-messages","--enable-messages-capture","--enable-return-to-hub")
+        status, report=self.run_update(*args)
+        self.assertEqual(status,0,report)
+        updated=tomllib.loads(self.worker_config.read_text())
+        self.assertIn("browser.private.v1",updated["capabilities"])
+        self.assertIn("android.messages.private.v1",updated["capabilities"])
+        self.assertIn("messages_screen_view",updated["android"]["devices"][0]["capabilities"])
+        self.assertIn("return_to_hub",updated["android"]["devices"][0]["capabilities"])
+        self.assertFalse(tomllib.loads(Path(value["private_browser_profile"]).read_text())["enabled"])
+
     def computer_fixture(self):
         profiles = self.config_dir / "native-profiles"
         linux = write(profiles / "linux.toml", "enabled=false\nallow_input=false\nallow_capture=false\n")
@@ -422,7 +437,7 @@ class WorkServicesTests(unittest.TestCase):
             "--enable-private-view", "--enable-messages")
         self.assertEqual(status, 0, report)
         updated = tomllib.loads(self.worker_config.read_text())
-        self.assertEqual(set(updated["capabilities"]), updater.KNOWN_CAPS - {"assistant.route.v1","youtube.opencode.v1"})
+        self.assertEqual(set(updated["capabilities"]), updater.KNOWN_CAPS - {"assistant.route.v1","youtube.opencode.v1","browser.private.v1","android.messages.private.v1"})
         self.assertEqual(len(updated["capabilities"]), 13)
         expected = dict(value)
         installed = self.home / ".local/lib/zaturobot/computer"

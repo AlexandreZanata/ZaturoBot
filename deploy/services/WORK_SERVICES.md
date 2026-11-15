@@ -268,3 +268,6 @@ Use the revision-pinned shared handoff. Preserve this work PC's forwarding key, 
 journal, independent media units, enrolled serial, app data and all account profiles.
 Until the hub update is verified, keep the two new capabilities unadvertised. Existing
 computer/Android capabilities can be validated independently after the local update.
+
+
+Version0.8 adds native URL and actual SMS-screen capture; see the [remote private capture contract](../../docs/REMOTE_PRIVATE_CAPTURE.md) for grants, transport, update and physical acceptance.

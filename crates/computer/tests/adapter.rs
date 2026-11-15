@@ -6,7 +6,7 @@ use std::{
     path::Path,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use zaturo_computer::{ComputerConfig, approval_digest, capture, execute};
+use zaturo_computer::{ComputerConfig, approval_digest, capture, capture_browser, execute};
 use zaturo_core::{ComputerAction, ComputerBackend, ComputerLease};
 fn write(path: &Path, bytes: impl AsRef<[u8]>, mode: u32) {
     fs::write(path, bytes).unwrap();
@@ -28,6 +28,7 @@ fn fixture(root: &Path, backend: ComputerBackend, script: &str) -> ComputerConfi
         scripts_root: root.into(),
         linux_profile: Some(profile.clone()),
         browser_profile: Some(profile.clone()),
+        private_browser_profile: None,
         social_profile: Some(profile),
         bitlupa_project: Some(root.into()),
         bitlupa_database: None,
@@ -294,5 +295,58 @@ print(json.dumps({'schema':1,'status':'completed','data':{'untrusted_text':r['le
         )
         .await
         .is_err()
+    );
+}
+
+#[tokio::test]
+async fn native_page_capture_uses_private_stdin_and_rejects_missing_consent() {
+    let root = tempfile::tempdir().unwrap();
+    let mut config = fixture(
+        root.path(),
+        ComputerBackend::Desktop,
+        "# Unused desktop adapter",
+    );
+    config.private_browser_profile = config.linux_profile.take();
+    config.browser_profile = None;
+    write(
+        &root.path().join("browser_private.mjs"),
+        "// Reviewed synthetic renderer",
+        0o700,
+    );
+    write(
+        &root.path().join("browser_private.py"),
+        r#"import sys,json,struct,zlib
+assert len(sys.argv)==3 and sys.argv[1]=='--config'
+request=json.load(sys.stdin)
+assert set(request)=={'operation_id','lease_token','lease_expires_at','deadline_at','owner_confirmed','tool','arguments','target'}
+assert request['tool']=='private_browser_capture' and request['owner_confirmed'] is True
+assert request['arguments']=={'url':'https://example.test/private?fixture=one'}
+assert all('example.test' not in arg for arg in sys.argv)
+def chunk(kind,data):return struct.pack('!I',len(data))+kind+data+struct.pack('!I',zlib.crc32(kind+data)&0xffffffff)
+png=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('!IIBBBBB',1280,720,8,6,0,0,0))+chunk(b'IDAT',zlib.compress(bytes((1280*4+1)*720)))+chunk(b'IEND',b'')
+sys.stdout.buffer.write(png)
+"#,
+        0o700,
+    );
+    let image = capture_browser(
+        &config,
+        &lease(),
+        "https://example.test/private?fixture=one",
+    )
+    .await
+    .unwrap();
+    assert!(image.starts_with(b"\x89PNG"));
+    drop(image);
+    let mut denied = lease();
+    denied.owner_approved = false;
+    assert!(
+        capture_browser(&config, &denied, "https://example.test/")
+            .await
+            .is_err()
+    );
+    assert!(
+        capture_browser(&config, &lease(), "file:///etc/passwd")
+            .await
+            .is_err()
     );
 }

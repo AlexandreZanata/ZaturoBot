@@ -20,7 +20,7 @@ import tomllib
 import linux_mcp as bridge
 
 SOURCE_ROOT = Path(__file__).resolve().parents[2]
-HELPERS = ("linux_mcp.py", "browser_mcp.py", "bitlupa_service.py", "social_service.py", "wayland_capture.py")
+HELPERS = ("linux_mcp.py", "browser_mcp.py", "bitlupa_service.py", "social_service.py", "wayland_capture.py", "browser_private.py", "browser_private.mjs")
 LICENSE_SHA256 = "865367984df228c2bbf9df7e790b26c3b083376b705375db36a8a032daa03a25"
 RELEASE_HASHES = {
     "x86_64": {"gnu": "9105b0caefe67881bd9549a51c59252d2f1dfe4306d9cc71be0091cd3085d122", "musl": "5755478bd24c31eef14612a19e630c856c249052f0e9277ee972b60138efb611"},
@@ -90,7 +90,8 @@ def templates(home, binary, binary_hash):
     common = "# Explicit local grants only; installation never enables desktop observation/input.\nenabled = false\nallow_input = false\nallow_capture = false\ntimeout_seconds = 15\n"
     linux = common + "binary = "+quoted(binary)+"\nbinary_sha256 = "+quoted(binary_hash)+"\nstate_dir = "+quoted(state/"desktop")+"\nallowed_apps = []\n"
     browser = common + "node = \"/absolute/path/to/verified/node\"\nnode_sha256 = \"\"\nplaywright_cli = \"/absolute/path/to/pinned/node_modules/@playwright/mcp/cli.js\"\nplaywright_cli_sha256 = \"\"\nplaywright_tree_sha256 = \"\"\nstate_dir = "+quoted(state/"browser")+"\ncdp_endpoint = \"\"\nprofile_dir = "+quoted(home/".local/share/zaturobot/browser-automation")+"\nbrowser_pid = 0\nallowed_origins = []\n"
-    return {"computer-linux.toml": linux.encode(), "computer-browser.toml": browser.encode()}
+    private = common + "node = \"/absolute/path/to/verified/node\"\nnode_sha256 = \"\"\nplaywright_cli = \"/absolute/path/to/pinned/node_modules/@playwright/mcp/cli.js\"\nplaywright_cli_sha256 = \"\"\nplaywright_tree_sha256 = \"\"\nbrowser_executable = \"/absolute/path/to/verified/chrome\"\nbrowser_sha256 = \"\"\nstate_dir = "+quoted(state/"private-browser")+"\nprofile_dir = "+quoted(home/".local/share/zaturobot/browser-private-capture")+"\n"
+    return {"computer-linux.toml": linux.encode(), "computer-browser.toml": browser.encode(), "computer-private-browser.toml": private.encode()}
 
 
 def install(home, *, apply=False, source_root=SOURCE_ROOT, backend_binary=None, backend_sha256=None, backend_license=None, pause=None, resume=None):

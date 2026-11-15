@@ -76,3 +76,11 @@ component catalog, roadmap marker, crate instructions, and decision record when 
 Report actual commands, results, limitations, and unresolved decisions. A task is done
 only when its acceptance criteria are verified; a successful command exit alone is
 insufficient. Follow [agent workflow](docs/AGENT_WORKFLOW.md) for recovery and handoff.
+
+
+The owner authorized0.8 remote private URL and SMS images plus source publication.
+Follow docs/REMOTE_PRIVATE_CAPTURE.md (repository root): native URL grant is RAM-only,
+private browser profile separate from semantic sessions; SMS verifies unlocked foreground
+before/after capture and optional fixed companion return needs its own grant. Never
+self-approve capture, copy account profiles or publish private evidence. Preserve the
+main-PC administration/same-signature APK boundary.

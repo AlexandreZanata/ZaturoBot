@@ -27,3 +27,11 @@ only their public age key enters app_viewers SQL. Owner-confirmed captures remai
 `computer.rs` authenticates device parent/child routes with a private lease header. Planners cannot create unrelated parents or approve their own actions. Keep lease tokens out of URLs/logs; native chat confirms exact pending steps.
 
 Prepared USB capture is a native-confirmed fixed15-second one-shot under the original viewer and <=60-second expiry. Only opaque preparation metadata survives focus changes; no app background frame fetch. Never use an assistant/MCP request as native consent.
+
+
+The owner authorized0.8 remote private URL and SMS images plus source publication.
+Follow docs/REMOTE_PRIVATE_CAPTURE.md (repository root): native URL grant is RAM-only,
+private browser profile separate from semantic sessions; SMS verifies unlocked foreground
+before/after capture and optional fixed companion return needs its own grant. Never
+self-approve capture, copy account profiles or publish private evidence. Preserve the
+main-PC administration/same-signature APK boundary.

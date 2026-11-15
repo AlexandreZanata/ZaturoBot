@@ -31,10 +31,11 @@ internal class PrivatePhoneView(private val activity: Activity, private val ui: 
     // Opaque consent metadata only; no image, active download or polling survives focus loss.
     private var preparedSession: String? = null
     private var preparedExpiresAt = 0L
+    private var preparedAutoOpen = false
     private val closed=AtomicBoolean(false)
     private val preparedPending=AtomicReference<String?>(null)
     private class PrivateFailure(val safeText: String): Exception()
-    fun start(worker: String,device: String,source: String="android",preparedId: String?=null) {
+    fun start(worker: String,device: String,source: String="android",preparedId: String?=null,url: String?=null) {
         clear()
         val current=++revision
         val stop=AtomicBoolean(false);cancelled=stop
@@ -47,7 +48,7 @@ internal class PrivatePhoneView(private val activity: Activity, private val ui: 
                 check(!stop.get())
                 val client=api();client.registerViewer(identity.recipient().encodeToString())
                 check(!stop.get())
-                val initial=if(preparedId==null) client.privateView(worker,device,source) else client.privateStatus(preparedId);created=initial.getString("id")
+                val initial=if(preparedId==null) client.privateView(worker,device,source,url=url) else client.privateStatus(preparedId);created=initial.getString("id")
                 val id=created
                 main.post {if(current==revision && !stop.get()) session=id}
                 val end=SystemClock.elapsedRealtime()+55000
@@ -108,33 +109,36 @@ internal class PrivatePhoneView(private val activity: Activity, private val ui: 
             }
         }
     }
-    fun prepare(worker: String,device: String) {
+    fun prepare(worker: String,device: String,messages: Boolean=false,returnToHub: Boolean=false) {
         clear()
         preparedSession?.let {old->executor.execute {runCatching {api().cancelPrivate(old)}}}
         preparedSession=null
+        preparedAutoOpen=false
         status("Preparando uma captura USB em 15 segundos…")
         executor.execute {
             try {
                 val identity=stored.read()?.optString("identity")?.takeIf {it.isNotEmpty()}?.let {X25519Identity.decode(it)}
                     ?: X25519Identity.new().also {stored.save(JSONObject().put("identity",it.encodeToString()))}
                 val client=api();client.registerViewer(identity.recipient().encodeToString())
-                val initial=client.privateView(worker,device,"android",true)
+                val initial=client.privateView(worker,device,if(messages) "android_messages" else "android",true,returnToHub=returnToHub)
                 if(closed.get()) {runCatching {client.cancelPrivate(initial.getString("id"))};return@execute}
                 preparedPending.set(initial.getString("id"))
                 main.post {
                     if(closed.get()) return@post
                     preparedSession=initial.getString("id")
+                    preparedAutoOpen=messages && returnToHub
                     preparedExpiresAt=SystemClock.elapsedRealtime()+initial.getLong("remaining_millis").coerceIn(0,60000)
-                    status("Captura preparada. Abra agora uma tela sem dados sigilosos, aguarde 15 segundos e volte ao Hub. A imagem expira em até 60 segundos.")
+                    status(if(messages) "Print de SMS preparado. Em 15 segundos o PC abrirá Mensagens, capturará a tela desbloqueada e ${if(returnToHub) "voltará a este Hub" else "deixará a imagem disponível em Abrir captura preparada"}. A imagem expira em até 60 segundos." else "Captura preparada. Abra agora uma tela sem dados sigilosos, aguarde 15 segundos e volte ao Hub. A imagem expira em até 60 segundos.")
                 }
             } catch (_:Exception) {main.post {status("Não foi possível preparar a captura. Confira a conexão e a versão do Hub; nenhuma captura será repetida automaticamente.")}}
         }
     }
+    fun resumePrepared() {if(preparedAutoOpen && hasPrepared() && activity.hasWindowFocus()) {preparedAutoOpen=false;openPrepared()}}
     fun hasPrepared():Boolean = preparedSession!=null && SystemClock.elapsedRealtime()<preparedExpiresAt
     fun openPrepared() {
         val id=preparedSession
         if(id==null || SystemClock.elapsedRealtime()>=preparedExpiresAt) {preparedSession=null;status("Não há captura preparada válida. Prepare uma nova captura no menu Serviços.");return}
-        preparedSession=null;preparedPending.compareAndSet(id,null)
+        preparedSession=null;preparedAutoOpen=false;preparedPending.compareAndSet(id,null)
         start("work-pc","owner-phone","android",id)
     }
     fun cardView(): View? = card

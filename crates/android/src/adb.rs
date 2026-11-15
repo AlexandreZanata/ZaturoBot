@@ -446,6 +446,92 @@ impl AdbClient {
             }=>result,
         }
     }
+    /// Native-consented SMS image. Verify unlocked Messages focus before and after capture.
+    /// Returning to the fixed companion requires its separate local device grant.
+    pub async fn capture_messages(
+        &self,
+        device: &RegisteredAndroidDevice,
+        lease: &SessionLease,
+        now: i64,
+        return_to_hub: bool,
+    ) -> Result<SensitiveFrame> {
+        lease.authorize(device, now, AndroidCapability::MessagesScreenView)?;
+        lease.authorize_sensitive(device, now)?;
+        if return_to_hub {
+            lease.authorize(device, now, AndroidCapability::ReturnToHub)?;
+        }
+        let started = tokio::time::Instant::now();
+        let current =
+            || now.saturating_add(i64::try_from(started.elapsed().as_millis()).unwrap_or(i64::MAX));
+        tokio::select! {biased;
+            _=lease.revoked()=>Err(Error::PermissionDenied),
+            _=tokio::time::sleep(Duration::from_millis((lease.status().expires_at-now) as u64))=>Err(Error::PermissionDenied),
+            result=async {
+                let navigation = self.open_messages(device, lease, current()).await?;
+                let component = format!("{}/{}",navigation.package,navigation.activity);
+                self.verify_messages_focus(device, &component, current()).await?;
+                let frame = self.capture(device, lease, current()).await?;
+                self.verify_messages_focus(device, &component, current()).await?;
+                lease.authorize(device, current(), AndroidCapability::MessagesScreenView)?;
+                if return_to_hub {
+                    lease.authorize(device, current(), AndroidCapability::ReturnToHub)?;
+                    let output=self.command(&["-s", &device.adb_serial, "shell", "am", "start", "-W", "--activity-reorder-to-front", "-n", "dev.zaturo.bot/dev.zaturo.bot.MainActivity"],8192).await?;
+                    let text=std::str::from_utf8(&output).map_err(|_|Error::InvalidOutput)?;
+                    if !text.lines().any(|l|l.trim()=="Status: ok") || text.contains("Exception") || text.contains("Error") {return Err(Error::CommandFailed);}
+                    lease.authorize(device, current(), AndroidCapability::ReturnToHub)?;
+                    let foreground=self.command(&["-s", &device.adb_serial, "shell", "dumpsys", "window", "displays"],65536).await?;
+                    let foreground=std::str::from_utf8(&foreground).map_err(|_|Error::InvalidOutput)?;
+                    for marker in ["mCurrentFocus=", "mFocusedApp="] {
+                        let lines=foreground.lines().filter(|l|l.trim().starts_with(marker)).collect::<Vec<_>>();
+                        if lines.len()!=1 || !lines[0].split_whitespace().any(|t| matches!(t.trim_matches(['{','}']), "dev.zaturo.bot/dev.zaturo.bot.MainActivity" | "dev.zaturo.bot/.MainActivity")) {return Err(Error::CommandFailed);}
+                    }
+                }
+                lease.authorize_sensitive(device, current())?;
+                Ok(frame)
+            }=>result,
+        }
+    }
+    async fn verify_messages_focus(
+        &self,
+        device: &RegisteredAndroidDevice,
+        component: &str,
+        now: i64,
+    ) -> Result<()> {
+        let foreground = self
+            .command(
+                &[
+                    "-s",
+                    &device.adb_serial,
+                    "shell",
+                    "dumpsys",
+                    "window",
+                    "displays",
+                ],
+                65536,
+            )
+            .await?;
+        let policy = self
+            .command(
+                &[
+                    "-s",
+                    &device.adb_serial,
+                    "shell",
+                    "dumpsys",
+                    "window",
+                    "policy",
+                ],
+                65536,
+            )
+            .await?;
+        navigation_proof(
+            &format!("Activity: {component}"),
+            component,
+            std::str::from_utf8(&foreground).map_err(|_| Error::InvalidOutput)?,
+            std::str::from_utf8(&policy).map_err(|_| Error::InvalidOutput)?,
+            now,
+        )?;
+        Ok(())
+    }
     /// Capture only into protected memory. Callers must not persist or relay this as an ordinary file.
     pub async fn capture(
         &self,

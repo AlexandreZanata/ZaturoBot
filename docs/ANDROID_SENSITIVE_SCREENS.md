@@ -120,3 +120,6 @@ successful decryption/PNG decoding, layout/draw scheduling, a visible view recta
 foreground focus and the current unexpired revision. Hub accepts it only from the original
 viewer after a claimed frame was consumed, and emits one fixed history notice. This is
 separate from worker upload readiness; no pixels or user-supplied description enter feed.
+
+
+Version0.8 adds native URL and actual SMS-screen capture; see the [remote private capture contract](REMOTE_PRIVATE_CAPTURE.md) for grants, transport, update and physical acceptance.

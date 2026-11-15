@@ -32,6 +32,8 @@ pub struct ComputerConfig {
     pub scripts_root: PathBuf,
     pub linux_profile: Option<PathBuf>,
     pub browser_profile: Option<PathBuf>,
+    #[serde(default)]
+    pub private_browser_profile: Option<PathBuf>,
     pub bitlupa_project: Option<PathBuf>,
     pub bitlupa_database: Option<PathBuf>,
     pub social_profile: Option<PathBuf>,
@@ -49,6 +51,7 @@ impl ComputerConfig {
         for path in [
             &self.linux_profile,
             &self.browser_profile,
+            &self.private_browser_profile,
             &self.bitlupa_project,
             &self.bitlupa_database,
             &self.social_profile,
@@ -897,4 +900,49 @@ pub async fn capture_wayland(
         "bounded portal frame required"
     );
     Ok(output.stdout)
+}
+
+/// Native-confirmed URL only. The URL and PNG travel through pipes, never request files.
+pub async fn capture_browser(
+    config: &ComputerConfig,
+    lease: &ComputerLease,
+    url: &str,
+) -> Result<Zeroizing<Vec<u8>>> {
+    ensure!(
+        lease.owner_approved && zaturo_core::valid_private_page_url(url),
+        "native page capture grant required"
+    );
+    let timeout = lease_limit(lease)?;
+    let profile = config
+        .private_browser_profile
+        .as_deref()
+        .ok_or_else(|| anyhow::anyhow!("private browser profile missing"))?;
+    let script = check_runtime(config, "browser_private.py", Some(profile))?;
+    check_runtime(config, "browser_private.mjs", None)?;
+    let end = lease
+        .lease_expires_at
+        .min(lease.deadline_at)
+        .min(now_ms() + 19_000);
+    let request = json!({"operation_id":lease.operation_id,"lease_token":lease.lease_token,"lease_expires_at":end,"deadline_at":end,"owner_confirmed":true,"tool":"private_browser_capture","arguments":{"url":url},"target":{}});
+    let input = Zeroizing::new(serde_json::to_vec(&request)?);
+    let args = ["--config".into(), profile.as_os_str().into()];
+    let output = invoke(config, &script, &args, Some(input), timeout, MAX_IMAGE)
+        .await
+        .map_err(|_| anyhow::anyhow!("private page capture unavailable"))?;
+    lease_limit(lease)?;
+    let png = output.stdout;
+    ensure!(
+        output.success
+            && png.len() >= 57
+            && png.starts_with(b"\x89PNG\r\n\x1a\n")
+            && &png[12..16] == b"IHDR"
+            && &png[png.len() - 8..png.len() - 4] == b"IEND",
+        "private page frame not confirmed"
+    );
+    ensure!(
+        u32::from_be_bytes(png[16..20].try_into()?) == 1280
+            && u32::from_be_bytes(png[20..24].try_into()?) == 720,
+        "bounded page frame required"
+    );
+    Ok(png)
 }
