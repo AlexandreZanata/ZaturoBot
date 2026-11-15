@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" width="1080" height="1080" role="img" aria-label="Avatar quadrado Procurali">
+  <title>Avatar @procurali</title>
+  <defs>
+    <radialGradient id="emeraldGlow" cx="65%" cy="28%" r="72%">
+      <stop offset="0%" stop-color="#137542"/>
+      <stop offset="55%" stop-color="#08361E"/>
+      <stop offset="100%" stop-color="#04180E"/>
+    </radialGradient>
+  </defs>
+  <rect width="1080" height="1080" fill="url(#emeraldGlow)"/>
+  <circle cx="540" cy="540" r="468" fill="none" stroke="#8BEB28" stroke-opacity="0.24" stroke-width="6"/>
+  <g transform="translate(245, 165) scale(9.2)">
+    <path
+      fill-rule="evenodd"
+      fill="#8BEB28"
+      d="M8.5 28.5 L22.5 13.5 C24.2 11.7 26.6 10.7 29.1 10.7 H51.5 C55.6 10.7 59 14.1 59 18.2 V43.8 C59 47.9 55.6 51.3 51.5 51.3 H29.1 C26.6 51.3 24.2 50.3 22.5 48.5 L8.5 33.5 Q6.6 31 8.5 28.5 Z M23.5 26.3 A4.7 4.7 0 1 0 23.5 35.7 A4.7 4.7 0 1 0 23.5 26.3 Z"
+      transform="rotate(-18 33 31)"
+    />
+  </g>
+  <text
+    x="540"
+    y="856"
+    text-anchor="middle"
+    font-family="'Fira Sans', 'Ubuntu Sans', system-ui, sans-serif"
+    font-size="112"
+    font-weight="800"
+    letter-spacing="-3"
+    fill="#FFFFFF"
+  >procurali</text>
+</svg>

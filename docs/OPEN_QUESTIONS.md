@@ -39,3 +39,31 @@ on the destination OS, migration conflict resolution if destination data already
 and physical acceptance of the new mobile private-screen viewer. A full semantic SMS
 event adapter remains absent.
 No owner account action or real code content is assumed from a fake-device build test.
+
+## Commerce setup — owner-reported facts
+
+- O-01: The owner chose **Procura Ali** and reports creating the public Telegram
+  channel [@procurali](https://t.me/procurali). The owner reports that
+  `procurali.com.br` is registered in their name; its operational status is unconfirmed.
+- The owner reports finding no valid trademark registration in their search. This is
+  not an independent clearance determination. The owner deferred applying for a
+  trademark until the project earns money; no filing or payment is authorized here.
+- The owner chose to test directly in the public channel instead of creating a private
+  test channel. An actual post still requires the owner's authorization for that post.
+- The owner created @ProcuraAliBot; the channel's administrator list showed the bot,
+  and the owner reports adjusting its permissions. Its token was disclosed in chat and
+  the owner chose not to revoke it. No token is recorded here.
+- The owner submitted the Shopee affiliate application using an existing account and
+  reports adding the Telegram channel under Other. The application is under review;
+  acceptance of the channel as media remains unconfirmed.
+- The owner reports an active OpenCode Go subscription, Extra Usage disabled and no
+  additional credits. The owner replaced the earlier percentage and daily call limits
+  with a combined USD 20 per month spending ceiling for the commerce pilot and no
+  call-count limit, restricted to the two models described as DeepSeek Flash 4.1 and
+  Muse Spark 1.3 contributor. The exact provider model identifiers remain to be
+  confirmed; enforcement remains unverified.
+- The owner requested the next-stage [business/site plan](planning/commerce-refined/PROCURALI-BUSINESS-AND-SITE.md),
+  creative/short-video instructions and a Fable identity/site prompt. Niche, cadence,
+  identity/tagline, budget-month boundary, public visitor data handling, generation route
+  and each media/publication integration still need confirmation before implementation
+  or activation. No production code or live publication is part of this document delivery.

@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "Procurali Design Tokens",
+  "version": "0.2.0-emerald-prototype",
+  "brand": {
+    "signature": "Procura Ali",
+    "wordmark": "procurali",
+    "proposedTagline": "Achados que fazem sentido.",
+    "taglineStatus": "Design proposal pending owner approval",
+    "language": "pt-BR"
+  },
+  "colors": {
+    "petrol": {
+      "value": "#0C3320",
+      "role": "Brand primary deep pine green, hero/footer surface, high-contrast headings, UI focus ring",
+      "contrastOnCanvas": "12.93:1"
+    },
+    "petrolDark": {
+      "value": "#082416",
+      "role": "Deepest pine navbar/footer base",
+      "contrastOnCanvas": "15.10:1"
+    },
+    "petrolMid": {
+      "value": "#12432A",
+      "role": "Hero gentle curve and gradient mid-stop"
+    },
+    "emerald": {
+      "value": "#144029",
+      "role": "Primary product card CTA fill, dark action buttons and offer discount badges (white text 11.7:1)",
+      "contrastWithWhite": "11.70:1"
+    },
+    "emeraldHover": {
+      "value": "#0E2F1E",
+      "role": "Hover state for forest-green card and header CTA buttons"
+    },
+    "canvas": {
+      "value": "#F6F7F4",
+      "role": "Main warm paper-ivory editorial canvas"
+    },
+    "surface": {
+      "value": "#FFFFFF",
+      "role": "Pure white product cards, hero featured card, search bar and guide cards"
+    },
+    "surfaceAlt": {
+      "value": "#EDF1EC",
+      "role": "Trust bar surface, secondary badges, disclosure panels and community strip"
+    },
+    "coral": {
+      "value": "#BA3A23",
+      "role": "Hero featured discount badge fill paired with pure white ink (5.65:1)",
+      "requiredForeground": "#FFFFFF",
+      "contrastWithRequiredForeground": "5.65:1"
+    },
+    "coralHover": {
+      "value": "#9F2E1A",
+      "role": "Hover state for terracotta-coral accent badges"
+    },
+    "coralText": {
+      "value": "#A32E1C",
+      "role": "Accessible terracotta-coral text on #F6F7F4 canvas",
+      "contrastOnCanvas": "6.59:1"
+    },
+    "lime": {
+      "value": "#A2E34A",
+      "role": "Organic leaf-lime accent for hero highlight and search CTA paired with #0C3320",
+      "requiredForeground": "#0C3320",
+      "contrastWithRequiredForeground": "9.02:1"
+    },
+    "limeHover": {
+      "value": "#B3EB62",
+      "role": "Hover state for organic lime search CTA button"
+    },
+    "mintBg": {
+      "value": "#E2F0D3",
+      "role": "Soft natural sage-mint pill background for savings/editorial badges"
+    },
+    "mintText": {
+      "value": "#1A4A2E",
+      "role": "High-contrast deep forest green text on #E2F0D3 sage pills (8.55:1)"
+    },
+    "warmPillBg": {
+      "value": "#E6EFE0",
+      "role": "Soft botanical sage badge background next to section headings"
+    },
+    "warmPillText": {
+      "value": "#244732",
+      "role": "Accessible forest green text on #E6EFE0"
+    },
+    "ink": {
+      "value": "#102419",
+      "role": "Primary body copy and headings on light surfaces",
+      "contrastOnCanvas": "15.16:1"
+    },
+    "inkOnCoral": {
+      "value": "#FFFFFF",
+      "role": "High-contrast white text on terracotta-coral #BA3A23 badges",
+      "contrastOnCoral": "5.65:1"
+    },
+    "muted": {
+      "value": "#4A5E52",
+      "role": "Secondary metadata, timestamps, captions",
+      "contrastOnCanvas": "6.48:1"
+    },
+    "border": {
+      "value": "#E0E6DF",
+      "role": "Subtle warm-sage tinted card outlines and hairline dividers"
+    },
+    "borderStrong": {
+      "value": "#8FA397",
+      "role": "Input borders and high-clarity control frames"
+    },
+    "status": {
+      "warningBg": "#FFF1DB",
+      "warningBorder": "#C97D10",
+      "warningText": "#6C4000",
+      "dangerBg": "#FDECEC",
+      "dangerBorder": "#B8352E",
+      "dangerText": "#7A1B16",
+      "neutralBg": "#E6ECE8",
+      "neutralText": "#32443B"
+    }
+  },
+  "typography": {
+    "fontFamilyDisplay": "'Fira Sans', 'Plus Jakarta Sans', 'Ubuntu Sans', system-ui, -apple-system, sans-serif",
+    "fontFamilyBody": "'Fira Sans', 'Inter', 'Open Sans', system-ui, -apple-system, sans-serif",
+    "fontFamilyMono": "'Fira Mono', 'JetBrains Mono', ui-monospace, monospace",
+    "scalePx": {
+      "xs": 13,
+      "sm": 14,
+      "base": 16,
+      "lg": 18,
+      "xl": 22,
+      "2xl": 28,
+      "3xl": 36,
+      "4xl": 48
+    },
+    "lineHeight": {
+      "tight": 1.12,
+      "snug": 1.3,
+      "normal": 1.5,
+      "relaxed": 1.62
+    }
+  },
+  "spacingPx": {
+    "1": 4,
+    "2": 8,
+    "3": 12,
+    "4": 16,
+    "5": 20,
+    "6": 24,
+    "8": 32,
+    "10": 40,
+    "12": 48,
+    "16": 64
+  },
+  "radiiPx": {
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 20,
+    "pill": 999
+  },
+  "breakpointsPx": {
+    "mobile": 360,
+    "tablet": 768,
+    "desktop": 1200
+  },
+  "accessibility": {
+    "minTouchTargetPx": 44,
+    "focusRing": "3px solid #072617",
+    "focusRingOffsetPx": 3,
+    "reducedMotion": "respect prefers-reduced-motion: reduce"
+  }
+}

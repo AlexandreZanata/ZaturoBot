@@ -50,6 +50,10 @@ stable discovery keys; [architecture.toml](../architecture.toml) is the dependen
 
 ## Registrations and extension points
 
+The [Procurali content/site proposal](planning/commerce-refined/PROCURALI-BUSINESS-AND-SITE.md)
+and its creative/Fable handoffs are planning artifacts. They introduce no runtime
+component, dependency, public recommendation service or automatic group publisher.
+
 `diagnostic` is the direct task kind. Phase 2 adds `assisted_diagnostic` with capability
 `agent.diagnostic.v1`; both use the one executable tool `diagnostic.v1`.
 `github`, `price-monitoring`, and `gmail` remain planned; the existing YoutubeBot/video

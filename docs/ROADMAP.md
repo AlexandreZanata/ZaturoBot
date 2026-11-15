@@ -167,3 +167,12 @@ source compatibility and Android display must be observed on the destination PC/
 Native Android URL selection/bot-owned page opening and SMS foreground images reuse the
 ephemeral relay. Source and offline validation are separate from the required0.8 Hub/APK
 rollout and actual device display acceptance. See [capture](REMOTE_PRIVATE_CAPTURE.md).
+
+## Procurali commerce content and website planning
+
+The owner requested a business model, creative/short-video instructions, organic discovery,
+an SEO-oriented affiliate website, a grounded product finder, an owner-group directory
+and a Fable identity/site handoff. See [the planning specification](planning/commerce-refined/PROCURALI-BUSINESS-AND-SITE.md).
+These documents are prepared; runtime integrations, media generation, recurring article/
+social publication and deployment remain unimplemented in this slice. Personal-account
+WhatsApp group automation is not activated; an official compatible route needs review.

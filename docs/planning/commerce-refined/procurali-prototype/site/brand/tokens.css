@@ -1,0 +1,132 @@
+/* Procurali Design Tokens — Emerald & Electric Lime CSS custom properties */
+@font-face {
+  font-family: "Fira Sans";
+  src: url("./fonts/FiraSans-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Fira Sans";
+  src: url("./fonts/FiraSans-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Fira Sans";
+  src: url("./fonts/FiraSans-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Fira Sans";
+  src: url("./fonts/FiraSans-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Fira Sans";
+  src: url("./fonts/FiraSans-ExtraBold.woff2") format("woff2");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Fira Mono";
+  src: url("./fonts/FiraMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* Core Refined Editorial Forest & Leaf-Lime Palette */
+  --color-petrol: #0C3320;
+  --color-petrol-dark: #082416;
+  --color-petrol-mid: #12432A;
+  --color-emerald: #144029;
+  --color-emerald-hover: #0E2F1E;
+  --color-emerald-bright: #1B5A39;
+
+  --color-lime: #A2E34A;
+  --color-lime-hover: #B3EB62;
+  --color-mint-bg: #E2F0D3;
+  --color-mint-text: #1A4A2E;
+  --color-warm-pill-bg: #E6EFE0;
+  --color-warm-pill-text: #244732;
+
+  --color-canvas: #F6F7F4;
+  --color-surface: #FFFFFF;
+  --color-surface-alt: #EDF1EC;
+
+  --color-coral: #BA3A23;
+  --color-coral-hover: #9F2E1A;
+  --color-coral-text: #A32E1C;
+
+  /* Ink and neutral tokens */
+  --color-ink: #102419;
+  --color-ink-on-petrol: #F6FAF7;
+  --color-ink-on-coral: #FFFFFF;
+  --color-ink-on-lime: #0C3320;
+  --color-ink-on-emerald: #FFFFFF;
+  --color-muted: #4A5E52;
+  --color-border: #E0E6DF;
+  --color-border-strong: #73887B;
+
+  /* Status tokens (always pair with icon + label) */
+  --color-warning-bg: #FFF1DB;
+  --color-warning-border: #C97D10;
+  --color-warning-text: #6C4000;
+  --color-danger-bg: #FDECEC;
+  --color-danger-border: #B8352E;
+  --color-danger-text: #7A1B16;
+  --color-neutral-bg: #E6ECE8;
+  --color-neutral-text: #32443B;
+
+  /* Social icon accents */
+  --color-telegram-start: #2AABEE;
+  --color-telegram-end: #1B8CD8;
+  --color-whatsapp-start: #25D366;
+  --color-whatsapp-end: #129E48;
+
+  /* Typography */
+  --font-display: 'Fira Sans', 'Ubuntu Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-body: 'Fira Sans', 'Open Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Fira Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Spacing grid (4px / 8px base) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* Radii & layout */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-pill: 999px;
+  --container-max: 1280px;
+  --shadow-subtle: 0 2px 8px rgba(7, 38, 23, 0.05), 0 8px 22px rgba(7, 38, 23, 0.04);
+  --shadow-elevated: 0 18px 42px rgba(4, 24, 14, 0.28);
+
+  /* Focus & motion */
+  --focus-ring: 3px solid #072617;
+  --focus-ring-light: 3px solid #8BEB28;
+  --focus-offset: 3px;
+  --transition-fast: 150ms ease;
+}

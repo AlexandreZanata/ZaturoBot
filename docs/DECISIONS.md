@@ -314,3 +314,15 @@ confirmation permits focused automatic opening of its opaque pending image after
 ADR-0022's generic prepared capture still requires its explicit open button. Never fetch
 images in background or change FLAG_SECURE/focus clearing. Main-PC Hub deployment and
 same-signature APK boundary remain. See the [contract](REMOTE_PRIVATE_CAPTURE.md).
+
+## Procurali content and website planning note
+
+The owner requested the next-stage creative/short-video instructions, business model,
+organic website/community strategy and a Fable prompt for Procurali. The resulting
+[planning specification](planning/commerce-refined/PROCURALI-BUSINESS-AND-SITE.md) reuses
+YoutubeBot's staged generation/evidence patterns as a reference while preserving its
+existing channels and account boundaries. This is documentation scope, not an accepted
+runtime ADR, expanded provider grant, publication policy or deployment authorization.
+Commercial urgency and comparative-price claims require supporting evidence. Personal
+WhatsApp group listing/manual sharing is distinct from official API automation eligibility.
+Current setup/budget decisions remain in [open questions](OPEN_QUESTIONS.md).

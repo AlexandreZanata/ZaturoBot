@@ -1,0 +1,10 @@
+# Procurali — Ambiente de protótipo / staging
+# Em staging de demonstração, manter indexação bloqueada.
+# Antes do lançamento em procurali.com.br, substituir por:
+# User-agent: *
+# Allow: /
+# Disallow: /cms-preview/
+# Sitemap: https://procurali.com.br/sitemap.xml
+
+User-agent: *
+Disallow: /

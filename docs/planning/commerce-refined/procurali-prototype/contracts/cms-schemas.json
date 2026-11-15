@@ -1,0 +1,352 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://procurali.com.br/contracts/cms-schemas.v0.1.json",
+  "title": "Procurali Frontend Integration Contract",
+  "description": "CMS-ready frontend integration schemas for Procurali. Defines structures for Offer, PriceObservation, Guide, Community, CreativeAsset, EvidenceSource, MediaRights, and EditorialApproval. Does not replace ZaturoBot backend persistence.",
+  "type": "object",
+  "required": [
+    "contractVersion",
+    "aiBudgetPolicy",
+    "categories",
+    "offers",
+    "guides",
+    "communities",
+    "creativeAssets",
+    "evidenceSources",
+    "mediaRights",
+    "editorialApprovals"
+  ],
+  "properties": {
+    "contractVersion": { "type": "string", "const": "0.1.0-prototype" },
+    "aiBudgetPolicy": { "$ref": "#/$defs/AiBudgetPolicy" },
+    "categories": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Category" }
+    },
+    "offers": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Offer" }
+    },
+    "guides": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Guide" }
+    },
+    "communities": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Community" }
+    },
+    "creativeAssets": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/CreativeAsset" }
+    },
+    "evidenceSources": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/EvidenceSource" }
+    },
+    "mediaRights": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/MediaRights" }
+    },
+    "editorialApprovals": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/EditorialApproval" }
+    }
+  },
+  "$defs": {
+    "AiBudgetPolicy": {
+      "type": "object",
+      "required": [
+        "monthlyCeilingUsd",
+        "extraUsageDisabled",
+        "dailyCallLimit",
+        "allowedRoutes",
+        "pauseOnUnknownTelemetry"
+      ],
+      "properties": {
+        "monthlyCeilingUsd": { "type": "number", "const": 20 },
+        "extraUsageDisabled": { "type": "boolean", "const": true },
+        "dailyCallLimit": { "type": "null" },
+        "allowedRoutes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "pauseOnUnknownTelemetry": { "type": "boolean", "const": true },
+        "budgetMonthTimezone": { "type": "string" }
+      }
+    },
+    "Category": {
+      "type": "object",
+      "required": ["slug", "name", "description", "editableByOwner"],
+      "properties": {
+        "slug": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "editableByOwner": { "type": "boolean" }
+      }
+    },
+    "PriceObservation": {
+      "type": "object",
+      "required": [
+        "id",
+        "offerId",
+        "variantId",
+        "sellerName",
+        "paymentBasis",
+        "freightNote",
+        "priceBrlCents",
+        "observedAt",
+        "evidenceId"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "offerId": { "type": "string" },
+        "variantId": { "type": "string" },
+        "sellerName": { "type": "string" },
+        "paymentBasis": { "type": "string" },
+        "freightNote": { "type": "string" },
+        "priceBrlCents": { "type": "integer", "minimum": 1 },
+        "observedAt": { "type": "string", "format": "date-time" },
+        "evidenceId": { "type": "string" }
+      }
+    },
+    "Offer": {
+      "type": "object",
+      "required": [
+        "id",
+        "slug",
+        "isDemoFixture",
+        "title",
+        "exactVariant",
+        "categorySlug",
+        "merchant",
+        "program",
+        "officialAffiliateUrl",
+        "priceBrlCents",
+        "currency",
+        "paymentConditions",
+        "freightStatus",
+        "observedAt",
+        "freshnessTtlMinutes",
+        "evidenceRefs",
+        "mediaRightsRef",
+        "state",
+        "approvalRevision",
+        "oneLineReason",
+        "forWhomItMakesSense",
+        "supportedBenefits",
+        "limitations",
+        "unknowns",
+        "priceObservations"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "slug": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "isDemoFixture": { "type": "boolean" },
+        "title": { "type": "string" },
+        "exactVariant": { "type": "string" },
+        "categorySlug": { "type": "string" },
+        "merchant": { "type": "string" },
+        "program": { "type": "string" },
+        "officialAffiliateUrl": { "type": ["string", "null"] },
+        "priceBrlCents": { "type": "integer", "minimum": 1 },
+        "currency": { "type": "string", "const": "BRL" },
+        "paymentConditions": { "type": "string" },
+        "couponCondition": { "type": ["string", "null"] },
+        "freightStatus": { "type": "string" },
+        "observedAt": { "type": "string", "format": "date-time" },
+        "validUntil": { "type": ["string", "null"] },
+        "freshnessTtlMinutes": { "type": "integer", "const": 30 },
+        "evidenceRefs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "mediaRightsRef": { "type": "string" },
+        "state": {
+          "type": "string",
+          "enum": ["draft", "review", "approved", "stale", "expired", "missing_rights", "unavailable"]
+        },
+        "approvalRevision": { "type": "string" },
+        "oneLineReason": { "type": "string" },
+        "forWhomItMakesSense": { "type": "string" },
+        "supportedBenefits": { "type": "array", "items": { "type": "string" } },
+        "limitations": { "type": "array", "items": { "type": "string" } },
+        "unknowns": { "type": "array", "items": { "type": "string" } },
+        "priceObservations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/PriceObservation" },
+          "minItems": 1
+        },
+        "alternativeOfferSlugs": { "type": "array", "items": { "type": "string" } },
+        "hasVerifiedSevenDaySample": { "type": "boolean" }
+      }
+    },
+    "Guide": {
+      "type": "object",
+      "required": [
+        "id",
+        "slug",
+        "isDemoFixture",
+        "title",
+        "metaDescription",
+        "categorySlug",
+        "summary",
+        "methodologyLabel",
+        "author",
+        "reviewer",
+        "publishedAt",
+        "updatedAt",
+        "sourceLinks",
+        "relatedOfferSlugs",
+        "state",
+        "approvalRevision"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "slug": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "isDemoFixture": { "type": "boolean" },
+        "title": { "type": "string" },
+        "metaDescription": { "type": "string" },
+        "categorySlug": { "type": "string" },
+        "summary": { "type": "string" },
+        "methodologyLabel": { "type": "string" },
+        "author": { "type": "string" },
+        "reviewer": { "type": "string" },
+        "publishedAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "updateHistory": { "type": "array", "items": { "type": "string" } },
+        "sourceLinks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["label", "url", "consultedAt"],
+            "properties": {
+              "label": { "type": "string" },
+              "url": { "type": "string" },
+              "consultedAt": { "type": "string" }
+            }
+          }
+        },
+        "relatedOfferSlugs": { "type": "array", "items": { "type": "string" } },
+        "state": { "type": "string", "enum": ["draft", "review", "approved", "expired"] },
+        "approvalRevision": { "type": "string" }
+      }
+    },
+    "Community": {
+      "type": "object",
+      "required": [
+        "id",
+        "slug",
+        "network",
+        "name",
+        "purpose",
+        "categoryTopic",
+        "intendedFrequency",
+        "rules",
+        "availabilityState",
+        "inviteUrl",
+        "privacyNotice"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "slug": { "type": "string" },
+        "network": { "type": "string", "enum": ["telegram", "whatsapp"] },
+        "name": { "type": "string" },
+        "purpose": { "type": "string" },
+        "categoryTopic": { "type": "string" },
+        "intendedFrequency": { "type": "string" },
+        "rules": { "type": "array", "items": { "type": "string" } },
+        "availabilityState": {
+          "type": "string",
+          "enum": ["active", "pending_owner_invite", "full", "revoked_rotating", "unavailable"]
+        },
+        "inviteUrl": { "type": ["string", "null"] },
+        "privacyNotice": { "type": "string" }
+      }
+    },
+    "CreativeAsset": {
+      "type": "object",
+      "required": [
+        "id",
+        "offerId",
+        "format",
+        "title",
+        "assetPath",
+        "disclosureText",
+        "mediaRightsId",
+        "approvalRevision",
+        "isIllustrativeDemo"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "offerId": { "type": "string" },
+        "format": {
+          "type": "string",
+          "enum": [
+            "feed_1080x1350",
+            "feed_1080x1080",
+            "carousel_5_slides",
+            "story_1080x1920",
+            "short_storyboard",
+            "telegram_post",
+            "whatsapp_digest"
+          ]
+        },
+        "title": { "type": "string" },
+        "assetPath": { "type": "string" },
+        "disclosureText": { "type": "string" },
+        "mediaRightsId": { "type": "string" },
+        "approvalRevision": { "type": "string" },
+        "isIllustrativeDemo": { "type": "boolean" }
+      }
+    },
+    "EvidenceSource": {
+      "type": "object",
+      "required": ["id", "sourceType", "title", "publisher", "retrievedAt", "verifiedFacts"],
+      "properties": {
+        "id": { "type": "string" },
+        "sourceType": {
+          "type": "string",
+          "enum": ["manufacturer_spec", "owner_export", "official_affiliate_api", "public_docs"]
+        },
+        "title": { "type": "string" },
+        "publisher": { "type": "string" },
+        "sourceUrl": { "type": ["string", "null"] },
+        "retrievedAt": { "type": "string" },
+        "verifiedFacts": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "MediaRights": {
+      "type": "object",
+      "required": ["id", "assetDescription", "licenseType", "rightsVerified", "ownerPermittedUse"],
+      "properties": {
+        "id": { "type": "string" },
+        "assetDescription": { "type": "string" },
+        "licenseType": { "type": "string" },
+        "rightsVerified": { "type": "boolean" },
+        "ownerPermittedUse": { "type": "string" },
+        "attributionText": { "type": "string" }
+      }
+    },
+    "EditorialApproval": {
+      "type": "object",
+      "required": ["revision", "targetType", "targetId", "status", "contentHash", "mediaHash"],
+      "properties": {
+        "revision": { "type": "string" },
+        "targetType": { "type": "string", "enum": ["offer", "guide", "creative_batch"] },
+        "targetId": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["pending_owner_review", "approved", "invalidated_stale", "rejected"]
+        },
+        "contentHash": { "type": "string" },
+        "mediaHash": { "type": "string" },
+        "approvedBy": { "type": ["string", "null"] },
+        "approvedAt": { "type": ["string", "null"] },
+        "blockers": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}
