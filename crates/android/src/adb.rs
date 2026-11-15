@@ -68,11 +68,13 @@ fn unlocked(policy: &str) -> Result<()> {
 }
 fn navigation_proof(
     start: &str,
+    resolved: &str,
     foreground: &str,
     policy: &str,
     now: i64,
 ) -> Result<MessagesNavigation> {
-    let component = start
+    let component = messaging_component(resolved).ok_or(Error::InvalidOutput)?;
+    let launched = start
         .lines()
         .find_map(|l| {
             l.trim()
@@ -80,6 +82,11 @@ fn navigation_proof(
                 .and_then(|v| messaging_component(v.trim()))
         })
         .ok_or(Error::InvalidOutput)?;
+    // A messaging launcher may report its internal trampoline after a warm start.
+    // Its package must match; both fresh focus records must match the resolved destination.
+    if launched.0 != component.0 {
+        return Err(Error::CommandFailed);
+    }
     unlocked(policy)?;
     for marker in ["mCurrentFocus=", "mFocusedApp="] {
         let lines = foreground
@@ -435,7 +442,7 @@ impl AdbClient {
         let policy=self.command(&["-s",&device.adb_serial,"shell","dumpsys","window","policy"],65536).await?;
         let finished=now.saturating_add(i64::try_from(started.elapsed().as_millis()).unwrap_or(i64::MAX));
         lease.authorize_messages(device,finished)?;
-        navigation_proof(text,std::str::from_utf8(&foreground).map_err(|_|Error::InvalidOutput)?,std::str::from_utf8(&policy).map_err(|_|Error::InvalidOutput)?,finished)
+        navigation_proof(text,&component,std::str::from_utf8(&foreground).map_err(|_|Error::InvalidOutput)?,std::str::from_utf8(&policy).map_err(|_|Error::InvalidOutput)?,finished)
             }=>result,
         }
     }
@@ -590,13 +597,25 @@ mod navigation_tests {
     fn a_successful_intent_does_not_prove_an_unlocked_visible_app() {
         let started =
             "Status: ok\nActivity: com.google.android.apps.messaging/.ui.ConversationListActivity";
+        let resolved = "com.google.android.apps.messaging/.ui.ConversationListActivity";
         let foreground = "mCurrentFocus=Window{abc u0 com.google.android.apps.messaging/com.google.android.apps.messaging.ui.ConversationListActivity}\nmFocusedApp=ActivityRecord{abc u0 com.google.android.apps.messaging/.ui.ConversationListActivity t1}";
         let unlocked =
             "KeyguardServiceDelegate\n showing=false\n inputRestricted=false\nKeyguardStateMonitor";
-        assert!(navigation_proof(started, foreground, unlocked, 1).is_ok());
+        assert!(navigation_proof(started, resolved, foreground, unlocked, 1).is_ok());
+        assert!(
+            navigation_proof(
+                &started.replace(".ui.ConversationListActivity", ".main.MainActivity"),
+                resolved,
+                foreground,
+                unlocked,
+                1
+            )
+            .is_ok()
+        );
         assert!(
             navigation_proof(
                 started,
+                resolved,
                 &foreground.replace("com.google.android.apps.messaging", "com.example.other"),
                 unlocked,
                 1
@@ -606,14 +625,38 @@ mod navigation_tests {
         assert!(
             navigation_proof(
                 started,
+                resolved,
                 foreground,
                 &unlocked.replace("showing=false", "showing=true"),
                 1
             )
             .is_err()
         );
-        assert!(navigation_proof("Status: ok", foreground, unlocked, 1).is_err());
-        assert!(navigation_proof(started, foreground, "", 1).is_err());
+        assert!(navigation_proof("Status: ok", resolved, foreground, unlocked, 1).is_err());
+        assert!(navigation_proof(started, resolved, foreground, "", 1).is_err());
+        assert!(
+            navigation_proof(
+                &started.replace(
+                    "com.google.android.apps.messaging",
+                    "com.samsung.android.messaging"
+                ),
+                resolved,
+                foreground,
+                unlocked,
+                1
+            )
+            .is_err()
+        );
+        assert!(
+            navigation_proof(
+                started,
+                "com.google.android.apps.messaging/.Other",
+                foreground,
+                unlocked,
+                1
+            )
+            .is_err()
+        );
         for invalid in [
             foreground.replace("mCurrentFocus=", "mLastFocus="),
             foreground.replace("mFocusedApp=", "mLastFocusedApp="),
@@ -624,7 +667,7 @@ mod navigation_tests {
                 1,
             ),
         ] {
-            assert!(navigation_proof(started, &invalid, unlocked, 1).is_err());
+            assert!(navigation_proof(started, resolved, &invalid, unlocked, 1).is_err());
         }
     }
 }

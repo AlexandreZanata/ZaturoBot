@@ -109,3 +109,9 @@ limit on the enrolled Samsung. Navigation verification now reads only fixed
 one focused application, both matching the launched approved component. Missing,
 conflicting or multiple-display focus is blocked. No client activity/UI dump is read.
 The fresh keyguard proof remains mandatory; output is still bounded and zeroized.
+
+Google Messages can report its internal MainActivity trampoline in a successful warm
+launch while its resolved ConversationListActivity owns both current focus records.
+The launch report must stay in the approved resolved package; both fresh focus records
+must equal the exact resolved destination. A package mismatch or different focused
+component is still blocked. This was diagnosed from metadata only on the enrolled phone.

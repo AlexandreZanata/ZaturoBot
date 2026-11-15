@@ -372,7 +372,7 @@ fn messages_fixture(delay: bool) -> String {
  print('com.google.android.apps.messaging/.ui.ConversationListActivity')
 elif args==['-s','USB_SYNTHETIC_01','shell','am','start','-W','-n','com.google.android.apps.messaging/com.google.android.apps.messaging.ui.ConversationListActivity']:
  DELAY
- print('Status: ok\nActivity: com.google.android.apps.messaging/.ui.ConversationListActivity')
+ print('Status: ok\nActivity: com.google.android.apps.messaging/.main.MainActivity')
 elif args==['-s','USB_SYNTHETIC_01','shell','dumpsys','window','displays']:
  print('mCurrentFocus=Window{abc u0 com.google.android.apps.messaging/com.google.android.apps.messaging.ui.ConversationListActivity}\nmFocusedApp=ActivityRecord{abc u0 com.google.android.apps.messaging/.ui.ConversationListActivity t1}')
 elif args==['-s','USB_SYNTHETIC_01','shell','dumpsys','window','policy']:
@@ -423,7 +423,7 @@ async fn opening_messages_is_a_fixed_serial_bound_owner_action_without_capture_o
     assert!(!calls.contains("SENDTO"));
     assert!(!calls.contains("keyevent"));
     let resolver = script.replace(
-        "print('Status: ok\\nActivity: com.google.android.apps.messaging/.ui.ConversationListActivity')",
+        "print('Status: ok\\nActivity: com.google.android.apps.messaging/.main.MainActivity')",
         "print('Status: ok\\nActivity: android/com.android.internal.app.ResolverActivity')",
     );
     let adb = AdbClient::new(&fake(temp.path(), &resolver)).unwrap();
