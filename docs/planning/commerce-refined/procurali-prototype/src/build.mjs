@@ -6,7 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { CATEGORIES, GUIDES, OFFERS, SITE_META } from "../data/demo-catalog.mjs";
+import { CATEGORIES, GUIDES, MEDIA_RIGHTS, OFFERS, SITE_META } from "../data/demo-catalog.mjs";
 import { checkForbiddenClaims } from "./validate-contracts.mjs";
 import {
   esc,
@@ -94,6 +94,7 @@ function renderShell({
     ? `<script type="application/json" id="procurali-catalog-data">${JSON.stringify({
         offers: OFFERS,
         categories: CATEGORIES,
+        mediaRights: MEDIA_RIGHTS,
       }).replace(/</g, "\\u003c")}</script>`
     : "";
 
@@ -130,10 +131,10 @@ function renderShell({
 <body class="page-${esc(activeNav || "geral")}">
   <a class="skip-link" href="#conteudo-principal">Pular para o conteúdo principal</a>
 
-  <div class="staging-bar" role="note" aria-label="Aviso de ambiente demonstrativo">
+  <div class="staging-bar" role="note" aria-label="Aviso de ambiente de testes">
     <div class="container staging-bar-inner">
-      <span class="staging-pill">Protótipo</span>
-      <span class="staging-text"><strong>Demonstração (não indexa)</strong><span class="hide-sm"> · Itens, preços e lojas são fictícios</span></span>
+      <span class="staging-pill">Protótipo · Testes</span>
+      <span class="staging-text"><strong>Ambiente de testes (não indexa)</strong><span class="hide-sm"> · 4 ofertas reais do Mercado Livre + fixtures de estado</span></span>
       <span class="staging-link">Canal oficial: <a href="${esc(SITE_META.telegramUrl)}" target="_blank" rel="noopener">${esc(SITE_META.telegramHandle)}</a></span>
     </div>
   </div>
@@ -254,7 +255,7 @@ function renderShell({
       </div>
       <div class="footer-bottom">
         <span>${esc(SITE_META.affiliateDisclosure)}</span>
-        <span>Protótipo estático sem coleta oculta nem compra real ativa.</span>
+        <span>Ambiente de testes sem coleta oculta · ofertas reais sinalizadas como link de afiliado.</span>
       </div>
     </div>
   </footer>
@@ -367,11 +368,16 @@ function main() {
 
   for (const offer of OFFERS) {
     const route = `/ofertas/${offer.slug}/`;
+    const isLiveTest = !offer.isDemoFixture && offer.state === "approved";
     publicRoutes.push(
       writePage(route, {
         activeNav: "ofertas",
-        title: `${offer.title} (${offer.state === "approved" ? "demo" : offer.state})`,
-        description: `${offer.oneLineReason} Dados demonstrativos fictícios com horário de observação e limitações.`,
+        title: isLiveTest
+          ? offer.title
+          : `${offer.title} (${offer.state === "approved" ? "demo" : offer.state})`,
+        description: isLiveTest
+          ? `${offer.oneLineReason} Registro real do Mercado Livre observado em ${offer.observedAtDisplay}.`
+          : `${offer.oneLineReason} Dados demonstrativos fictícios com horário de observação e limitações.`,
         bodyHtml: renderOfferDetailPage("../../", offer),
         jsonLd: [
           breadcrumbLd([

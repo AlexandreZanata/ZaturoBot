@@ -43,7 +43,7 @@ function collectHtmlFiles(dir) {
 
 test("1. All required static pages exist, use pt-BR, single H1, unique metadata, and valid relative links", () => {
   const htmlFiles = collectHtmlFiles(SITE_DIR);
-  assert.equal(htmlFiles.length, 29, "Expected 29 static HTML pages including 404.html");
+  assert.equal(htmlFiles.length, 34, "Expected 34 static HTML pages including 4 ML offers, 1 ML category, and 404.html");
 
   const titles = new Set();
   const descriptions = new Set();
@@ -100,13 +100,38 @@ test("2. Home copy, primary nav, affiliate disclosure, and honest disabled demo/
   const selectionPage = fs.readFileSync(path.join(SITE_DIR, "como-selecionamos", "index.html"), "utf8");
   assert.match(selectionPage, /Como o Procurali seleciona/);
 
+  assert.doesNotMatch(home, /\.local\/|GANHOS 5%/);
+
+  const mlOffers = OFFERS.filter((o) => !o.isDemoFixture);
+  assert.equal(mlOffers.length, 4, "Expected 4 real Mercado Livre affiliate test offers");
+
   for (const offer of OFFERS) {
     const detailPath = path.join(SITE_DIR, "ofertas", offer.slug, "index.html");
     const detail = fs.readFileSync(detailPath, "utf8");
     assert.match(detail, /Link de afiliado: podemos receber comissão se você comprar\./);
     assert.match(detail, /Preço e disponibilidade podem mudar\. Confirme as condições na loja\./);
-    assert.match(detail, /<button type="button" class="btn" disabled aria-disabled="true">/);
-    assert.doesNotMatch(detail, /shopee\.com\.br/);
+    assert.doesNotMatch(detail, /\.local\/|GANHOS 5%/);
+    if (offer.isDemoFixture) {
+      assert.match(detail, /<button type="button" class="btn" disabled aria-disabled="true">/);
+      assert.doesNotMatch(detail, /shopee\.com\.br/);
+    } else {
+      const escapedUrl = offer.officialAffiliateUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      assert.match(
+        detail,
+        new RegExp(`<a class="btn btn-action" href="${escapedUrl}" rel="sponsored noopener" target="_blank"`),
+        `${offer.slug}: expected exact official ML affiliate anchor`
+      );
+      assert.match(home, new RegExp(escapedUrl), `Home must include exact live URL for ${offer.slug}`);
+      assert.match(detail, /specs-grid/, `${offer.slug}: expected rendered specs matrix`);
+      assert.match(detail, /long-desc-card/, `${offer.slug}: expected full description block`);
+      assert.match(detail, new RegExp(offer.shareId), `${offer.slug}: expected shareId ${offer.shareId}`);
+      if (offer.galleryPaths?.length > 1) {
+        assert.match(detail, /data-gallery-btn/, `${offer.slug}: expected multi-photo gallery buttons`);
+      }
+      if (offer.variants?.length > 0) {
+        assert.match(detail, /variants-grid/, `${offer.slug}: expected variants comparison cards`);
+      }
+    }
   }
 
   const groups = fs.readFileSync(path.join(SITE_DIR, "grupos", "index.html"), "utf8");
@@ -162,24 +187,49 @@ test("4. No forbidden unsupported claims or false confirmations across all gener
 
 test("5. Filters, 7-day sample verification, freshness check, and deterministic AI finder states", () => {
   assert.equal(formatBrl(8990), "R$ 89,90");
-  assert.equal(verifySevenDaySample(OFFERS[0]).eligible, true);
-  assert.equal(verifySevenDaySample(OFFERS[1]).eligible, false);
+  const sevenDayDemo = OFFERS.find((o) => o.id === "offer-demo-001");
+  const singleDemo = OFFERS.find((o) => o.id === "offer-demo-002");
+  assert.ok(sevenDayDemo && singleDemo);
+  assert.equal(verifySevenDaySample(sevenDayDemo).eligible, true);
+  assert.equal(verifySevenDaySample(singleDemo).eligible, false);
 
   // Mismatched variant inside sample breaks 7-day eligibility
-  const tampered = structuredClone(OFFERS[0]);
+  const tampered = structuredClone(sevenDayDemo);
   tampered.priceObservations[3].variantId = "outra-variante";
   assert.equal(verifySevenDaySample(tampered).eligible, false);
 
   // Freshness checks against prototype reference timestamp
-  assert.equal(isOfferFresh(OFFERS[0], SITE_META.prototypeReferenceTimeUtc).fresh, true);
+  assert.equal(isOfferFresh(sevenDayDemo, SITE_META.prototypeReferenceTimeUtc).fresh, true);
+  for (const ml of OFFERS.filter((o) => !o.isDemoFixture)) {
+    assert.equal(isOfferFresh(ml, SITE_META.prototypeReferenceTimeUtc).fresh, true);
+  }
   const staleOffer = OFFERS.find((o) => o.state === "stale");
   assert.equal(isOfferFresh(staleOffer, SITE_META.prototypeReferenceTimeUtc).fresh, false);
 
   // Filters & sorting
   const activeOnly = filterAndSortOffers(OFFERS, { statusFilter: "ativas", sort: "price_asc" });
-  assert.equal(activeOnly.length, 3);
-  assert.ok(activeOnly[0].priceBrlCents <= activeOnly[1].priceBrlCents);
-  assert.ok(activeOnly[1].priceBrlCents <= activeOnly[2].priceBrlCents);
+  assert.equal(activeOnly.length, 7);
+  for (let i = 1; i < activeOnly.length; i += 1) {
+    assert.ok(activeOnly[i - 1].priceBrlCents <= activeOnly[i].priceBrlCents);
+  }
+
+  const hardwareOnly = filterAndSortOffers(OFFERS, {
+    category: "hardware-e-perifericos",
+    statusFilter: "ativas",
+  });
+  assert.equal(hardwareOnly.length, 4);
+
+  const above300 = filterAndSortOffers(OFFERS, {
+    priceBand: "acima-de-300",
+    statusFilter: "ativas",
+  });
+  assert.equal(above300.length, 2);
+
+  const redragonSearch = filterAndSortOffers(OFFERS, {
+    query: "Redragon",
+    statusFilter: "ativas",
+  });
+  assert.equal(redragonSearch.length, 2);
 
   const nonActive = filterAndSortOffers(OFFERS, { statusFilter: "nao-ativas" });
   assert.equal(nonActive.length, 3);
@@ -282,7 +332,7 @@ test("8. Brand exports (SVG + valid PNGs) and CMS schema structures", () => {
   }
   assert.equal(AI_BUDGET_POLICY.monthlyCeilingUsd, 20);
   assert.equal(AI_BUDGET_POLICY.extraUsageDisabled, true);
-  assert.equal(CATEGORIES.length, 4);
+  assert.equal(CATEGORIES.length, 5);
   assert.equal(COMMUNITIES.length, 4);
-  assert.equal(MEDIA_RIGHTS.length, 6);
+  assert.equal(MEDIA_RIGHTS.length, 10);
 });

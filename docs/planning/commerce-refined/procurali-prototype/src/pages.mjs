@@ -41,6 +41,11 @@ export function esc(value) {
 function statusBadgeHtml(offer) {
   if (offer.state === "approved") {
     const sevenDay = verifySevenDaySample(offer);
+    if (!offer.isDemoFixture) {
+      return sevenDay.eligible
+        ? `<span class="badge badge-emerald">✓ Ativa · ${esc(offer.marketplaceLabel)} · Série 7 dias</span>`
+        : `<span class="badge badge-emerald">✓ Ativa · ${esc(offer.marketplaceLabel)}</span>`;
+    }
     return sevenDay.eligible
       ? '<span class="badge badge-emerald">✓ Ativa (demo) · Série 7 dias</span>'
       : '<span class="badge badge-petrol">✓ Ativa (demo)</span>';
@@ -55,6 +60,15 @@ function statusBadgeHtml(offer) {
     return '<span class="badge badge-danger">⛔ Direitos de mídia pendentes</span>';
   }
   return '<span class="badge badge-neutral">Indisponível</span>';
+}
+
+function renderMultilineParagraphs(text) {
+  return String(text || "")
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .map((block) => `<p>${esc(block).replace(/\n/g, "<br>")}</p>`)
+    .join("");
 }
 
 function breadcrumbsHtml(root, items) {
@@ -88,14 +102,17 @@ function offerRowHtml(root, offer, { compact = false, headingTag = "h3" } = {}) 
     (offer.couponCondition
       ? `Com condição de cupom · ${offer.paymentConditions}`
       : offer.paymentConditions);
+  const ctaProps = buildOfficialAffiliateAnchorProps(offer, MEDIA_RIGHTS);
   const isActionable = offer.state === "approved";
   const destLabel =
-    offer.ctaDestLabel ||
-    (isActionable
-      ? offer.marketplaceLabel === "Mercado Livre"
-        ? "Ver oferta no Mercado Livre"
-        : "Ver oferta na Shopee"
-      : "Conferir status do item");
+    ctaProps.enabled
+      ? ctaProps.label
+      : offer.ctaDestLabel ||
+        (isActionable
+          ? offer.marketplaceLabel === "Mercado Livre"
+            ? "Ver oferta no Mercado Livre"
+            : "Ver oferta na Shopee"
+          : "Conferir status do item");
   const ctaClass = isActionable ? "btn btn-action" : "btn btn-secondary";
 
   return `
@@ -104,10 +121,21 @@ function offerRowHtml(root, offer, { compact = false, headingTag = "h3" } = {}) 
       <img src="${esc(root + offer.imagePath.replace(/^\//, ""))}" alt="${esc(offer.imageAlt)}" width="640" height="480" loading="lazy">
     </a>
     <div class="offer-body">
-      <div class="offer-meta-row">${statusBadgeHtml(offer)}<span class="offer-merchant">${esc(offer.merchant)}</span></div>
+      <div class="offer-meta-row">
+        ${statusBadgeHtml(offer)}
+        <span class="offer-merchant">${esc(offer.merchant)}</span>
+        ${offer.sponsored ? '<span class="badge badge-warning">Patrocinado no ML</span>' : ""}
+      </div>
       <${headingTag} class="offer-title"><a href="${esc(detailHref)}">${esc(offer.title)}</a></${headingTag}>
-      <p class="offer-variant">Variante: ${esc(offer.exactVariant)}</p>
+      <p class="offer-variant">
+        ${offer.brand && offer.model ? `<strong>${esc(offer.brand)} · ${esc(offer.model)}</strong> · ` : ""}Variante: ${esc(offer.exactVariant)}
+      </p>
       <p class="offer-reason">${esc(offer.oneLineReason)}</p>
+      ${
+        offer.marketplaceRating
+          ? `<p class="offer-rating-line"><strong>Anúncio ML:</strong> ${esc(offer.marketplaceRating)} ★${offer.marketplaceSalesLabel ? ` (${esc(offer.marketplaceSalesLabel)})` : ""}${offer.returnDays ? ` · Devolução grátis ${esc(offer.returnDays)}d` : ""}</p>`
+          : ""
+      }
       ${sevenDay.eligible ? `<p class="offer-flag">${icon("check")}<span>${esc(sevenDay.label)}</span></p>` : ""}
       ${
         offer.couponCode
@@ -117,20 +145,30 @@ function offerRowHtml(root, offer, { compact = false, headingTag = "h3" } = {}) 
     </div>
     <div class="offer-aside">
       <div class="offer-price-block">
-        ${refPrice ? `<span class="price-old">De ${esc(refPrice)}</span>` : ""}
+        ${
+          refPrice
+            ? `<div class="offer-ref-row"><span class="price-old">De ${esc(refPrice)}</span>${offer.discountPercentLabel ? `<span class="discount-chip">${esc(offer.discountPercentLabel)}</span>` : ""}</div>`
+            : ""
+        }
         <strong class="offer-price">${esc(price)}</strong>
-        ${savingsCents > 0 ? `<span class="savings-pill">Economia de ${esc(formatBrl(savingsCents))}</span>` : ""}
+        ${savingsCents > 0 && !offer.discountPercentLabel ? `<span class="savings-pill">Economia de ${esc(formatBrl(savingsCents))}</span>` : ""}
       </div>
-      <span class="offer-cond">${esc(conditionText)}</span>
+      <span class="offer-cond">${esc(offer.installmentSummary || conditionText)}</span>
       ${offer.validUntilDisplay ? `<span class="deadline-pill">${esc(offer.validUntilDisplay)}</span>` : ""}
       <span class="offer-obs">${icon("clock")}<span>Obs. ${esc(offer.observedAtDisplay)} · frete não incluído</span></span>
       ${
         compact
           ? ""
           : `<div class="offer-actions">
-        <a class="${ctaClass}" href="${esc(detailHref)}">${esc(destLabel)}</a>
+        ${
+          ctaProps.enabled
+            ? `<a class="${ctaClass}" href="${esc(ctaProps.href)}" rel="${esc(ctaProps.rel)}" target="${esc(ctaProps.target)}" data-analytics-event="outbound_offer_click" data-analytics-detail="${esc(offer.slug)}">${esc(destLabel)}</a>
+               <a class="btn btn-secondary" href="${esc(detailHref)}">Ficha técnica</a>`
+            : `<a class="${ctaClass}" href="${esc(detailHref)}">${esc(destLabel)}</a>`
+        }
         <button type="button" class="btn btn-secondary" data-save-offer="${esc(offer.slug)}" data-offer-title="${esc(offer.title)}" data-offer-price="${esc(price)}">Salvar</button>
-      </div>`
+      </div>
+      ${ctaProps.enabled ? '<span class="offer-affiliate-note">Link de afiliado · podemos receber comissão.</span>' : ""}`
       }
     </div>
   </article>`;
@@ -156,6 +194,11 @@ function renderVerticalOfferCard(root, card) {
     ? " v-offer-card--featured"
     : "";
   const ctaClass = card.isStale ? "btn-offer-card btn-offer-card--neutral" : "btn-offer-card";
+  const hasLiveAffiliateUrl =
+    !card.isDemoFixture &&
+    !card.isStale &&
+    typeof card.officialAffiliateUrl === "string" &&
+    card.officialAffiliateUrl.startsWith("https://");
 
   return `
   <article class="v-offer-card${cardStateClass}">
@@ -163,6 +206,7 @@ function renderVerticalOfferCard(root, card) {
       <div class="v-offer-top-badges">
         <span class="store-chip ${storeToneClass}">${icon("store", "store-icon")}<span>${esc(card.marketplaceLabel || "Shopee")}</span></span>
         <span class="v-badge ${toneClass}">${esc(card.topBadge)}</span>
+        ${card.sponsored ? '<span class="v-badge v-badge--warning">Patrocinado</span>' : ""}
       </div>
       <button
         type="button"
@@ -181,6 +225,14 @@ function renderVerticalOfferCard(root, card) {
     </a>
 
     <div class="v-offer-body">
+      ${
+        card.brandModelLine || card.ratingText
+          ? `<div class="v-brand-row">
+              ${card.brandModelLine ? `<span class="v-brand-model">${esc(card.brandModelLine)}</span>` : ""}
+              ${card.ratingText ? `<span class="v-rating-pill" title="Avaliação no anúncio do Mercado Livre">${icon("star", "v-star-icon")}<span>${esc(card.ratingText)}${card.salesLabel ? ` · ${esc(card.salesLabel)}` : ""}</span></span>` : ""}
+            </div>`
+          : ""
+      }
       <h3 class="v-offer-title"><a href="${esc(detailHref)}">${esc(card.shortTitle)}</a></h3>
       <p class="v-offer-use">${esc(card.shortUse || "")}</p>
 
@@ -189,7 +241,7 @@ function renderVerticalOfferCard(root, card) {
           <strong class="v-offer-price">${esc(price)}</strong>
           ${oldPrice ? `<span class="v-offer-old-price">De ${esc(oldPrice)}</span>` : ""}
         </div>
-        <p class="v-offer-condition">${esc(card.shortCondition || card.storeLabel)}</p>
+        <p class="v-offer-condition">${esc(card.installmentSummary || card.shortCondition || card.storeLabel)}</p>
         <div class="v-offer-signals">
           ${
             card.mintText || card.couponCode
@@ -213,10 +265,21 @@ function renderVerticalOfferCard(root, card) {
 
       <div class="v-offer-foot">
         <span class="v-offer-checked">${icon("clock")}<span>${esc(card.checkedLabel || "Conferido hoje")} · ${esc(card.storeLabel)}</span></span>
-        <a class="${ctaClass}" href="${esc(detailHref)}">
-          <span>${esc(card.ctaLabel || "Ver oferta")}</span>
-          ${card.isStale ? icon("arrowRight") : icon("external")}
-        </a>
+        ${
+          hasLiveAffiliateUrl
+            ? `<a class="${ctaClass}" href="${esc(card.officialAffiliateUrl)}" rel="sponsored noopener" target="_blank" data-analytics-event="outbound_offer_click" data-analytics-detail="${esc(card.slug)}">
+                <span>${esc(card.ctaLabel || "Ver oferta no Mercado Livre")}</span>
+                ${icon("external")}
+              </a>
+              <div class="v-card-subfoot">
+                <span class="v-affiliate-note">Link de afiliado</span>
+                <a class="v-card-secondary-link" href="${esc(detailHref)}">Ficha técnica e fotos →</a>
+              </div>`
+            : `<a class="${ctaClass}" href="${esc(detailHref)}">
+                <span>${esc(card.ctaLabel || "Ver oferta")}</span>
+                ${card.isStale ? icon("arrowRight") : icon("external")}
+              </a>`
+        }
       </div>
     </div>
   </article>`;
@@ -233,7 +296,7 @@ export function renderHomePage(root) {
       <form class="opening-search-form" action="${esc(root)}ofertas/index.html" method="get" role="search" aria-label="Buscar ofertas no catálogo">
         <label class="sr-only" for="opening-search-input">Busque por produto, categoria ou oferta</label>
         <span class="opening-search-icon" aria-hidden="true">${icon("search")}</span>
-        <input id="opening-search-input" class="opening-search-input" type="search" name="q" placeholder="Buscar suporte, hub, luminária...">
+        <input id="opening-search-input" class="opening-search-input" type="search" name="q" placeholder="Buscar SSD, teclado, headset, monitor, suporte...">
         <button type="submit" class="btn btn-lime btn-sm">Buscar</button>
       </form>
 
@@ -241,6 +304,10 @@ export function renderHomePage(root) {
         <nav class="quick-filter-bar" aria-label="Filtros essenciais da vitrine">
           <a class="filter-chip filter-chip--active" href="${esc(root)}ofertas/index.html">
             <span>Todos em destaque</span>
+          </a>
+          <a class="filter-chip" href="${esc(root)}categorias/hardware-e-perifericos/index.html">
+            ${icon("cpu")}
+            <span>Hardware &amp; PC</span>
           </a>
           <a class="filter-chip" href="${esc(root)}ofertas/index.html?condicao=com-cupom">
             ${icon("ticket")}
@@ -279,7 +346,7 @@ export function renderHomePage(root) {
           <span class="section-icon-accent" aria-hidden="true">${icon("zap")}</span>
           <h2 id="vitrine-heading">Vitrine de achados do dia</h2>
           <span class="sage-pill-badge">
-            <span>Conferidos em 15/11 · demo</span>
+            <span>4 promoções reais ML (teste) · 15/11</span>
           </span>
         </div>
         <a class="section-more-link" href="${esc(root)}ofertas/index.html">
@@ -398,9 +465,9 @@ export function renderOffersListPage(root) {
   <section class="page-head">
     <div class="container">
       ${breadcrumbsHtml(root, [{ label: "Início", href: "index.html" }, { label: "Ofertas" }])}
-      <span class="kicker">Catálogo de demonstração · Dados fictícios</span>
+      <span class="kicker">Catálogo de testes · 4 ofertas reais Mercado Livre + fixtures</span>
       <h1>Ofertas e registros observados</h1>
-      <p class="hero-lead">Filtre por categoria, faixa de preço e condições documentadas. Itens fictícios de demonstração não possuem link ativo de compra.</p>
+      <p class="hero-lead">Filtre por categoria, faixa de preço e condições documentadas. Itens reais do Mercado Livre trazem link oficial <code>meli.la</code> sinalizado; fixtures de demonstração mantêm o botão desativado.</p>
     </div>
   </section>
 
@@ -408,7 +475,7 @@ export function renderOffersListPage(root) {
     <div class="container">
       <div class="notice-box notice-box--warning notice-inline">
         ${icon("info")}
-        <p><strong>Aviso de protótipo:</strong> os seis itens são exemplos fictícios para testar estados reais do sistema (3 ativos em demonstração, 1 desatualizado &gt;30 min, 1 expirado histórico e 1 bloqueado por direitos de imagem).</p>
+        <p><strong>Composição do catálogo de testes:</strong> 4 ofertas reais de hardware/periféricos do Mercado Livre Afiliados (links oficiais <code>meli.la</code>) + 6 fixtures demonstrativos para testar estados reais do sistema (ativos demo, desatualizado &gt;30 min, expirado histórico e bloqueado por mídia).</p>
       </div>
 
       <div class="catalog-layout">
@@ -417,8 +484,8 @@ export function renderOffersListPage(root) {
             <summary class="filter-summary">${icon("search")}<span>Filtros e ordenação</span></summary>
             <div class="filter-grid">
               <div class="field field--wide">
-                <label for="f-q">Buscar por termo ou uso</label>
-                <input id="f-q" name="q" type="search" placeholder="Ex.: notebook, HDMI, mesa, luminária">
+                <label for="f-q">Buscar por produto, marca, modelo ou código</label>
+                <input id="f-q" name="q" type="search" placeholder="Ex.: Kingston, Redragon, monitor, 200Hz, notebook">
               </div>
               <div class="field">
                 <label for="f-cat">Categoria</label>
@@ -434,6 +501,7 @@ export function renderOffersListPage(root) {
                   <option value="ate-100">Até R$ 100</option>
                   <option value="100-a-150">De R$ 100 a R$ 150</option>
                   <option value="150-a-300">De R$ 150 a R$ 300</option>
+                  <option value="acima-de-300">Acima de R$ 300 (hardware)</option>
                 </select>
               </div>
               <div class="field">
@@ -456,7 +524,7 @@ export function renderOffersListPage(root) {
               <div class="field">
                 <label for="f-status">Estado do registro</label>
                 <select id="f-status" name="status">
-                  <option value="ativas">Somente ativas (demo)</option>
+                  <option value="ativas">Somente ativas (ML + demo)</option>
                   <option value="nao-ativas">Desatualizadas / expiradas / bloqueadas</option>
                   <option value="todas">Mostrar todos os estados</option>
                 </select>
@@ -498,6 +566,8 @@ export function renderOfferDetailPage(root, offer) {
     stateAlertHtml = `<div class="notice-box notice-box--warning"><strong>Oferta encerrada:</strong> este item pertence ao arquivo histórico e não deve ser tratado como preço vigente.</div>`;
   } else if (offer.state === "missing_rights") {
     stateAlertHtml = `<div class="notice-box notice-box--danger"><strong>Bloqueio por direitos de mídia:</strong> os direitos de imagem do item real ainda não foram confirmados (${esc(rights?.licenseType || "pendente")}). Nenhuma ação de compra é liberada.</div>`;
+  } else if (!offer.isDemoFixture && offer.state === "approved") {
+    stateAlertHtml = `<div class="notice-box notice-box--live"><strong>Promoção real em teste (${esc(offer.marketplaceLabel)} Afiliados · ${esc(offer.productId || offer.id)}):</strong> dados, especificações e variações capturados em ${esc(offer.observedAtDisplay)} via hub autenticado do proprietário. Preço, frete por CEP e disponibilidade devem ser confirmados na loja oficial ao clicar.</div>`;
   } else {
     stateAlertHtml = `<div class="notice-box"><strong>Item fictício de demonstração:</strong> catálogo ilustrativo sem vínculo com produto real nem link oficial ativo.</div>`;
   }
@@ -507,6 +577,13 @@ export function renderOfferDetailPage(root, offer) {
     offer.referencePriceCents && offer.referencePriceCents > offer.priceBrlCents
       ? offer.referencePriceCents - offer.priceBrlCents
       : 0;
+  const gallery = Array.isArray(offer.galleryPaths) && offer.galleryPaths.length > 0 ? offer.galleryPaths : [];
+  const specs = Array.isArray(offer.specs) ? offer.specs : [];
+  const variants = Array.isArray(offer.variants) ? offer.variants : [];
+  const availabilityPt =
+    offer.availability === "InStock"
+      ? "Em estoque no anúncio (snapshot)"
+      : offer.availability || "";
 
   return `
   <section class="section-tight">
@@ -524,7 +601,30 @@ export function renderOfferDetailPage(root, offer) {
 
       <div class="detail-layout">
         <figure class="detail-figure">
-          <img src="${esc(root + offer.imagePath.replace(/^\//, ""))}" alt="${esc(offer.imageAlt)}" width="640" height="480">
+          <div class="detail-main-photo-wrap">
+            <img id="detail-main-photo" data-gallery-main src="${esc(root + offer.imagePath.replace(/^\//, ""))}" alt="${esc(offer.imageAlt)}" width="640" height="480">
+          </div>
+          ${
+            gallery.length > 1
+              ? `<div class="detail-gallery-thumbs" role="group" aria-label="Fotos disponíveis do produto">
+                  ${gallery
+                    .map(
+                      (img, idx) => `
+                    <button
+                      type="button"
+                      class="detail-thumb-btn${idx === 0 ? " is-active" : ""}"
+                      data-gallery-btn
+                      data-gallery-src="${esc(root + img.path.replace(/^\//, ""))}"
+                      data-gallery-alt="${esc(img.alt)}"
+                      aria-label="Visualizar foto ${idx + 1} de ${gallery.length}"
+                      aria-pressed="${idx === 0 ? "true" : "false"}">
+                      <img src="${esc(root + img.path.replace(/^\//, ""))}" alt="${esc(img.alt)}" width="96" height="96" loading="lazy">
+                    </button>`
+                    )
+                    .join("")}
+                </div>`
+              : ""
+          }
           <figcaption>${esc(rights?.attributionText || "Ilustração técnica demonstrativa.")}</figcaption>
         </figure>
 
@@ -532,24 +632,46 @@ export function renderOfferDetailPage(root, offer) {
           <div class="offer-meta-row" style="margin-bottom:0.5rem;">
             ${statusBadgeHtml(offer)}
             <span>${esc(offer.merchant)}</span>
+            ${offer.cardBadge ? `<span class="badge badge-neutral">${esc(offer.cardBadge)}</span>` : ""}
+            ${offer.sponsored ? '<span class="badge badge-warning">Patrocinado no ML</span>' : ""}
           </div>
           <h1>${esc(offer.title)}</h1>
-          <p class="muted"><strong>Variante exata:</strong> ${esc(offer.exactVariant)}</p>
+          <p class="muted">
+            ${offer.brand && offer.model ? `<strong>Marca/Modelo:</strong> ${esc(offer.brand)} · ${esc(offer.model)} · ` : ""}
+            <strong>Variante exata:</strong> ${esc(offer.exactVariant)}
+          </p>
 
-          ${
-            sevenDay.eligible
-              ? `<p><span class="badge badge-emerald">✓ ${esc(sevenDay.label)}</span></p>`
-              : `<p><span class="badge badge-neutral">Observação pontual datada (sem série de 7 dias)</span></p>`
-          }
+          <div class="detail-badges-row">
+            ${
+              sevenDay.eligible
+                ? `<span class="badge badge-emerald">✓ ${esc(sevenDay.label)}</span>`
+                : `<span class="badge badge-neutral">Observação pontual datada (sem série de 7 dias)</span>`
+            }
+            ${
+              offer.marketplaceRating
+                ? `<span class="badge badge-petrol">${icon("star", "inline-star")} Avaliação ML: ${esc(offer.marketplaceRating)}${offer.marketplaceSalesLabel ? ` (${esc(offer.marketplaceSalesLabel)})` : ""}</span>`
+                : ""
+            }
+            ${availabilityPt ? `<span class="badge badge-neutral">${esc(availabilityPt)}</span>` : ""}
+          </div>
 
           <div class="affiliate-box">
             <div>
               <div class="offer-price-block">
-                ${refPrice ? `<span class="price-old">De ${esc(refPrice)}</span>` : ""}
+                ${
+                  refPrice
+                    ? `<div class="offer-ref-row"><span class="price-old">De ${esc(refPrice)}</span>${offer.discountPercentLabel ? `<span class="discount-chip">${esc(offer.discountPercentLabel)}</span>` : ""}</div>`
+                    : ""
+                }
                 <div class="offer-price">${esc(formatBrl(offer.priceBrlCents))}</div>
-                ${savingsCents > 0 ? `<span class="savings-pill">Economia confirmada de ${esc(formatBrl(savingsCents))}</span>` : ""}
+                ${savingsCents > 0 ? `<span class="savings-pill">Economia observada de ${esc(formatBrl(savingsCents))}</span>` : ""}
               </div>
-              <p style="margin-top:0.45rem;margin-bottom:0.25rem;"><strong>Condição:</strong> ${esc(offer.paymentConditions)}</p>
+              <p style="margin-top:0.55rem;margin-bottom:0.25rem;"><strong>Condição:</strong> ${esc(offer.paymentConditions)}</p>
+              ${
+                offer.returnDays
+                  ? `<p style="margin-bottom:0.25rem;"><strong>Devolução:</strong> Grátis em até ${esc(offer.returnDays)} dias informada no anúncio oficial.</p>`
+                  : ""
+              }
               ${
                 offer.validUntilDisplay
                   ? `<p class="deadline-banner">${esc(offer.validUntilDisplay)}</p>`
@@ -558,6 +680,11 @@ export function renderOfferDetailPage(root, offer) {
               ${
                 offer.couponCode
                   ? `<p style="margin-bottom:0.35rem;"><button type="button" class="coupon-pill" data-copy-code="${esc(offer.couponCode)}">Copiar código do cupom: <strong>${esc(offer.couponCode)}</strong></button></p>`
+                  : ""
+              }
+              ${
+                offer.shareId
+                  ? `<p style="margin-bottom:0.35rem;"><button type="button" class="coupon-pill" data-copy-code="${esc(offer.shareId)}">Copiar código buscador ML: <strong>${esc(offer.shareId)}</strong></button></p>`
                   : ""
               }
               ${
@@ -572,7 +699,7 @@ export function renderOfferDetailPage(root, offer) {
             <div class="btn-row">
               ${
                 ctaProps.enabled
-                  ? `<a class="btn btn-action" href="${esc(ctaProps.href)}" rel="${esc(ctaProps.rel)}" target="${esc(ctaProps.target)}" data-analytics-event="outbound_offer_click" data-analytics-detail="${esc(offer.slug)}">${esc(ctaProps.label)}</a>`
+                  ? `<a class="btn btn-action" href="${esc(ctaProps.href)}" rel="${esc(ctaProps.rel)}" target="${esc(ctaProps.target)}" data-analytics-event="outbound_offer_click" data-analytics-detail="${esc(offer.slug)}">${esc(ctaProps.label)} ${icon("external")}</a>`
                   : `<button type="button" class="btn" disabled aria-disabled="true">${esc(ctaProps.label)}</button>`
               }
               <button type="button" class="btn btn-secondary" data-save-offer="${esc(offer.slug)}" data-offer-title="${esc(offer.title)}" data-offer-price="${esc(formatBrl(offer.priceBrlCents))}">Salvar item</button>
@@ -608,6 +735,97 @@ export function renderOfferDetailPage(root, offer) {
           </ul>
         </article>
       </div>
+
+      ${
+        variants.length > 0
+          ? `<div class="section">
+              <h2>Variantes listadas no catálogo do Mercado Livre (${variants.length})</h2>
+              <p class="muted">Variações de SKU, cor, voltagem ou faixa de preço associadas ao grupo deste produto no anúncio oficial.</p>
+              <div class="variants-grid">
+                ${variants
+                  .map(
+                    (v) => `
+                  <article class="card variant-card">
+                    <div class="variant-head">
+                      <span class="badge badge-neutral mono">${esc(v.productId)} · SKU ${esc(v.sku)}</span>
+                      ${Number.isFinite(v.priceBrlCents) ? `<strong class="variant-price">${esc(formatBrl(v.priceBrlCents))}</strong>` : ""}
+                    </div>
+                    <h3>${esc(v.name)}</h3>
+                    <p class="muted" style="margin-bottom:var(--space-2);">
+                      ${v.color ? `Cor: <strong>${esc(v.color)}</strong>` : ""}${v.voltage ? `${v.color ? " · " : ""}Voltagem: <strong>${esc(v.voltage)}</strong>` : ""}${v.returnDays ? ` · Devolução ${esc(v.returnFees || "grátis")} (${esc(v.returnDays)}d)` : ""}
+                    </p>
+                    ${
+                      Array.isArray(v.highlights) && v.highlights.length > 0
+                        ? `<ul>${v.highlights.map((h) => `<li>${esc(h)}</li>`).join("")}</ul>`
+                        : ""
+                    }
+                  </article>`
+                  )
+                  .join("")}
+              </div>
+            </div>`
+          : ""
+      }
+
+      ${
+        specs.length > 0
+          ? `<div class="section">
+              <h2>Ficha técnica extraída do anúncio (${specs.length} atributos)</h2>
+              <p class="muted">Atributos estruturados coletados da tabela oficial de especificações no momento da captura.</p>
+              <div class="specs-grid">
+                ${specs
+                  .slice(0, 14)
+                  .map(
+                    (sp) => `
+                  <div class="spec-row">
+                    <span class="spec-name">${esc(sp.name)}</span>
+                    <span class="spec-val">${esc(sp.value)}</span>
+                  </div>`
+                  )
+                  .join("")}
+              </div>
+              ${
+                specs.length > 14
+                  ? `<details class="specs-more">
+                      <summary>Ver todas as ${specs.length} especificações (${specs.length - 14} restantes)</summary>
+                      <div class="specs-grid" style="margin-top:var(--space-3);">
+                        ${specs
+                          .slice(14)
+                          .map(
+                            (sp) => `
+                          <div class="spec-row">
+                            <span class="spec-name">${esc(sp.name)}</span>
+                            <span class="spec-val">${esc(sp.value)}</span>
+                          </div>`
+                          )
+                          .join("")}
+                      </div>
+                    </details>`
+                  : ""
+              }
+            </div>`
+          : ""
+      }
+
+      ${
+        offer.longDescription
+          ? `<div class="section">
+              <h2>Descrição completa reproduzida do anúncio</h2>
+              <article class="card long-desc-card">
+                ${renderMultilineParagraphs(offer.longDescription)}
+                ${
+                  offer.shareText
+                    ? `<div class="share-snippet-box">
+                        <strong>Texto de compartilhamento oficial gerado pelo hub (${esc(offer.shareId || "")}):</strong>
+                        <pre id="ml-share-text-${esc(offer.productId || offer.slug)}" class="code-block">${esc(offer.shareText)}</pre>
+                        <button type="button" class="btn btn-secondary btn-sm" data-copy-target="ml-share-text-${esc(offer.productId || offer.slug)}">Copiar mensagem oficial de divulgação</button>
+                      </div>`
+                    : ""
+                }
+              </article>
+            </div>`
+          : ""
+      }
 
       <div class="section">
         <h2>Histórico de observações de preço (${esc(offer.priceObservations.length)})</h2>
@@ -661,7 +879,11 @@ export function renderOfferDetailPage(root, offer) {
             .join("")}
           <article class="card">
             <span class="badge ${rights?.rightsVerified ? "badge-lime" : "badge-danger"}">${
-    rights?.rightsVerified ? "✓ Uso ilustrativo permitido no protótipo" : "⛔ Direitos pendentes"
+    rights?.rightsVerified
+      ? offer.isDemoFixture
+        ? "✓ Uso ilustrativo permitido no protótipo"
+        : "✓ Mídia vinculada ao programa Mercado Livre Afiliados"
+      : "⛔ Direitos pendentes"
   }</span>
             <h3>Registro de direitos (${esc(rights?.id || "-")})</h3>
             <p><strong>Descrição:</strong> ${esc(rights?.assetDescription || "-")}</p>
@@ -1161,7 +1383,7 @@ export function renderTrustPage(root, kind) {
           <li><strong>Sem custo adicional:</strong> o link de afiliado não acrescenta taxa no seu pedido.</li>
           <li><strong>Identificação próxima ao clique:</strong> exibimos “${esc(SITE_META.affiliateDisclosure)}” junto ao botão de saída e utilizamos <code>#publi</code> ou aviso equivalente em postagens sociais e vídeos.</li>
           <li><strong>Qualificação técnica dos links:</strong> âncoras de afiliado usam <code>rel="sponsored noopener"</code> e preservam integralmente a URL oficial do programa, sem encurtadores opacos nem parâmetros inventados.</li>
-          <li><strong>Estado atual do piloto:</strong> a inscrição no programa de afiliados da Shopee com o canal no Telegram está sob análise; nenhuma oferta de demonstração neste protótipo contém URL de afiliado ativa.</li>
+          <li><strong>Estado atual do piloto:</strong> a inscrição no programa de afiliados da Shopee com o canal no Telegram segue sob análise; as 4 ofertas reais de hardware do <strong>Mercado Livre Afiliados</strong> presentes neste protótipo utilizam links oficiais <code>meli.la</code> para validação de fluxo, enquanto os demais itens fictícios de demonstração mantêm o botão desativado.</li>
         </ul>
       </div>
     </section>`;
@@ -1362,6 +1584,42 @@ export function renderCmsPreviewPage(root) {
       </div>
       <h1>Fila de revisão e contratos de integração</h1>
       <p class="hero-lead">Visão ilustrativa do fluxo: fonte permitida → checagem de frescor (30 min) e direitos → aprovação exata por hash → publicação manual ou futura integração autenticada.</p>
+
+      <div class="section">
+        <h2>Lote real de testes — Mercado Livre Afiliados (metadados do operador)</h2>
+        <p class="muted">Taxas de comissão estimadas e códigos internos ficam restritos a esta prévia de contrato editorial; links públicos usam a URL exata <code>meli.la</code> com <code>rel="sponsored noopener"</code>.</p>
+        <div class="table-wrap table-stack">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">ID ML</th>
+                <th scope="col">Produto</th>
+                <th scope="col">Vendedor</th>
+                <th scope="col">Preço</th>
+                <th scope="col">Comissão hub</th>
+                <th scope="col">Share ID</th>
+                <th scope="col">Link oficial</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${OFFERS.filter((o) => !o.isDemoFixture)
+                .map(
+                  (o) => `
+                  <tr>
+                    <td class="mono" data-label="ID ML">${esc(o.productId || o.id)}</td>
+                    <td data-label="Produto">${esc(o.title)}</td>
+                    <td data-label="Vendedor">${esc(o.sellerName || o.merchant)}</td>
+                    <td data-label="Preço">${esc(formatBrl(o.priceBrlCents))}</td>
+                    <td class="mono" data-label="Comissão hub">${esc(o.commissionRate || "-")}</td>
+                    <td class="mono" data-label="Share ID">${esc(o.shareId || "-")}</td>
+                    <td class="mono" data-label="Link oficial">${esc(o.officialAffiliateUrl || "-")}</td>
+                  </tr>`
+                )
+                .join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       <div class="section">
         <h2>Registros de aprovação (EditorialApproval)</h2>

@@ -281,6 +281,11 @@ function initAnalyticsControls() {
 function offerStatusBadge(offer) {
   if (offer.state === "approved") {
     const sevenDay = verifySevenDaySample(offer);
+    if (!offer.isDemoFixture) {
+      return sevenDay.eligible
+        ? `<span class="badge badge-emerald">✓ Ativa · ${escapeHtml(offer.marketplaceLabel)} · Série 7 dias</span>`
+        : `<span class="badge badge-emerald">✓ Ativa · ${escapeHtml(offer.marketplaceLabel)}</span>`;
+    }
     if (sevenDay.eligible) {
       return '<span class="badge badge-emerald">✓ Ativa (demo) · Série 7 dias</span>';
     }
@@ -402,14 +407,17 @@ function initOffersFilter() {
           (offer.couponCondition
             ? `Com condição de cupom · ${offer.paymentConditions}`
             : offer.paymentConditions);
+        const ctaProps = buildOfficialAffiliateAnchorProps(offer, catalog.mediaRights || []);
         const isActionable = offer.state === "approved";
         const destLabel =
-          offer.ctaDestLabel ||
-          (isActionable
-            ? offer.marketplaceLabel === "Mercado Livre"
-              ? "Ver oferta no Mercado Livre"
-              : "Ver oferta na Shopee"
-            : "Conferir status do item");
+          ctaProps.enabled
+            ? ctaProps.label
+            : offer.ctaDestLabel ||
+              (isActionable
+                ? offer.marketplaceLabel === "Mercado Livre"
+                  ? "Ver oferta no Mercado Livre"
+                  : "Ver oferta na Shopee"
+                : "Conferir status do item");
         const ctaClass = isActionable ? "btn btn-action" : "btn btn-secondary";
 
         return `
@@ -418,10 +426,19 @@ function initOffersFilter() {
             <img src="${escapeHtml(imageSrc)}" alt="${escapeHtml(offer.imageAlt)}" width="640" height="480" loading="lazy">
           </a>
           <div class="offer-body">
-            <div class="offer-meta-row">${offerStatusBadge(offer)}<span class="offer-merchant">${escapeHtml(offer.merchant)}</span></div>
+            <div class="offer-meta-row">
+              ${offerStatusBadge(offer)}
+              <span class="offer-merchant">${escapeHtml(offer.merchant)}</span>
+              ${offer.sponsored ? '<span class="badge badge-warning">Patrocinado no ML</span>' : ""}
+            </div>
             <h2 class="offer-title"><a href="${escapeHtml(detailHref)}">${escapeHtml(offer.title)}</a></h2>
-            <p class="offer-variant">Variante: ${escapeHtml(offer.exactVariant)}</p>
+            <p class="offer-variant">${offer.brand && offer.model ? `<strong>${escapeHtml(offer.brand)} · ${escapeHtml(offer.model)}</strong> · ` : ""}Variante: ${escapeHtml(offer.exactVariant)}</p>
             <p class="offer-reason">${escapeHtml(offer.oneLineReason)}</p>
+            ${
+              offer.marketplaceRating
+                ? `<p class="offer-rating-line"><strong>Anúncio ML:</strong> ${escapeHtml(offer.marketplaceRating)} ★${offer.marketplaceSalesLabel ? ` (${escapeHtml(offer.marketplaceSalesLabel)})` : ""}${offer.returnDays ? ` · Devolução grátis ${escapeHtml(offer.returnDays)}d` : ""}</p>`
+                : ""
+            }
             ${
               sevenDay.eligible
                 ? `<p class="offer-flag"><svg class="icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg><span>${escapeHtml(sevenDay.label)}</span></p>`
@@ -435,17 +452,27 @@ function initOffersFilter() {
           </div>
           <div class="offer-aside">
             <div class="offer-price-block">
-              ${refPrice ? `<span class="price-old">De ${escapeHtml(refPrice)}</span>` : ""}
+              ${
+                refPrice
+                  ? `<div class="offer-ref-row"><span class="price-old">De ${escapeHtml(refPrice)}</span>${offer.discountPercentLabel ? `<span class="discount-chip">${escapeHtml(offer.discountPercentLabel)}</span>` : ""}</div>`
+                  : ""
+              }
               <strong class="offer-price">${escapeHtml(price)}</strong>
-              ${savingsCents > 0 ? `<span class="savings-pill">Economia de ${escapeHtml(formatBrl(savingsCents))}</span>` : ""}
+              ${savingsCents > 0 && !offer.discountPercentLabel ? `<span class="savings-pill">Economia de ${escapeHtml(formatBrl(savingsCents))}</span>` : ""}
             </div>
-            <span class="offer-cond">${escapeHtml(conditionText)}</span>
+            <span class="offer-cond">${escapeHtml(offer.installmentSummary || conditionText)}</span>
             ${offer.validUntilDisplay ? `<span class="deadline-pill">${escapeHtml(offer.validUntilDisplay)}</span>` : ""}
             <span class="offer-obs"><svg class="icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg><span>Obs. ${escapeHtml(offer.observedAtDisplay)} · frete não incluído</span></span>
             <div class="offer-actions">
-              <a class="${ctaClass}" href="${escapeHtml(detailHref)}">${escapeHtml(destLabel)}</a>
+              ${
+                ctaProps.enabled
+                  ? `<a class="${ctaClass}" href="${escapeHtml(ctaProps.href)}" rel="${escapeHtml(ctaProps.rel)}" target="${escapeHtml(ctaProps.target)}" data-analytics-event="outbound_offer_click" data-analytics-detail="${escapeHtml(offer.slug)}">${escapeHtml(destLabel)}</a>
+                     <a class="btn btn-secondary" href="${escapeHtml(detailHref)}">Ficha técnica</a>`
+                  : `<a class="${ctaClass}" href="${escapeHtml(detailHref)}">${escapeHtml(destLabel)}</a>`
+              }
               <button type="button" class="btn btn-secondary" data-save-offer="${escapeHtml(offer.slug)}" data-offer-title="${escapeHtml(offer.title)}" data-offer-price="${escapeHtml(price)}">Salvar</button>
             </div>
+            ${ctaProps.enabled ? '<span class="offer-affiliate-note">Link de afiliado · podemos receber comissão.</span>' : ""}
           </div>
         </article>`;
       })
@@ -626,11 +653,32 @@ function initSearchFocusShortcut() {
   });
 }
 
+function initOfferGallery() {
+  const mainPhoto = document.querySelector("[data-gallery-main]");
+  const buttons = Array.from(document.querySelectorAll("[data-gallery-btn]"));
+  if (!mainPhoto || buttons.length === 0) return;
+
+  buttons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const nextSrc = btn.getAttribute("data-gallery-src");
+      const nextAlt = btn.getAttribute("data-gallery-alt");
+      if (nextSrc) mainPhoto.setAttribute("src", nextSrc);
+      if (nextAlt) mainPhoto.setAttribute("alt", nextAlt);
+      buttons.forEach((item) => {
+        const active = item === btn;
+        item.classList.toggle("is-active", active);
+        item.setAttribute("aria-pressed", String(active));
+      });
+    });
+  });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   initMobileDrawer();
   initSavedDrawer();
   initAnalyticsControls();
   initOffersFilter();
+  initOfferGallery();
   initAiFinder();
   initCopyButtons();
   initSearchFocusShortcut();

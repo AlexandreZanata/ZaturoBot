@@ -180,7 +180,72 @@
           "minItems": 1
         },
         "alternativeOfferSlugs": { "type": "array", "items": { "type": "string" } },
-        "hasVerifiedSevenDaySample": { "type": "boolean" }
+        "hasVerifiedSevenDaySample": { "type": "boolean" },
+        "productId": { "type": ["string", "null"] },
+        "brand": { "type": ["string", "null"] },
+        "model": { "type": ["string", "null"] },
+        "canonicalUrl": { "type": ["string", "null"] },
+        "shareId": { "type": ["string", "null"] },
+        "shareText": { "type": ["string", "null"] },
+        "sponsored": { "type": "boolean" },
+        "sellerName": { "type": ["string", "null"] },
+        "marketplaceRating": { "type": ["string", "null"] },
+        "marketplaceSalesLabel": { "type": ["string", "null"] },
+        "installmentSummary": { "type": ["string", "null"] },
+        "discountPercentLabel": { "type": ["string", "null"] },
+        "referencePriceCents": { "type": ["integer", "null"], "minimum": 1 },
+        "pixPriceCents": { "type": ["integer", "null"], "minimum": 1 },
+        "returnDays": { "type": ["integer", "null"], "minimum": 0 },
+        "availability": { "type": ["string", "null"] },
+        "priceValidUntil": { "type": ["string", "null"] },
+        "commissionRate": {
+          "type": ["string", "null"],
+          "description": "Internal operator commission rate metadata from affiliate hub; render only in internal CMS preview."
+        },
+        "cardBadge": { "type": ["string", "null"] },
+        "galleryPaths": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "alt"],
+            "properties": {
+              "path": { "type": "string" },
+              "alt": { "type": "string" }
+            }
+          }
+        },
+        "specs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "value"],
+            "properties": {
+              "name": { "type": "string" },
+              "value": { "type": "string" }
+            }
+          }
+        },
+        "variants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["productId", "sku", "name"],
+            "properties": {
+              "productId": { "type": "string" },
+              "sku": { "type": "string" },
+              "name": { "type": "string" },
+              "color": { "type": ["string", "null"] },
+              "voltage": { "type": ["string", "null"] },
+              "priceBrlCents": { "type": ["integer", "null"] },
+              "availability": { "type": ["string", "null"] },
+              "returnDays": { "type": ["integer", "null"] },
+              "returnFees": { "type": ["string", "null"] },
+              "canonicalUrl": { "type": ["string", "null"] },
+              "highlights": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "longDescription": { "type": ["string", "null"] }
       }
     },
     "Guide": {

@@ -25,10 +25,10 @@
 <body class="page-geral">
   <a class="skip-link" href="#conteudo-principal">Pular para o conteúdo principal</a>
 
-  <div class="staging-bar" role="note" aria-label="Aviso de ambiente demonstrativo">
+  <div class="staging-bar" role="note" aria-label="Aviso de ambiente de testes">
     <div class="container staging-bar-inner">
-      <span class="staging-pill">Protótipo</span>
-      <span class="staging-text"><strong>Demonstração (não indexa)</strong><span class="hide-sm"> · Itens, preços e lojas são fictícios</span></span>
+      <span class="staging-pill">Protótipo · Testes</span>
+      <span class="staging-text"><strong>Ambiente de testes (não indexa)</strong><span class="hide-sm"> · 4 ofertas reais do Mercado Livre + fixtures de estado</span></span>
       <span class="staging-link">Canal oficial: <a href="https://t.me/procurali" target="_blank" rel="noopener">@procurali</a></span>
     </div>
   </div>
@@ -113,6 +113,65 @@
       <p class="hero-lead">Visão ilustrativa do fluxo: fonte permitida → checagem de frescor (30 min) e direitos → aprovação exata por hash → publicação manual ou futura integração autenticada.</p>
 
       <div class="section">
+        <h2>Lote real de testes — Mercado Livre Afiliados (metadados do operador)</h2>
+        <p class="muted">Taxas de comissão estimadas e códigos internos ficam restritos a esta prévia de contrato editorial; links públicos usam a URL exata <code>meli.la</code> com <code>rel="sponsored noopener"</code>.</p>
+        <div class="table-wrap table-stack">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">ID ML</th>
+                <th scope="col">Produto</th>
+                <th scope="col">Vendedor</th>
+                <th scope="col">Preço</th>
+                <th scope="col">Comissão hub</th>
+                <th scope="col">Share ID</th>
+                <th scope="col">Link oficial</th>
+              </tr>
+            </thead>
+            <tbody>
+              
+                  <tr>
+                    <td class="mono" data-label="ID ML">MLB39410080</td>
+                    <td data-label="Produto">SSD Kingston NV3 500GB M.2 2280 NVMe PCIe 4.0</td>
+                    <td data-label="Vendedor">Loja oficial FAMILAR</td>
+                    <td data-label="Preço">R$ 699,90</td>
+                    <td class="mono" data-label="Comissão hub">5%</td>
+                    <td class="mono" data-label="Share ID">1PBCGF-SMN5</td>
+                    <td class="mono" data-label="Link oficial">https://meli.la/1iWQZbJ</td>
+                  </tr>
+                  <tr>
+                    <td class="mono" data-label="ID ML">MLB53222888</td>
+                    <td data-label="Produto">Teclado Mecânico Gamer Kumara Elite Preto K552-KRS Redragon</td>
+                    <td data-label="Vendedor">Loja oficial Redragon</td>
+                    <td data-label="Preço">R$ 179,91</td>
+                    <td class="mono" data-label="Comissão hub">5%</td>
+                    <td class="mono" data-label="Share ID">1PBCGF-HX57</td>
+                    <td class="mono" data-label="Link oficial">https://meli.la/1BGqVFB</td>
+                  </tr>
+                  <tr>
+                    <td class="mono" data-label="ID ML">MLB48468943</td>
+                    <td data-label="Produto">Headset Gamer Redragon Zeus Lite Drivers 53mm Preto H510-LT</td>
+                    <td data-label="Vendedor">Loja oficial Redragon</td>
+                    <td data-label="Preço">R$ 130,41</td>
+                    <td class="mono" data-label="Comissão hub">5%</td>
+                    <td class="mono" data-label="Share ID">1PBCGF-3NTS</td>
+                    <td class="mono" data-label="Link oficial">https://meli.la/2vKMQ1E</td>
+                  </tr>
+                  <tr>
+                    <td class="mono" data-label="ID ML">MLB79071532</td>
+                    <td data-label="Produto">Monitor Gamer LG UltraGear 27&quot; IPS 200Hz 1ms Full HD 27G523B-B</td>
+                    <td data-label="Vendedor">Loja oficial Mercado Livre</td>
+                    <td data-label="Preço">R$ 799,00</td>
+                    <td class="mono" data-label="Comissão hub">5%</td>
+                    <td class="mono" data-label="Share ID">1PBCGF-82N5</td>
+                    <td class="mono" data-label="Link oficial">https://meli.la/1ypAXzr</td>
+                  </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="section">
         <h2>Registros de aprovação (EditorialApproval)</h2>
         <div class="table-wrap">
           <table>
@@ -126,6 +185,12 @@
             </thead>
             <tbody>
               
+                <tr>
+                  <td class="mono">rev-ml-test-20261115-01..04</td>
+                  <td class="mono">offer_batch · MLB39410080, MLB53222888, MLB48468943, MLB79071532</td>
+                  <td><strong>owner_test_published</strong></td>
+                  <td><div>• Ambiente de teste local (staging noindex): preços refletem a captura de 15/11/2026 às 14:28–14:30 e dependem de confirmação na loja.</div><div>• Série de 7 dias ainda ausente nas 4 ofertas (badge semanal bloqueada pela regra de integridade).</div></td>
+                </tr>
                 <tr>
                   <td class="mono">rev-demo-20261115-01</td>
                   <td class="mono">offer · offer-demo-001</td>
@@ -221,7 +286,7 @@
       </div>
       <div class="footer-bottom">
         <span>Link de afiliado: podemos receber comissão se você comprar.</span>
-        <span>Protótipo estático sem coleta oculta nem compra real ativa.</span>
+        <span>Ambiente de testes sem coleta oculta · ofertas reais sinalizadas como link de afiliado.</span>
       </div>
     </div>
   </footer>

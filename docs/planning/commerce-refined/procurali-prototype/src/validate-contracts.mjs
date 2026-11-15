@@ -211,6 +211,7 @@ export function filterAndSortOffers(
     if (priceBand === "ate-100" && reais > 100) return false;
     if (priceBand === "100-a-150" && (reais < 100 || reais > 150)) return false;
     if (priceBand === "150-a-300" && (reais < 150 || reais > 300)) return false;
+    if (priceBand === "acima-de-300" && reais <= 300) return false;
 
     if (condition === "com-cupom" && !offer.couponCondition) return false;
     if (condition === "amostra-7-dias" && !verifySevenDaySample(offer).eligible) return false;
@@ -222,6 +223,11 @@ export function filterAndSortOffers(
         offer.exactVariant,
         offer.oneLineReason,
         offer.forWhomItMakesSense,
+        offer.brand || "",
+        offer.model || "",
+        offer.productId || "",
+        offer.sellerName || "",
+        offer.merchant || "",
         ...(offer.tags || []),
       ]
         .join(" ")
@@ -237,10 +243,12 @@ export function filterAndSortOffers(
   } else if (sort === "recent") {
     sorted.sort((a, b) => Date.parse(b.observedAt) - Date.parse(a.observedAt));
   } else {
-    // Editorial relevance: approved first, then 7-day sample, then observedAt desc
+    // Editorial relevance: approved first, real affiliate offers before demo fixtures, then observedAt desc
     sorted.sort((a, b) => {
       if (a.state === "approved" && b.state !== "approved") return -1;
       if (a.state !== "approved" && b.state === "approved") return 1;
+      if (!a.isDemoFixture && b.isDemoFixture) return -1;
+      if (a.isDemoFixture && !b.isDemoFixture) return 1;
       return Date.parse(b.observedAt) - Date.parse(a.observedAt);
     });
   }

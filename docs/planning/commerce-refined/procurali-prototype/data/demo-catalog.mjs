@@ -1,15 +1,24 @@
 /**
- * Procurali — Fictional Demo Fixtures & Contract Data (v0.1.0-prototype)
+ * Procurali — Catalog Data & Contract Fixtures (v0.2.0-prototype)
  *
  * IMPORTANT:
- * - Every product, price, seller label, observation, and creative fixture here
- *   is FICTIONAL DEMONSTRATION DATA (`isDemoFixture: true`).
- * - Official Shopee affiliate URLs are intentionally `null` because the affiliate
- *   application is under review and demo offers must never lead to real purchases.
- * - WhatsApp group invite URLs are intentionally `null` until supplied by the owner.
- * - The ONLY real external community URL is the confirmed Telegram channel:
- *   https://t.me/procurali
+ * - Demo fixtures carry `isDemoFixture: true` with `officialAffiliateUrl: null`
+ *   to validate stale/expired/missing-rights guardrails without real purchases.
+ * - Four real Mercado Livre affiliate hardware/peripheral test promotions
+ *   (`isDemoFixture: false`, imported from `./mercadolivre-hardware-offers.mjs`)
+ *   supply live test links (`https://meli.la/...`), specs, variants, and photos.
+ * - WhatsApp group invite URLs remain `null` until supplied by the owner.
+ * - Real external community URL: https://t.me/procurali
  */
+
+import {
+  ML_CATEGORY,
+  ML_DAILY_SHOWCASE_CARDS,
+  ML_EDITORIAL_APPROVALS,
+  ML_EVIDENCE_SOURCES,
+  ML_MEDIA_RIGHTS,
+  ML_OFFERS,
+} from "./mercadolivre-hardware-offers.mjs";
 
 export const SITE_META = {
   brandSignature: "Procura Ali",
@@ -21,8 +30,8 @@ export const SITE_META = {
   telegramUrl: "https://t.me/procurali",
   telegramHandle: "@procurali",
   botIdentity: "@ProcuraAliBot",
-  prototypeReferenceTimeUtc: "2026-11-15T18:25:00Z",
-  prototypeReferenceTimeLabelBrt: "15/11/2026 às 14:25 (horário de Cuiabá/AMT)",
+  prototypeReferenceTimeUtc: "2026-11-15T18:32:00Z",
+  prototypeReferenceTimeLabelBrt: "15/11/2026 às 14:32 (horário de Cuiabá/AMT)",
   affiliateDisclosure: "Link de afiliado: podemos receber comissão se você comprar.",
   priceChangeNotice:
     "Preço e disponibilidade podem mudar. Confirme as condições na loja.",
@@ -42,6 +51,7 @@ export const AI_BUDGET_POLICY = {
 };
 
 export const CATEGORIES = [
+  ML_CATEGORY,
   {
     slug: "ergonomia-e-suportes",
     name: "Ergonomia e suportes",
@@ -77,6 +87,7 @@ export const CATEGORIES = [
 ];
 
 export const EVIDENCE_SOURCES = [
+  ...ML_EVIDENCE_SOURCES,
   {
     id: "ev-demo-stand-spec",
     sourceType: "manufacturer_spec",
@@ -203,9 +214,11 @@ export const MEDIA_RIGHTS = [
     ownerPermittedUse: "Bloqueado até confirmação formal de licença ou autorização do programa.",
     attributionText: "Direitos de imagem pendentes — publicação comercial bloqueada.",
   },
+  ...ML_MEDIA_RIGHTS,
 ];
 
 export const OFFERS = [
+  ...ML_OFFERS,
   {
     id: "offer-demo-001",
     slug: "suporte-articulado-notebook-aluminio-v2",
@@ -1148,6 +1161,7 @@ export const SHORT_VIDEO_STORYBOARD = [
 ];
 
 export const EDITORIAL_APPROVALS = [
+  ...ML_EDITORIAL_APPROVALS,
   {
     revision: "rev-demo-20261115-01",
     targetType: "offer",
@@ -1200,92 +1214,8 @@ export const HOME_SHOWCASE_META = {
     imagePath: "/brand/templates/featured-stand-photo.jpg",
     ctaLabel: "Ver oferta na Shopee",
   },
-  dailySlugs: [
-    "suporte-articulado-notebook-aluminio-v2",
-    "hub-usb-c-7-em-1-pd-100w-cinza",
-    "luminaria-barra-monitor-assimetrica-40cm",
-    "filtro-de-linha-dps-6-tomadas-cabo-2m",
-  ],
-  dailyCards: [
-    {
-      slug: "suporte-articulado-notebook-aluminio-v2",
-      topBadge: "Menor preço 7d",
-      badgeTone: "emerald",
-      marketplaceLabel: "Shopee",
-      storeLabel: "Loja Oficial Exemplo",
-      shortTitle: "Suporte Articulado de Alumínio para Notebook",
-      shortUse: "Alumínio em 2 eixos · eleva a tela na mesa fixa.",
-      oldPriceCents: 10490,
-      priceCents: 8990,
-      shortCondition: "Pix ou 2× s/ juros · frete grátis ≥ R$ 29",
-      mintText: "−14% · Economia de R$ 15,00 (7d)",
-      deadlineText: null,
-      couponCode: null,
-      checkedLabel: "15/11 às 14h15",
-      ctaLabel: "Ver oferta na Shopee",
-      isFeaturedCard: true,
-      imagePath: "/brand/templates/card-stand-photo.jpg",
-      imageAlt: "Suporte articulado de alumínio para notebook sobre mesa de madeira clara",
-    },
-    {
-      slug: "hub-usb-c-7-em-1-pd-100w-cinza",
-      topBadge: "Seleção",
-      badgeTone: "neutral",
-      marketplaceLabel: "Mercado Livre",
-      storeLabel: "Distribuidor Tech Exemplo",
-      shortTitle: "Hub USB-C 7 em 1 HDMI 4K + PD 100W",
-      shortUse: "Liga monitor, energia e USB-A em uma porta.",
-      oldPriceCents: null,
-      priceCents: 13990,
-      shortCondition: "À vista no Pix/boleto · frete grátis ≥ R$ 79",
-      mintText: "Corpo em alumínio · 7 portas úteis",
-      deadlineText: null,
-      couponCode: null,
-      checkedLabel: "15/11 às 14h20",
-      ctaLabel: "Ver oferta no Mercado Livre",
-      imagePath: "/brand/templates/card-hub-photo.jpg",
-      imageAlt: "Hub USB-C 7 em 1 em alumínio cinza espacial em fundo branco",
-    },
-    {
-      slug: "luminaria-barra-monitor-assimetrica-40cm",
-      topBadge: "Cupom −R$ 15",
-      badgeTone: "emerald",
-      marketplaceLabel: "Shopee",
-      storeLabel: "Casa & Mesa Exemplo",
-      shortTitle: "Luminária Barra para Monitor 40 cm Assimétrica",
-      shortUse: "Ilumina o teclado à noite sem reflexo na tela.",
-      oldPriceCents: 18400,
-      priceCents: 16900,
-      shortCondition: "Com cupom em pedidos ≥ R$ 150",
-      mintText: "Economize R$ 15,00",
-      deadlineText: "Cupom válido até 23h59 · 15/11",
-      couponCode: "LUZ15",
-      checkedLabel: "15/11 às 14h12",
-      ctaLabel: "Ver oferta na Shopee",
-      imagePath: "/brand/templates/card-lamp-photo.jpg",
-      imageAlt: "Barra de iluminação LED instalada no topo de monitor sobre mesa de trabalho",
-    },
-    {
-      slug: "filtro-de-linha-dps-6-tomadas-cabo-2m",
-      topBadge: "Em atualização",
-      badgeTone: "warning",
-      marketplaceLabel: "Mercado Livre",
-      storeLabel: "Elétrica Segura Exemplo",
-      shortTitle: "Filtro de Linha DPS 6 Tomadas Cabo 2 m",
-      shortUse: "Proteção contra surtos e disjuntor rearmável.",
-      oldPriceCents: null,
-      priceCents: 6490,
-      shortCondition: "Pix/boleto · aguarda checagem (>30 min)",
-      mintText: null,
-      deadlineText: "Checado às 12h10 · fora dos 30 min",
-      couponCode: null,
-      checkedLabel: "15/11 às 12h10",
-      ctaLabel: "Conferir status do item",
-      isStale: true,
-      imagePath: "/brand/templates/card-dps-photo.jpg",
-      imageAlt: "Filtro de linha preto com seis tomadas e chave disjuntora",
-    },
-  ],
+  dailySlugs: ML_OFFERS.map((offer) => offer.slug),
+  dailyCards: ML_DAILY_SHOWCASE_CARDS,
   cardMetaBySlug: {
     "suporte-articulado-notebook-aluminio-v2": {
       topBadge: "Menor preço 7d · −14%",

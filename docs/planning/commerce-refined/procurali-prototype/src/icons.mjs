@@ -41,10 +41,14 @@ const PATHS = {
   plug: '<path d="M9 4v4M15 4v4M7 8h10v3.5a5 5 0 0 1-10 0Z"/><path d="M12 16.5V20"/>',
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
   store: '<path d="M4 9.5 5.5 4.5h13L20 9.5"/><path d="M3.5 9.5a2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0"/><path d="M5.5 11.8V19.5h13v-7.7"/><path d="M10 19.5V15h4v4.5"/>',
+  star: '<path d="m12 3.5 2.6 5.3 5.9.8-4.3 4.1 1 5.8L12 16.7l-5.2 2.8 1-5.8-4.3-4.1 5.9-.8Z"/>',
+  cpu: '<rect x="7" y="7" width="10" height="10" rx="1.5"/><rect x="10" y="10" width="4" height="4"/><path d="M9 4v3M12 4v3M15 4v3M9 17v3M12 17v3M15 17v3M4 9h3M4 12h3M4 15h3M17 9h3M17 12h3M17 15h3"/>',
+  layers: '<path d="m12 3 8.5 4.5L12 12 3.5 7.5Z"/><path d="m3.5 12 8.5 4.5 8.5-4.5"/><path d="m3.5 16.5 8.5 4.5 8.5-4.5"/>',
   whatsapp: '<path d="M12 20a8 8 0 1 0-6.8-3.8L4 20l4-.9A8 8 0 0 0 12 20Z"/><path d="M9.4 9.2c.2-.4.4-.4.6-.4h.5c.2 0 .4.1.5.4l.6 1.4c.1.2 0 .4-.1.6l-.4.4c.5 1 1.3 1.7 2.2 2.2l.4-.4c.2-.1.4-.2.6-.1l1.4.6c.3.1.4.3.4.5v.5c0 .3-.2.7-.6.9-.6.3-1.6.3-2.9-.3-1.4-.6-2.7-1.9-3.3-3.3-.6-1.3-.6-2.3-.3-2.9Z"/>',
 };
 
 export const CATEGORY_ICONS = {
+  "hardware-e-perifericos": "cpu",
   "ergonomia-e-suportes": "laptop",
   "energia-e-cabos": "plug",
   "iluminacao-de-bancada": "lamp",

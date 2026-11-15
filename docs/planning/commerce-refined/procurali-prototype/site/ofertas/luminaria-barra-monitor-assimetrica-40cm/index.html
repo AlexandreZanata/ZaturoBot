@@ -50,10 +50,10 @@
 <body class="page-ofertas">
   <a class="skip-link" href="#conteudo-principal">Pular para o conteúdo principal</a>
 
-  <div class="staging-bar" role="note" aria-label="Aviso de ambiente demonstrativo">
+  <div class="staging-bar" role="note" aria-label="Aviso de ambiente de testes">
     <div class="container staging-bar-inner">
-      <span class="staging-pill">Protótipo</span>
-      <span class="staging-text"><strong>Demonstração (não indexa)</strong><span class="hide-sm"> · Itens, preços e lojas são fictícios</span></span>
+      <span class="staging-pill">Protótipo · Testes</span>
+      <span class="staging-text"><strong>Ambiente de testes (não indexa)</strong><span class="hide-sm"> · 4 ofertas reais do Mercado Livre + fixtures de estado</span></span>
       <span class="staging-link">Canal oficial: <a href="https://t.me/procurali" target="_blank" rel="noopener">@procurali</a></span>
     </div>
   </div>
@@ -136,7 +136,10 @@
 
       <div class="detail-layout">
         <figure class="detail-figure">
-          <img src="../../brand/templates/product-illustration-lamp.svg" alt="Ilustração técnica demonstrativa de barra de luz posicionada sobre o topo do monitor projetando feixe direcionado para a mesa." width="640" height="480">
+          <div class="detail-main-photo-wrap">
+            <img id="detail-main-photo" data-gallery-main src="../../brand/templates/product-illustration-lamp.svg" alt="Ilustração técnica demonstrativa de barra de luz posicionada sobre o topo do monitor projetando feixe direcionado para a mesa." width="640" height="480">
+          </div>
+          
           <figcaption>Ilustração técnica demonstrativa — não representa foto real do lote.</figcaption>
         </figure>
 
@@ -144,22 +147,33 @@
           <div class="offer-meta-row" style="margin-bottom:0.5rem;">
             <span class="badge badge-petrol">✓ Ativa (demo)</span>
             <span>Shopee · Casa &amp; Mesa Exemplo (Demonstração)</span>
+            
+            
           </div>
           <h1>Luminária Barra de Monitor com Ótica Assimétrica 40 cm</h1>
-          <p class="muted"><strong>Variante exata:</strong> Modelo 40 cm · USB 5V · Controle por toque (3 temperaturas de cor)</p>
+          <p class="muted">
+            
+            <strong>Variante exata:</strong> Modelo 40 cm · USB 5V · Controle por toque (3 temperaturas de cor)
+          </p>
 
-          <p><span class="badge badge-neutral">Observação pontual datada (sem série de 7 dias)</span></p>
+          <div class="detail-badges-row">
+            <span class="badge badge-neutral">Observação pontual datada (sem série de 7 dias)</span>
+            
+            
+          </div>
 
           <div class="affiliate-box">
             <div>
               <div class="offer-price-block">
-                <span class="price-old">De R$ 184,00</span>
+                <div class="offer-ref-row"><span class="price-old">De R$ 184,00</span></div>
                 <div class="offer-price">R$ 169,00</div>
-                <span class="savings-pill">Economia confirmada de R$ 15,00</span>
+                <span class="savings-pill">Economia observada de R$ 15,00</span>
               </div>
-              <p style="margin-top:0.45rem;margin-bottom:0.25rem;"><strong>Condição:</strong> Valor com cupom demonstrativo da loja para pedidos acima de R$ 150</p>
+              <p style="margin-top:0.55rem;margin-bottom:0.25rem;"><strong>Condição:</strong> Valor com cupom demonstrativo da loja para pedidos acima de R$ 150</p>
+              
               <p class="deadline-banner">Cupom válido até 23h59 de 15/11 · horário de Brasília</p>
               <p style="margin-bottom:0.35rem;"><button type="button" class="coupon-pill" data-copy-code="LUZ15">Copiar código do cupom: <strong>LUZ15</strong></button></p>
+              
               <p style="margin-bottom:0.25rem;"><strong>Regra do cupom:</strong> Cupom exemplo da loja (R$ 15 de abatimento) sujeito a elegibilidade da conta, estoque de cupons e regras da Shopee.</p>
               <p class="muted" style="margin-bottom:0.25rem;"><strong>Frete:</strong> Frete e eventual cupom de frete variam por conta e região.</p>
               <p class="muted" style="margin-bottom:0;"><strong>Observado em:</strong> 15/11/2026 às 14:12 (horário de Cuiabá) · <strong>Fonte:</strong> Shopee Afiliados (inscrição em análise)</p>
@@ -200,6 +214,12 @@
           </ul>
         </article>
       </div>
+
+      
+
+      
+
+      
 
       <div class="section">
         <h2>Histórico de observações de preço (1)</h2>
@@ -325,7 +345,7 @@
       </div>
       <div class="footer-bottom">
         <span>Link de afiliado: podemos receber comissão se você comprar.</span>
-        <span>Protótipo estático sem coleta oculta nem compra real ativa.</span>
+        <span>Ambiente de testes sem coleta oculta · ofertas reais sinalizadas como link de afiliado.</span>
       </div>
     </div>
   </footer>

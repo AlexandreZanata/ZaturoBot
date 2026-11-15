@@ -4,11 +4,11 @@ Responsive Brazilian Portuguese (`pt-BR`) editorial commerce prototype prepared 
 
 ## Directory Layout
 
-- `brand/` — [design-tokens.json](brand/design-tokens.json), [tokens.css](brand/tokens.css), editable brand SVGs, Inkscape PNG exports in `brand/png/`, and deterministic creative templates in `brand/templates/`.
+- `brand/` — [design-tokens.json](brand/design-tokens.json), [tokens.css](brand/tokens.css), editable brand SVGs, Inkscape PNG exports in `brand/png/`, curated Mercado Livre test product photos in `brand/mercadolivre/`, and deterministic creative templates in `brand/templates/`.
 - `contracts/` — [cms-schemas.json](contracts/cms-schemas.json) defining `Offer`, `PriceObservation`, `Guide`, `Community`, `CreativeAsset`, `EvidenceSource`, `MediaRights`, and `EditorialApproval`.
-- `data/` — [demo-catalog.mjs](data/demo-catalog.mjs) with clearly marked fictional demo fixtures.
+- `data/` — [demo-catalog.mjs](data/demo-catalog.mjs) with fictional state-demo fixtures merged with [mercadolivre-hardware-offers.mjs](data/mercadolivre-hardware-offers.mjs) containing 4 real Mercado Livre affiliate hardware/peripheral test promotions.
 - `src/` — [validate-contracts.mjs](src/validate-contracts.mjs), [pages.mjs](src/pages.mjs), [build.mjs](src/build.mjs), [serve.mjs](src/serve.mjs), stylesheet and progressive client script.
-- `site/` — generated static prototype output (`29` HTML pages, CSS/JS bundle, brand assets, `sitemap.xml`, `robots.txt`).
+- `site/` — generated static prototype output (`34` HTML pages, CSS/JS bundle, brand assets, `sitemap.xml`, `robots.txt`).
 - Key documents: [BRAND-GUIDE.md](BRAND-GUIDE.md), [INTEGRATION-CONTRACT.md](INTEGRATION-CONTRACT.md), and [HANDOFF.md](HANDOFF.md).
 
 ## Local Commands (Zero-Dependency Node.js)
