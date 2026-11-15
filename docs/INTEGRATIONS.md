@@ -69,3 +69,8 @@ offers; live price-monitoring remains planned. The social Postiz connector suppo
 reviewed initial drafts/post/schedule/status operations, not universal network comments
 or account login. See [computer use](COMPUTER_USE.md), [social](SOCIAL_MANAGEMENT.md),
 and ADR-0020.
+
+
+`installed-opencode` is the separate installed-program execution adapter for validated
+generation and intent orders. It reuses YoutubeBot rather than replacing media/account
+behavior. See [execution, billing and physical acceptance](OPENCODE_EXECUTION.md).

@@ -30,6 +30,9 @@ stable discovery keys; [architecture.toml](../architecture.toml) is the dependen
   bounded local subprocesses, local grants, exact plan digests, observed price formatting
   and separate zeroizing desktop PNG transport. `deploy/computer` owns reviewed upstream
   stdio/API transport, external read-only BitLupa compatibility and private setup.
+- `zaturo-opencode` — `crates/opencode`: hash-pinned installed-program execution, a
+  one-attempt budgeted Personal Go gateway, exact job MCP broker and private process,
+  cancellation and media receipts. See [execution contract](OPENCODE_EXECUTION.md).
 - `zaturo-youtube` — `crates/youtube`: fixed JSON CLI adapter to the existing Python
   YoutubeBot, explicit scheduling grants, result curation and uncertain-job reconciliation.
 - `zaturo-desktop` — `apps/zaturo-desktop`: Linux Rust/Slint owner hub, daily activity,

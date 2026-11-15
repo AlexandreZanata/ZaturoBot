@@ -1,0 +1,6 @@
+# Trusted installed executable, independent job state and existing aggregate Personal budget.
+# No API key is stored here. OpenCode reuses its own protected Go integration.
+executable = "/absolute/path/to/installed/opencode"
+executable_sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+state_root = "/absolute/private/zaturo-opencode-jobs"
+models_config = "/absolute/private/authorized-personal-go-models.toml"

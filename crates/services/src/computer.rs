@@ -22,6 +22,72 @@ fn target(t: &Task) -> Result<String> {
         Err(Error::Invalid("computer parent required".into()))
     }
 }
+fn research_only(r: &Repository<'_>, task: &Task) -> Result<bool> {
+    let admission = r.task_request(&task.id)?.ok_or(Error::NotFound)?;
+    let Some(operation) = admission.idempotency_key.strip_prefix("route-") else {
+        return Ok(false);
+    };
+    let origin = r
+        .task_by_operation(operation)?
+        .ok_or_else(|| Error::Invalid("routing origin unavailable".into()))?;
+    if origin.state != TaskState::Completed {
+        return Err(Error::Invalid("routing origin is not final".into()));
+    }
+    let decision = origin
+        .service_result
+        .as_ref()
+        .filter(|v| {
+            v.outcome == "completed"
+                && origin
+                    .service
+                    .as_ref()
+                    .is_some_and(|request| v.validates(&origin.operation_id, request))
+        })
+        .and_then(|v| v.data.get("decision"))
+        .cloned()
+        .and_then(|v| serde_json::from_value::<zaturo_core::IntentDecision>(v).ok());
+    match (&origin.service, &task.service, decision) {
+        (
+            Some(ServiceRequest::AssistantRoute {
+                message,
+                target_worker,
+                ..
+            }),
+            Some(ServiceRequest::ComputerTask {
+                request,
+                target_worker: destination,
+            }),
+            Some(zaturo_core::IntentDecision::Action {
+                action: zaturo_core::RegisteredAction::BrowserResearch { request: approved },
+            }),
+        ) if approved == *request
+            && target_worker == destination
+            && zaturo_core::RegisteredAction::BrowserResearch {
+                request: approved.clone(),
+            }
+            .authorized_by(message) =>
+        {
+            Ok(true)
+        }
+        _ => Err(Error::Invalid(
+            "computer task has no matching registered research origin".into(),
+        )),
+    }
+}
+fn research_action(
+    r: &Repository<'_>,
+    parent: &Task,
+    action: &zaturo_core::ComputerAction,
+) -> Result<()> {
+    if research_only(r, parent)?
+        && (action.backend != zaturo_core::ComputerBackend::Browser || action.requires_approval())
+    {
+        return Err(Error::Invalid(
+            "registered public research permits browser reads only".into(),
+        ));
+    }
+    Ok(())
+}
 fn enqueue(
     r: &Repository<'_>,
     step: &mut ComputerStep,
@@ -65,7 +131,7 @@ impl Engine {
             return Err(Error::Invalid("invalid bounded computer action".into()));
         }
         self.store.transaction(|r|{
-   let p=parent(r,parent_id,worker,lease,now)?;let steps=r.computer_steps(parent_id)?;
+   let p=parent(r,parent_id,worker,lease,now)?;research_action(r,&p,&request.action)?;let steps=r.computer_steps(parent_id)?;
    if let Some(s)=steps.iter().find(|s|s.sequence==request.sequence){return if s.action==request.action{Ok(s.clone())}else{Err(Error::Conflict("computer sequence collision".into()))}}
    if request.sequence!=steps.len() as u32+1 || steps.last().is_some_and(|s|s.child_id.as_ref().and_then(|id|r.task(id).ok().flatten()).is_none_or(|t|t.state!=TaskState::Completed || t.service_result.as_ref().is_none_or(|v| !matches!(v.outcome.as_str(),"completed"|"partial") || v.data.get("observation").and_then(|o|o.get("outcome")).and_then(serde_json::Value::as_str).is_none_or(|v|!matches!(v,"completed"|"partial"))))) {return Err(Error::Conflict("previous computer step is not final".into()))}
    let destination=target(&p)?;if destination==worker{return Err(Error::Invalid("computer planner and executor must be separate workers".into()))}
@@ -137,6 +203,7 @@ impl Engine {
             {
                 return Err(Error::Conflict("computer parent no longer active".into()));
             }
+            research_action(r, &p, action)?;
             let step = r
                 .computer_steps(parent_id)?
                 .into_iter()

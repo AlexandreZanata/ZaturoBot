@@ -251,3 +251,20 @@ WAL records, stop-before-backup-before-replacement ordering, evidence/keys/token
 preservation, explicit capability grants, private file modes, source/hash/symlink
 rejection, idempotence and interrupted-update recovery. The offline fixture intentionally
 does not start a worker or pretend to test the production schema migration/SSH/Google.
+
+
+## Additive0.7 installed execution
+
+Read [the installed OpenCode contract](../../docs/OPENCODE_EXECUTION.md). Deploy the
+compatible hub before advertising `assistant.route.v1`/`youtube.opencode.v1`. Supply an
+explicit nonsecret `--opencode-config`, `--enable-generation --enable-opencode`; no key
+field exists. The actual installed binary/version/hash and protected Go integration stay
+local. The same worker budget/journal fences are reused. Computer configuration separately
+accepts `wayland_portal_capture=true` without a fixed X11 target; native portal consent is
+still mandatory. New flags never imply native action approval or account login.
+
+The owner directed hub administration and existing-signature APK build to the main PC.
+Use the revision-pinned shared handoff. Preserve this work PC's forwarding key, worker
+journal, independent media units, enrolled serial, app data and all account profiles.
+Until the hub update is verified, keep the two new capabilities unadvertised. Existing
+computer/Android capabilities can be validated independently after the local update.

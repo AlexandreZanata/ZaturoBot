@@ -3,6 +3,17 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ServiceRequest {
+    AssistantRoute {
+        message: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        context: Vec<ConversationTurn>,
+        target_worker: String,
+        planner_worker: String,
+    },
+    YoutubeOpenCodeGenerate {
+        channel: String,
+        count: u32,
+    },
     ComputerTask {
         request: String,
         target_worker: String,
@@ -61,6 +72,23 @@ pub enum ServiceRequest {
 impl ServiceRequest {
     pub fn validates(&self) -> bool {
         match self {
+            Self::AssistantRoute {
+                message,
+                context,
+                target_worker,
+                planner_worker,
+            } => {
+                crate::ordinary_text(message, 2048)
+                    && crate::validate_identifier(target_worker).is_ok()
+                    && crate::validate_identifier(planner_worker).is_ok()
+                    && context.len() <= 4
+                    && context.iter().all(|t| t.validates())
+                    && context.iter().map(|t| t.text.len()).sum::<usize>() <= 1024
+            }
+            Self::YoutubeOpenCodeGenerate { channel, count } => {
+                crate::canonical_youtube_channel(channel) == Some(channel.as_str())
+                    && (1..=10).contains(count)
+            }
             Self::ComputerTask {
                 request,
                 target_worker,
@@ -142,6 +170,8 @@ impl ServiceRequest {
     }
     pub fn capability(&self) -> &'static str {
         match self {
+            Self::AssistantRoute { .. } => "assistant.route.v1",
+            Self::YoutubeOpenCodeGenerate { .. } => "youtube.opencode.v1",
             Self::ComputerTask { .. } => "computer.agent.v1",
             Self::ComputerStep { .. } => "computer.action.v1",
             Self::PriceSearch { .. } => "price.search.v1",
@@ -157,6 +187,8 @@ impl ServiceRequest {
     }
     pub fn name(&self) -> &'static str {
         match self {
+            Self::AssistantRoute { .. } => "assistant_route",
+            Self::YoutubeOpenCodeGenerate { .. } => "youtube_opencode_generate",
             Self::ComputerTask { .. } => "computer_task",
             Self::ComputerStep { .. } => "computer_step",
             Self::PriceSearch { .. } => "price_search",
@@ -176,6 +208,8 @@ impl ServiceRequest {
         matches!(
             self,
             Self::DesktopPrivateView { .. }
+                | Self::AssistantRoute { .. }
+                | Self::YoutubeOpenCodeGenerate { .. }
                 | Self::ComputerTask { .. }
                 | Self::ComputerStep { .. }
                 | Self::AndroidOpenMessages { .. }
@@ -212,6 +246,7 @@ impl ServiceResult {
                 > if matches!(
                     request,
                     ServiceRequest::AssistantChat { .. }
+                        | ServiceRequest::AssistantRoute { .. }
                         | ServiceRequest::ComputerTask { .. }
                         | ServiceRequest::PriceSearch { .. }
                 ) {
@@ -236,6 +271,37 @@ impl ServiceResult {
             return false;
         }
         let session_id = match request {
+            ServiceRequest::YoutubeOpenCodeGenerate { channel, count } => {
+                return self.outcome == "blocked"
+                    || self
+                        .data
+                        .get("opencode")
+                        .cloned()
+                        .and_then(|v| serde_json::from_value::<crate::OpenCodeEvidence>(v).ok())
+                        .is_some_and(|proof| proof.validates(operation, channel, *count));
+            }
+            ServiceRequest::AssistantRoute { message, .. } => {
+                return self.outcome == "blocked"
+                    || (self.outcome == "completed"
+                        && self.data["model"] == "deepseek-v4.1-flash"
+                        && self.data["model_calls"] == 1
+                        && matches!(
+                            self.data["billing"]["source"].as_str(),
+                            Some("go" | "go_plus" | "go-plus")
+                        )
+                        && self
+                            .data
+                            .get("usage")
+                            .cloned()
+                            .and_then(|v| serde_json::from_value::<crate::ModelUsage>(v).ok())
+                            .is_some_and(|u| u.validates() && u.cost_microusd == Some(0))
+                        && self
+                            .data
+                            .get("decision")
+                            .cloned()
+                            .and_then(|v| serde_json::from_value::<crate::IntentDecision>(v).ok())
+                            .is_some_and(|v| v.validates_for(message)));
+            }
             ServiceRequest::AndroidPrivateView { session_id, .. }
             | ServiceRequest::DesktopPrivateView { session_id, .. } => session_id,
             ServiceRequest::ComputerStep { .. } => {

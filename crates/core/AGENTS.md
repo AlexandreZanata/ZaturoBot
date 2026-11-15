@@ -27,3 +27,5 @@ Generation requests do not imply publication. Opening SMS is a separate confirme
 
 
 `computer.rs` owns bounded semantic actions, leases, observations and capture-request recognition. Models never supply approval authority or executable paths.
+
+`intent_router.rs` validates bounded registered proposals against original owner text; `opencode.rs` owns work orders/process/billing evidence and `video_artifact.rs` owns opaque media proof. No model proposal grants additional operations.

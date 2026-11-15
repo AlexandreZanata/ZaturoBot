@@ -82,3 +82,9 @@ and previous task/feed/transfer data remain intact. Worker schema remains8, incl
 all old service/model uncertainty fences. Rollout must back up SQLite consistently before
 starting the new hub; never restore an old binary over a migrated live DB automatically.
 Tests cover old data preservation and full rollback on a conflicting table.
+
+
+The installed executor adds typed service JSON variants and extends the existing schema8
+service-observer whitelist; it introduces no competing SQL store or schema migration.
+Private fsynced OpenCode intents/process/billing/tool/media receipts remain under the
+explicit local0700 state root. Preserve them together with the worker journal for recovery.

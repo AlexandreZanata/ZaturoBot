@@ -32,6 +32,7 @@ fn fixture(root: &Path, backend: ComputerBackend, script: &str) -> ComputerConfi
         bitlupa_project: Some(root.into()),
         bitlupa_database: None,
         capture_target: None,
+        wayland_portal_capture: false,
     }
 }
 fn now() -> i64 {

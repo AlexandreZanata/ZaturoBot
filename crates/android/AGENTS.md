@@ -26,3 +26,8 @@ See [Android integration](../../docs/ANDROID_INTEGRATION.md) and
 owner lease and OpenMessages device grant. It never sends a message, selects a contact,
 reads SMS storage, types, unlocks or accepts USB consent. Device instructions are local
 metadata only and mark verified operations honestly. Private captures still use age/RAM.
+
+The default MAIN/APP_MESSAGING component is resolved and restricted to approved Google/
+Samsung packages before fixed component launch. A locked phone is blocked before input;
+unknown keyguard state is not relabeled as a lock. Matching resumed activity and a fresh
+unlocked keyguard are still required afterwards. No task supplies the component.

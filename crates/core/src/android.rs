@@ -185,3 +185,12 @@ mod tests {
         );
     }
 }
+
+/// Metadata-only proof from fixed ADB navigation and keyguard observations.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MessagesNavigation {
+    pub package: String,
+    pub activity: String,
+    pub verified_at: i64,
+}

@@ -20,6 +20,7 @@ pub fn start(
     };
     let adapter = zaturo_youtube::YoutubeClient::new(youtube)?;
     let client = crate::files::client(config, token)?;
+    let executor = config.opencode.clone();
     Ok(Some(ServiceJobs(tokio::spawn(async move {
         let mut tick = tokio::time::interval(std::time::Duration::from_secs(5));
         tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -39,8 +40,10 @@ pub fn start(
                     let journal = journal.clone();
                     let adapter = &adapter;
                     let client = &client;
+                    let executor=executor.as_ref();
                     async move {
                         let operation = job.operation_id;
+                        let installed_executor=matches!(job.request,ServiceRequest::YoutubeOpenCodeGenerate{..});
                         let (channel, account, count, mode) = match job.request {
                             ServiceRequest::YoutubeSubmit {
                                 channel,
@@ -48,7 +51,8 @@ pub fn start(
                                 count,
                                 ..
                             } => (channel, Some(account), count, "schedule"),
-                            ServiceRequest::YoutubeGenerate { channel, count } => {
+                            ServiceRequest::YoutubeGenerate { channel, count }
+                            | ServiceRequest::YoutubeOpenCodeGenerate { channel, count } => {
                                 (channel, None, count, "generate")
                             }
                             _ => return,
@@ -85,14 +89,20 @@ pub fn start(
                             tracing::warn!("youtube_job_status_binding_mismatch");
                             return;
                         }
-                        let state = status.state.as_str();
+                        let (state,summary)=if installed_executor && status.state==zaturo_youtube::JobState::Completed {
+                            let verified=match executor {Some(executor)=>zaturo_opencode::inspect_artifacts(executor,&operation,adapter).await,None=>Err(anyhow::anyhow!("executor profile unavailable"))};
+                            match verified {
+                                Ok(proofs)=>("completed",format!("{} vídeo(s) verificado(s): arquivos distintos, áudio/vídeo e decodificação completa; nenhum agendamento. Referências: {}",proofs.len(),proofs.iter().take(2).map(|p|p.reference.as_str()).collect::<Vec<_>>().join(", "))),
+                                Err(_)=>("uncertain","O serviço informou geração concluída, mas a verificação dos arquivos, fluxos ou decodificação não foi comprovada. O mesmo UUID e os arquivos foram preservados; nenhum lote será reenviado.".into()),
+                            }
+                        }else{(status.state.as_str(),status.summary)};
                         if job.last_notified_state.as_deref() == Some(state) {
                             return;
                         }
                         let update = ServiceActivity {
                             operation_id: operation.clone(),
                             state: state.into(),
-                            summary: status.summary,
+                            summary,
                         };
                         if !matches!(
                             tokio::time::timeout(

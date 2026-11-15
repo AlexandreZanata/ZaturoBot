@@ -89,6 +89,18 @@ impl Repository<'_> {
             .map_err(Error::from)
     }
 
+    /// Original admission metadata is separate from the public task snapshot.
+    pub fn task_request(&self, id: &str) -> Result<Option<NewTask>, Error> {
+        let row: Option<String> = self
+            .connection
+            .query_row("SELECT request_json FROM tasks WHERE id=?1", [id], |row| {
+                row.get(0)
+            })
+            .optional()?;
+        row.map(|raw| serde_json::from_str(&raw).map_err(Error::from))
+            .transpose()
+    }
+
     pub fn by_idempotency_key(&self, key: &str) -> Result<Option<(Task, NewTask)>, Error> {
         let record: Option<(String, String)> = self
             .connection

@@ -21,6 +21,82 @@ use zaturo_core::{
 };
 use zeroize::Zeroizing;
 
+pub use zaturo_core::MessagesNavigation;
+fn messaging_component(value: &str) -> Option<(String, String)> {
+    let (package, activity) = value.trim_matches(['{', '}']).split_once('/')?;
+    if !matches!(
+        package,
+        "com.google.android.apps.messaging" | "com.samsung.android.messaging"
+    ) || activity.is_empty()
+        || activity.len() > 200
+        || !activity
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_'))
+    {
+        return None;
+    }
+    let activity = if activity.starts_with('.') {
+        format!("{package}{activity}")
+    } else {
+        activity.into()
+    };
+    Some((package.into(), activity))
+}
+fn unlocked(policy: &str) -> Result<()> {
+    let keyguard = policy
+        .split("KeyguardServiceDelegate")
+        .nth(1)
+        .ok_or(Error::InvalidOutput)?;
+    let keyguard = keyguard
+        .split("KeyguardStateMonitor")
+        .next()
+        .ok_or(Error::InvalidOutput)?;
+    if keyguard
+        .lines()
+        .any(|l| matches!(l.trim(), "showing=true" | "inputRestricted=true"))
+    {
+        return Err(Error::ScreenLocked);
+    }
+    if !keyguard.lines().any(|l| l.trim() == "showing=false")
+        || !keyguard
+            .lines()
+            .any(|l| l.trim() == "inputRestricted=false")
+    {
+        return Err(Error::InvalidOutput);
+    }
+    Ok(())
+}
+fn navigation_proof(
+    start: &str,
+    foreground: &str,
+    policy: &str,
+    now: i64,
+) -> Result<MessagesNavigation> {
+    let component = start
+        .lines()
+        .find_map(|l| {
+            l.trim()
+                .strip_prefix("Activity:")
+                .and_then(|v| messaging_component(v.trim()))
+        })
+        .ok_or(Error::InvalidOutput)?;
+    unlocked(policy)?;
+    let matches = foreground
+        .lines()
+        .filter(|l| l.contains("topResumedActivity=") || l.contains("mResumedActivity:"))
+        .flat_map(str::split_whitespace)
+        .filter_map(messaging_component)
+        .collect::<Vec<_>>();
+    if matches.is_empty() || matches.iter().any(|v| v != &component) {
+        return Err(Error::CommandFailed);
+    }
+    Ok(MessagesNavigation {
+        package: component.0,
+        activity: component.1,
+        verified_at: now,
+    })
+}
+
 #[derive(Debug, Clone)]
 pub struct AdbLimits {
     pub command_timeout: Duration,
@@ -319,7 +395,7 @@ impl AdbClient {
         device: &RegisteredAndroidDevice,
         lease: &SessionLease,
         now: i64,
-    ) -> Result<()> {
+    ) -> Result<MessagesNavigation> {
         lease.authorize_messages(device, now)?;
         let started = tokio::time::Instant::now();
         let remaining = Duration::from_millis((lease.status().expires_at - now) as u64);
@@ -328,28 +404,13 @@ impl AdbClient {
             _=tokio::time::sleep(remaining)=>Err(Error::PermissionDenied),
             result=async {
         self.ready(device, now).await?;
-        let output = self
-            .command(
-                &[
-                    "-s",
-                    &device.adb_serial,
-                    "shell",
-                    "am",
-                    "start",
-                    "-W",
-                    "-a",
-                    "android.intent.action.MAIN",
-                    "-c",
-                    "android.intent.category.LAUNCHER",
-                    "--selector",
-                    "-a",
-                    "android.intent.action.MAIN",
-                    "-c",
-                    "android.intent.category.APP_MESSAGING",
-                ],
-                8192,
-            )
-            .await?;
+        let policy=self.command(&["-s",&device.adb_serial,"shell","dumpsys","window","policy"],65536).await?;
+        unlocked(std::str::from_utf8(&policy).map_err(|_|Error::InvalidOutput)?)?;
+        let resolved=self.command(&["-s",&device.adb_serial,"shell","cmd","package","resolve-activity","--brief","-a","android.intent.action.MAIN","-c","android.intent.category.APP_MESSAGING"],8192).await?;
+        let resolved=std::str::from_utf8(&resolved).map_err(|_|Error::InvalidOutput)?.lines().filter_map(messaging_component).collect::<Vec<_>>();
+        if resolved.len()!=1{return Err(Error::MessagingAppNotApproved);}
+        let component=format!("{}/{}",resolved[0].0,resolved[0].1);
+        let output=self.command(&["-s",&device.adb_serial,"shell","am","start","-W","-n",&component],8192).await?;
         let text = std::str::from_utf8(&output).map_err(|_| Error::InvalidOutput)?;
         if text
             .lines()
@@ -363,7 +424,11 @@ impl AdbClient {
         }
         let finished=now.saturating_add(i64::try_from(started.elapsed().as_millis()).unwrap_or(i64::MAX));
         lease.authorize_messages(device, finished)?;
-        Ok(())
+        let foreground=self.command(&["-s",&device.adb_serial,"shell","dumpsys","activity","activities"],65536).await?;
+        let policy=self.command(&["-s",&device.adb_serial,"shell","dumpsys","window","policy"],65536).await?;
+        let finished=now.saturating_add(i64::try_from(started.elapsed().as_millis()).unwrap_or(i64::MAX));
+        lease.authorize_messages(device,finished)?;
+        navigation_proof(text,std::str::from_utf8(&foreground).map_err(|_|Error::InvalidOutput)?,std::str::from_utf8(&policy).map_err(|_|Error::InvalidOutput)?,finished)
             }=>result,
         }
     }
@@ -509,4 +574,38 @@ pub fn parse_devices(output: &str, now: i64) -> Result<Vec<AndroidDeviceObservat
         return Err(Error::InvalidOutput);
     }
     Ok(devices)
+}
+
+#[cfg(test)]
+mod navigation_tests {
+    use super::*;
+    #[test]
+    fn a_successful_intent_does_not_prove_an_unlocked_visible_app() {
+        let started =
+            "Status: ok\nActivity: com.google.android.apps.messaging/.ui.ConversationListActivity";
+        let foreground = "mResumedActivity: ActivityRecord{abc u0 com.google.android.apps.messaging/.ui.ConversationListActivity t1}";
+        let unlocked =
+            "KeyguardServiceDelegate\n showing=false\n inputRestricted=false\nKeyguardStateMonitor";
+        assert!(navigation_proof(started, foreground, unlocked, 1).is_ok());
+        assert!(
+            navigation_proof(
+                started,
+                "mResumedActivity: ActivityRecord{abc u0 com.example.other/.Activity t1}",
+                unlocked,
+                1
+            )
+            .is_err()
+        );
+        assert!(
+            navigation_proof(
+                started,
+                foreground,
+                &unlocked.replace("showing=false", "showing=true"),
+                1
+            )
+            .is_err()
+        );
+        assert!(navigation_proof("Status: ok", foreground, unlocked, 1).is_err());
+        assert!(navigation_proof(started, foreground, "", 1).is_err());
+    }
 }

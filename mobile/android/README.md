@@ -94,9 +94,9 @@ when the app-owned restricted SSH connection is configured.
 
 No READ_SMS, notification-listener, accessibility or background SMS service is declared.
 The Linux worker owns authorized Android operations. Ordinary feed drops sensitive
-items. This initial mobile build shows attachment metadata; it does not decrypt age file
-attachments or provide the dedicated sensitive-screen viewer. That viewer is initially
-Linux-desktop-only; no home decryption identity is copied to Android to bypass this limit.
+items. The app shows ordinary attachment metadata. Its dedicated private-screen viewer uses
+its own Keystore-protected age identity and the one-time RAM relay; no home decryption
+identity is copied to Android. Ordinary file attachment decryption is separate.
 Messages use stable idempotency keys across an uncertain retry. No raw server error,
 authentication code, SSH enrollment or token is displayed in diagnostics.
 
@@ -120,3 +120,11 @@ work-PC installation is preserved; do not re-enroll or remove its journal to ins
 the app. Android Lint passes with non-fatal warnings for the supplied detailed vector,
 initial Portuguese inline copy, conservative SDK target and unused third-party helpers;
 none enables permissive TLS or suppresses errors.
+
+
+Version0.7 adds native-confirmed prepared USB capture on this same viewer phone. Prepare
+in Services, open an unlocked nonsecret screen, wait15seconds, return and explicitly open
+the prepared capture. Only opaque metadata survives leaving Hub, never an image download.
+The existing focus/navigation wipe, FLAG_SECURE, authentication and <=60-second expiry
+remain. Build on the owner's existing main-PC SDK and signing identity; never substitute
+a debug keystore, uninstall the enrolled app or clear its data to make an update pass.

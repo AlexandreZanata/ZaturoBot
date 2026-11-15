@@ -382,6 +382,7 @@ class MainActivity : Activity() {
             feed.addView(date)
             for (item in timeline.items.asReversed()) feed.addView(messageBubble(item))
         }
+        if(::phoneView.isInitialized && phoneView.hasPrepared()) feed.addView(ui.button("Abrir captura preparada",R.drawable.ic_shield){phoneView.openPrepared()})
         if(::phoneView.isInitialized) phoneView.cardView()?.let {card ->(card.parent as? android.view.ViewGroup)?.removeView(card);feed.addView(card)}
         afterFeedLayout {
             when {
@@ -554,12 +555,19 @@ class MainActivity : Activity() {
                     else setStatus("Identificador do celular inválido.")
                 }.show()
         })
+        form.addView(serviceCard("Captura deste celular", "Prepare a captura USB, abra uma tela sem dados sigilosos, aguarde 15 segundos e volte ao Hub. Expira em até 60 segundos.",R.drawable.ic_shield,"Preparar captura em 15 segundos") {
+            AlertDialog.Builder(this).setTitle("Preparar uma captura USB?").setMessage("Depois de confirmar, abra uma tela desbloqueada sem dados sigilosos neste celular. O PC capturará uma única imagem após 15 segundos. Volte ao Hub e toque em Abrir captura preparada. Nenhum conteúdo entra no histórico ou na IA.")
+                .setNegativeButton("Cancelar",null).setPositiveButton("Preparar") {_,_->
+                    val worker=configuration?.optString("target_worker","work-pc") ?: "work-pc";showHub();phoneView.prepare(worker,"owner-phone")
+                }.show()
+        })
+        form.addView(ui.button("Abrir captura preparada",R.drawable.ic_shield){showHub();phoneView.openPrepared()})
         form.addView(serviceCard("Mensagens do celular", "Abra somente a caixa de mensagens do celular USB registrado. Não envia SMS nem desbloqueia a tela.",R.drawable.ic_phone,"Abrir mensagens") {
             AlertDialog.Builder(this).setTitle("Abrir mensagens no celular remoto?").setMessage("Esta ação abre o aplicativo de mensagens no celular owner-phone do computador selecionado. Nenhuma mensagem será enviada.")
                 .setNegativeButton("Cancelar",null).setPositiveButton("Abrir") {_,_->submit("Abra a caixa de mensagens do celular registrado owner-phone.","android_open_messages")}.show()
         })
         form.addView(serviceCard("Computador Linux", "Árvore de acessibilidade e navegador dedicado. Use /computador seguido da tarefa; entradas e publicações pedem confirmação.",R.drawable.ic_terminal,"Ver tela atual do computador") {
-            AlertDialog.Builder(this).setTitle("Captura privada do computador?").setMessage("Capturar somente a janela autorizada no perfil local do PC? A imagem é temporária e não entra no histórico nem na IA.").setNegativeButton("Cancelar",null).setPositiveButton("Ver tela") {_,_->
+            AlertDialog.Builder(this).setTitle("Captura privada do computador?").setMessage("Capturar a janela autorizada ou aquela que você selecionar no diálogo nativo do PC? A imagem é temporária e não entra no histórico nem na IA.").setNegativeButton("Cancelar",null).setPositiveButton("Ver tela") {_,_->
                 val worker=configuration?.optString("target_worker","work-pc") ?: "work-pc";showHub();phoneView.start(worker,"desktop","desktop")
             }.show()
         })

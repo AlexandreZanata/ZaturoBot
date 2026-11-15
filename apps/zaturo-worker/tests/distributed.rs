@@ -53,6 +53,7 @@ fn worker_config(path: &std::path::Path, url: String) -> WorkerConfig {
         models_config: None,
         assistant_models_config: None,
         computer_models_config: None,
+        opencode: None,
         computer: None,
     }
 }

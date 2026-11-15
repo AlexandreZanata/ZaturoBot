@@ -23,6 +23,8 @@ pub struct WorkerConfig {
     #[serde(default)]
     pub computer: Option<zaturo_computer::ComputerConfig>,
     #[serde(default)]
+    pub opencode: Option<zaturo_opencode::OpenCodeConfig>,
+    #[serde(default)]
     pub files: Option<FilesConfig>,
     #[serde(default)]
     pub youtube: Option<zaturo_youtube::YoutubeConfig>,
@@ -59,7 +61,7 @@ impl WorkerConfig {
         ensure!(
             self.max_concurrent_tasks == 1
                 && self.capabilities.contains(&"diagnostic.v1".into())
-                && self.capabilities.len() <= 13
+                && self.capabilities.len() <= 15
                 && self.capabilities.iter().all(|c| matches!(
                     c.as_str(),
                     "computer.agent.v1"
@@ -68,6 +70,8 @@ impl WorkerConfig {
                         | "price.search.v1"
                         | "diagnostic.v1"
                         | "assistant.chat.v1"
+                        | "assistant.route.v1"
+                        | "youtube.opencode.v1"
                         | "youtube.generate.v1"
                         | "agent.diagnostic.v1"
                         | "youtube.read.v1"
@@ -92,7 +96,7 @@ impl WorkerConfig {
         ensure!(
             !self.capabilities.iter().any(|c| c == "computer.agent.v1")
                 || self.computer_models_config.is_some(),
-            "computer planning requires its separate Console profile"
+            "computer planning requires its separate explicit Personal Go profile"
         );
         ensure!(
             !self.capabilities.iter().any(|c| matches!(
@@ -101,6 +105,15 @@ impl WorkerConfig {
             )) || self.computer.is_some(),
             "computer actions require an explicit local profile"
         );
+        if let Some(opencode) = &self.opencode {
+            opencode.validate()?;
+        }
+        ensure!(
+            !self.capabilities.iter().any(|c| c == "youtube.opencode.v1")
+                || (self.opencode.is_some()
+                    && self.youtube.as_ref().is_some_and(|c| c.allow_generate)),
+            "OpenCode generation requires an explicit executor and generation grant"
+        );
         if let Some(computer) = &self.computer {
             computer.validate()?;
         }
@@ -108,9 +121,12 @@ impl WorkerConfig {
             youtube.validate()?;
         }
         ensure!(
-            !self.capabilities.iter().any(|c| c == "assistant.chat.v1")
-                || self.assistant_models_config.is_some(),
-            "assistant capability requires its separate Console model profile"
+            (!self.capabilities.iter().any(|c| c == "assistant.chat.v1")
+                || self.assistant_models_config.is_some())
+                && (!self.capabilities.iter().any(|c| c == "assistant.route.v1")
+                    || self.opencode.is_some()
+                    || self.assistant_models_config.is_some()),
+            "assistant capability requires an explicit Personal Go profile"
         );
         ensure!(
             !self.capabilities.iter().any(|c| c.starts_with("youtube.")) || self.youtube.is_some(),

@@ -27,6 +27,8 @@ UPSTREAM_VERSION = "0.0.85"
 UPSTREAM_COMMIT = "4e0794dd0a0176519830a5ed27b491137cf9338f"
 UPSTREAM_URL = "https://github.com/microsoft/playwright-mcp/tree/" + UPSTREAM_COMMIT
 PACKAGES = {"@playwright/mcp": UPSTREAM_VERSION, "playwright": "1.66.0-alpha-2026-11-09", "playwright-core": "1.66.0-alpha-2026-11-09"}
+# The pinned wrapper delegates its MCP server to playwright-core; initialize reports the core version.
+RUNTIME_VERSION = PACKAGES["playwright-core"]
 MAX_TREE_FILES = 512
 MAX_TREE_DIRECTORIES = 256
 MAX_TREE_FILE_BYTES = 8 * 1024 * 1024
@@ -292,7 +294,7 @@ def execute(config, request):
         public_url(config, request["arguments"]["url"])
     with base.operation(config, request, mutating) as (end, begin):
         page_check(config, request.get("target"))
-        with base.Session(config, backend_argv(config), end, expected_version=UPSTREAM_VERSION) as session:
+        with base.Session(config, backend_argv(config), end, expected_version=RUNTIME_VERSION) as session:
             if tool == "browser_navigate":
                 begin();call_text(session, tool, request["arguments"])
                 current = page_check(config, request["target"])
@@ -313,7 +315,7 @@ def execute(config, request):
 
 def doctor(config):
     page = pages(config)
-    with base.Session(config, backend_argv(config), expected_version=UPSTREAM_VERSION) as session:
+    with base.Session(config, backend_argv(config), expected_version=RUNTIME_VERSION) as session:
         # An actual snapshot proves the fixed MCP can reach this dedicated page.
         _, _, _, _ = snapshot(config, session, {"page_id":page["page_id"]})
     return {"schema":1,"status":"completed","upstream":UPSTREAM_VERSION,"data":{"dedicated_browser":True,"page":page,"input_granted":config.allow_input,"capture_granted":False,"stop_file":str(config.stop)}}

@@ -6,6 +6,8 @@ linux_profile = "/home/owner/.config/zaturobot/computer-linux.toml"
 # bitlupa_project = "/home/owner/BitLupa"
 # bitlupa_database = "/home/owner/.local/share/bitlupa/offers.db"
 # social_profile = "/home/owner/.config/zaturobot/social.toml"
+# Separate native Wayland chooser; never combine with capture_target.
+wayland_portal_capture = false
 # [capture_target]
 # window_id = 1
 # pid = 1234

@@ -128,3 +128,16 @@ charge after send. No Console fallback, credit purchase or top-up is authorized.
 The supplied account screenshot showing Extra Usage off/$0 is a point-in-time setting,
 not proof of a later request. Record new live acceptance only after actual observation;
 preserve the historical Console402 without treating it as a current Go prerequisite.
+
+
+## Owner-authorized real work-PC execution
+
+Natural requests must produce validated registered actions, with the exact `falllem price`
+alias and no publication inferred from generation. Actual installed OpenCode/DeepSeek Go
+and typed broker receipts must distinguish dispatch from media completion. Preserve the
+existing independent YoutubeBot pipeline, strict budgets/billing, operation identity and
+uncertain fences. Full media proof and opaque/encrypted owner access are required for
+acceptance. Actual browser/backend research, native-consented memory-only Wayland capture,
+enrolled USB navigation and phone images visible in Android Hub require physical evidence.
+No generic shell, arbitrary ADB, self-approved input, copied home provider key or weakened
+private-view lifecycle is authorized. See [installed execution](OPENCODE_EXECUTION.md).

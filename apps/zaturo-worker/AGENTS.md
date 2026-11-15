@@ -33,3 +33,5 @@ are observations, not new permissions. Keep media generation separate from publi
 
 
 `computer.rs` keeps paid home planning separate from work execution; the work child fetches a fresh parent-bound grant before the local adapter. `desktop_private.rs` captures only the locally fixed window through the private RAM relay. No provider key reaches the work PC.
+
+`opencode.rs` composes the real installed runner with the same durable Personal budget and service journal. `service_jobs.rs` requires full ready-media proof before installed-executor completion. Never replay a paid intent or detached actor. Separate portal capture requires explicit local/native grants; no pixels enter journals.

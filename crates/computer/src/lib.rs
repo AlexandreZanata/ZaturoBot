@@ -37,6 +37,8 @@ pub struct ComputerConfig {
     pub social_profile: Option<PathBuf>,
     #[serde(default)]
     pub capture_target: Option<Value>,
+    #[serde(default)]
+    pub wayland_portal_capture: bool,
 }
 impl ComputerConfig {
     pub fn validate(&self) -> Result<()> {
@@ -59,6 +61,10 @@ impl ComputerConfig {
                 "absolute local computer profile paths required"
             );
         }
+        ensure!(
+            !self.wayland_portal_capture || self.capture_target.is_none(),
+            "select one explicit private capture source"
+        );
         if let Some(target) = &self.capture_target {
             ensure!(
                 target.as_object().is_some_and(|o| o.len() == 3)
@@ -856,4 +862,39 @@ pub async fn capture(
         "bounded private PNG dimensions required"
     );
     Ok(png)
+}
+
+/// Separate native-consented window capture. Never falls back from a configured X11 target.
+pub async fn capture_wayland(
+    config: &ComputerConfig,
+    lease: &ComputerLease,
+) -> Result<Zeroizing<Vec<u8>>> {
+    ensure!(
+        config.wayland_portal_capture && config.capture_target.is_none() && lease.owner_approved,
+        "explicit portal capture grant required"
+    );
+    ensure!(
+        std::env::var("XDG_SESSION_TYPE").as_deref() == Ok("wayland"),
+        "native Wayland session required"
+    );
+    let timeout = lease_limit(lease)?.min(Duration::from_secs(35));
+    let script = check_runtime(config, "wayland_capture.py", None)?;
+    let output = invoke(config, &script, &[], None, timeout, MAX_IMAGE)
+        .await
+        .map_err(|_| anyhow::anyhow!("private portal capture unavailable"))?;
+    lease_limit(lease)?;
+    ensure!(
+        output.success
+            && output.stdout.len() >= 57
+            && output.stdout.starts_with(b"\x89PNG\r\n\x1a\n")
+            && &output.stdout[output.stdout.len() - 8..output.stdout.len() - 4] == b"IEND",
+        "private portal frame not confirmed"
+    );
+    let width = u32::from_be_bytes(output.stdout[16..20].try_into()?);
+    let height = u32::from_be_bytes(output.stdout[20..24].try_into()?);
+    ensure!(
+        width > 0 && width <= 1920 && height > 0 && height <= 1080,
+        "bounded portal frame required"
+    );
+    Ok(output.stdout)
 }

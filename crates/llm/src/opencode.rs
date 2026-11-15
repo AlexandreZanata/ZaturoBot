@@ -228,7 +228,26 @@ fn parse_response(body: &[u8], duration_ms: u64) -> Result<ModelResponse, Error>
         .content
         .filter(|s| !s.trim().is_empty())
         .ok_or(Error::InvalidResponse)?;
-    let usage = response.usage.ok_or(Error::InvalidResponse)?;
+    let (usage, billing) = usage_receipt(response.usage.ok_or(Error::InvalidResponse)?)?;
+    Ok(ModelResponse {
+        model: response.model,
+        content,
+        usage,
+        billing,
+        finish_reason: answer.finish_reason.ok_or(Error::InvalidResponse)?,
+        duration_ms,
+        model_calls: 1,
+        usage_complete: true,
+    })
+}
+/// Parse the provider's usage evidence for both text and native-tool completions.
+/// Callers must still enforce the selected Personal/Go billing policy before using content.
+pub fn parse_opencode_usage(
+    value: &serde_json::Value,
+) -> Result<(ModelUsage, Option<ModelBilling>), Error> {
+    usage_receipt(serde_json::from_value(value.clone()).map_err(|_| Error::InvalidResponse)?)
+}
+fn usage_receipt(usage: Usage) -> Result<(ModelUsage, Option<ModelBilling>), Error> {
     // Go allowance describes subscription quota consumption, not the request charge.
     // It must not be relabeled as a monetary cost or inferred when cost is absent.
     let cost = usage.cost;
@@ -251,16 +270,7 @@ fn parse_response(body: &[u8], duration_ms: u64) -> Result<ModelResponse, Error>
     if !usage.validates() {
         return Err(Error::InvalidResponse);
     }
-    Ok(ModelResponse {
-        model: response.model,
-        content,
-        usage,
-        billing,
-        finish_reason: answer.finish_reason.ok_or(Error::InvalidResponse)?,
-        duration_ms,
-        model_calls: 1,
-        usage_complete: true,
-    })
+    Ok((usage, billing))
 }
 fn cost_microusd(usd: f64) -> Result<u64, Error> {
     if !usd.is_finite() || !(0.0..=1_000_000.0).contains(&usd) {

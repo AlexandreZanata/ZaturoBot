@@ -259,3 +259,40 @@ Preserve historical Console HTTP402 evidence. It describes the former route, not
 Go route's prerequisite or live success. Record actual Go/native/task/billing acceptance
 separately after observing it; fixtures do not establish the owner's live subscription,
 accounts or target PC. See [the provider contract](LLM_PROVIDERS.md).
+
+
+## ADR-0022: Real installed execution and consented captures - accepted
+
+The owner explicitly authorized the work-PC end-to-end slice, including installed
+OpenCode execution, one new generation-only two-video acceptance batch, real public
+browser use and native private PC/USB captures. Preserve the old scheduled media request
+as a separate operation. Its later explicit resume authorization supersedes its previous
+pause, without authorizing arbitrary process signalling or relaunch.
+
+Normalize known aliases before inference; interpret unknown messages through one bounded
+Personal Go call and validate typed proposals against current owner text. Known generation
+uses the installed OpenCode tool-selection call rather than the old direct dispatch.
+Use its actual V2 interface/default-deny policy, a random-header loopback one-forward
+budget gateway (upstream retries are otherwise insufficiently bounded), and one exact MCP
+job tool. The installed protected integration stays local; no home key is copied. Preserve
+DeepSeek flash exclusivity, aggregate budgets, one attempt, Go billing proof, zero reported
+additional cost and no fallback. The owner's reported zero balance is not verification
+of the current Extra Usage setting. See [the execution contract](OPENCODE_EXECUTION.md).
+
+Wayland gets a separate explicit native ScreenCast/PipeWire path. The portal authorizes
+one window for one nonpersistent live session; monitor/restore/fallback are forbidden.
+Keep the old fixed-tuple X11 guard. The source-bound remote FD, bounded PNG appsink and
+existing age relay keep pixels off disk, model and ordinary history. This is source
+consent, not a claim that portal selection proves a legacy PID/window tuple.
+
+The same phone cannot both foreground its FLAG_SECURE Hub and display a nonsecret screen
+for USB capture. Add an explicitly native-confirmed prepared one-shot capture:15-second
+fixed delay, original viewer/recipient, total expiry<=60s. Only opaque consent metadata
+survives leaving Hub; there is no background image download. The owner explicitly opens
+the prepared image after returning. Focus/navigation loss still clears every active
+image and cancels normal view sessions. No model/MCP can manufacture native consent.
+
+The owner directed administrative hub deployment and same-signature Android build to the
+main PC. Publish only tested source and an inert revision-pinned shared handoff; preserve
+this work PC's restricted forwarding key and all enrollment/application data. Actual
+physical/account acceptance remains separate from synthetic tests and source status.

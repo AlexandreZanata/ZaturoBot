@@ -33,6 +33,8 @@ KNOWN_CAPS = {
     "android.devices.v1",
     "android.private.v1",
     "assistant.chat.v1",
+    "assistant.route.v1",
+    "youtube.opencode.v1",
     "youtube.generate.v1",
     "android.messages.v1",
     "computer.agent.v1",
@@ -40,7 +42,7 @@ KNOWN_CAPS = {
     "computer.private.v1",
     "price.search.v1",
 }
-COMPUTER_HELPERS = ("linux_mcp.py", "browser_mcp.py", "bitlupa_service.py", "social_service.py")
+COMPUTER_HELPERS = ("linux_mcp.py", "browser_mcp.py", "bitlupa_service.py", "social_service.py", "wayland_capture.py")
 COMPUTER_PATH_FIELDS = {"python", "scripts_root", "linux_profile", "browser_profile", "bitlupa_project", "bitlupa_database", "social_profile"}
 
 
@@ -258,7 +260,7 @@ def render_toml(value):
 def computer_config(value, installed_root):
     """Validate local configuration only; never import backend keys or edit its grants."""
     require(isinstance(value, dict) and {"python", "scripts_root"} <= set(value)
-            and set(value) <= COMPUTER_PATH_FIELDS | {"capture_target"},
+            and set(value) <= COMPUTER_PATH_FIELDS | {"capture_target", "wayland_portal_capture"},
             "unsupported computer configuration fields; credentials and aliases are not accepted")
     checked = copy.deepcopy(value)
     for field in COMPUTER_PATH_FIELDS & set(checked):
@@ -282,6 +284,8 @@ def computer_config(value, installed_root):
         require(project.is_dir(), "BitLupa requires an existing reviewed project directory")
     if "bitlupa_database" in checked and Path(checked["bitlupa_database"]).exists():
         regular(Path(checked["bitlupa_database"]), limit=512 * 1024**2, read=False)
+    portal=checked.get("wayland_portal_capture",False)
+    require(type(portal) is bool and (not portal or checked.get("capture_target") is None), "select exactly one private capture source")
     target = checked.get("capture_target")
     if target is not None:
         require(isinstance(target, dict) and set(target) == {"window_id", "pid", "app_id"}
@@ -294,6 +298,24 @@ def computer_config(value, installed_root):
                 "desktop capture requires one exact locally configured window, process and application")
     checked["scripts_root"] = str(installed_root)
     return checked
+
+
+def extend_opencode(config,caps,options):
+    supplied=getattr(options,"opencode_config",None)
+    value=tomllib.loads(regular(supplied,private=True).decode()) if supplied else config.get("opencode")
+    if value is not None:
+        require(isinstance(value,dict) and set(value)=={"executable","executable_sha256","state_root","models_config"},"exact nonsecret OpenCode profile required")
+        for field in ("executable","state_root","models_config"):
+            require(isinstance(value[field],str) and Path(value[field]).is_absolute(),"absolute OpenCode profile paths required")
+            safe_path(Path(value[field]))
+        require(re.fullmatch(r"[0-9a-f]{64}",value["executable_sha256"] or "") is not None,"installed OpenCode hash required")
+        require(not any(marker in json.dumps(value) for marker in ("oc_sk_","AGE-SECRET-","-----BEGIN ")),"credentials forbidden in OpenCode profile")
+        regular(Path(value["models_config"]),private=True,read=False)
+        config["opencode"]=copy.deepcopy(value)
+    if getattr(options,"enable_opencode",False):
+        require(value is not None and config.get("youtube",{}).get("allow_generate") is True,"OpenCode generation requires its reviewed profile and generation grant")
+        for cap in ("assistant.route.v1","youtube.opencode.v1"):
+            if cap not in caps:caps.append(cap)
 
 
 def extend_computer(config, caps, options):
@@ -333,7 +355,7 @@ def extend_computer(config, caps, options):
             if capability == "price.search.v1":
                 require(computer.get("bitlupa_project"), "price search requires an explicit reviewed BitLupa project")
             elif capability == "computer.private.v1":
-                require(computer.get("linux_profile") and computer.get("capture_target"),
+                require(computer.get("wayland_portal_capture") is True or (computer.get("linux_profile") and computer.get("capture_target")),
                         "desktop capture requires a private Linux profile and exact local capture target")
             else:
                 require(any(computer.get(field) for field in
@@ -358,7 +380,7 @@ def update_config(config, youtube, python, options):
     }
     require(
         required <= set(value)
-        and set(value) <= required | {"files", "models_config", "assistant_models_config", "computer_models_config", "computer", "youtube", "android"},
+        and set(value) <= required | {"files", "models_config", "assistant_models_config", "computer_models_config", "computer", "opencode", "youtube", "android"},
         "unsupported existing worker configuration; nothing was replaced",
     )
     require(
@@ -490,6 +512,7 @@ def update_config(config, youtube, python, options):
             caps.append("android.private.v1")
         require(len(devices) <= 8, "too many registered Android devices")
     extend_computer(value, caps, options)
+    extend_opencode(value,caps,options)
     require(
         len(caps) <= len(KNOWN_CAPS) and len(caps) == len(set(caps)),
         "invalid service capability combination",
@@ -502,6 +525,8 @@ def update_config(config, youtube, python, options):
         "android.devices.v1",
         "android.private.v1",
         "assistant.chat.v1",
+        "assistant.route.v1",
+        "youtube.opencode.v1",
         "youtube.generate.v1",
         "android.messages.v1",
         "computer.agent.v1",
@@ -733,6 +758,8 @@ def parser():
     )
     result.add_argument("--enable-generation",action="store_true",help="grant typed generation-only batches without publishing")
     result.add_argument("--enable-messages",action="store_true",help="grant opening the registered messaging app without sending SMS")
+    result.add_argument("--opencode-config",type=Path,help="private nonsecret installed OpenCode runner profile; never a provider key")
+    result.add_argument("--enable-opencode",action="store_true",help="advertise one-call Personal routing and generation through installed OpenCode")
     result.add_argument("--computer-config", type=Path, help="explicit private ComputerConfig TOML; backend grants remain separate")
     result.add_argument("--enable-computer-actions", action="store_true", help="advertise bounded reviewed computer actions; never edits backend input grants")
     result.add_argument("--enable-computer-capture", action="store_true", help="advertise private capture for the exact locally configured target")

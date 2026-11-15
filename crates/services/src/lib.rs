@@ -88,6 +88,8 @@ impl Engine {
                         | "price.search.v1"
                         | "diagnostic.v1"
                         | "assistant.chat.v1"
+                        | "assistant.route.v1"
+                        | "youtube.opencode.v1"
                         | "youtube.generate.v1"
                         | "agent.diagnostic.v1"
                         | "youtube.read.v1"

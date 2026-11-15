@@ -1,4 +1,5 @@
 //! Bounded adapter for the existing YoutubeBot Python service, not a video implementation.
+mod artifacts;
 mod process;
 mod response;
 

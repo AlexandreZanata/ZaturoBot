@@ -224,7 +224,13 @@ The native Services page also offers explicit private capture of the configured 
 
 The local `capture_target` fixes window/PID/app and the Linux profile separately grants
 capture. The fixed native X11 capture route reads pixels in memory and has no disk-based
-fallback; Wayland private PC capture stays blocked. Raw PNG stays in protected endpoint
+fallback. A separate explicit `wayland_portal_capture=true` profile uses the native
+ScreenCast chooser for one window, without monitor selection, persistence or restore.
+Do not combine it with `capture_target`. The scoped PipeWire FD stays bound to that
+session, using its stream serial when available; one bounded appsink PNG travels only
+through stdout/worker memory. It never uses the Screenshot portal or a temporary PNG.
+A native owner must approve the actual window on the PC each time. This path requires
+PyGObject/GIO, GStreamer/PipeWire/pngenc/appsink in the real session and physical acceptance. Raw PNG stays in protected endpoint
 memory, is standard-age encrypted on the
 worker and travels through the existing one-time RAM relay. Native clients decrypt and
 show a temporary Hub card; image bytes never enter normal feed SQL, transfer spool,
@@ -263,3 +269,13 @@ upstream billing settings change. No model switch, automatic retry or top-up is 
 Read-only typed price searches and existing services keep their independent requirements.
 See [social management](SOCIAL_MANAGEMENT.md), [assistant/shared coordination](ASSISTANT_AND_SHARED_TASKS.md),
 [native clients](NATIVE_CLIENTS.md) and [sensitive screens](ANDROID_SENSITIVE_SCREENS.md).
+
+
+The pinned MCP wrapper0.0.85 initializes as Playwright Core1.66.0-alpha-2026-11-09.
+The bridge checks that exact runtime version as well as all three package versions,
+registry/tarball integrity and the complete package-tree hash. Do not replace a pin
+with a broad version range. A dedicated actual Chrome instance needs a bounded thread/
+process allowance appropriate to Chrome; the work acceptance instance uses TasksMax256,
+MemoryMax1GiB and CPU50%, with its exact profile/loopback/PID marker. Startup/read-only
+connection failures can be observed again; a crashed target is not an authentication
+failure. There is no sandbox-disable switch or normal-account-profile fallback.

@@ -32,9 +32,14 @@ class HubApi(origin: String, private val token: String) {
     fun sharedUpdate(id: String,revision: Int,state: String,note: String,key: String): JSONObject = request("/v1/shared/tasks/"+EndpointPolicy.identifier(id)+"/updates",JSONObject().put("expected_revision",revision).put("state",state).put("note",note).put("idempotency_key",key))
     fun sharedCreate(worker: String,title: String,instructions: String,key: String): JSONObject = request("/v1/shared/tasks",JSONObject().put("target_worker",EndpointPolicy.identifier(worker)).put("title",title).put("instructions",instructions).put("idempotency_key",key))
     fun registerViewer(recipient: String): JSONObject = request("/v1/private-viewers",JSONObject().put("recipient",recipient).put("explicit_owner_confirmation",true))
-    fun privateView(worker: String,device: String,source: String="android"): JSONObject = request("/v1/private-views",JSONObject().put("source",source).put("worker_id",EndpointPolicy.identifier(worker)).put("device_id",EndpointPolicy.identifier(device)).put("watch_seconds",0).put("explicit_owner_confirmation",true))
+    fun privateView(worker: String,device: String,source: String="android",prepared: Boolean=false): JSONObject {
+        val body=JSONObject().put("source",source).put("worker_id",EndpointPolicy.identifier(worker)).put("device_id",EndpointPolicy.identifier(device)).put("watch_seconds",0).put("explicit_owner_confirmation",true)
+        if(prepared) body.put("prepared",true)
+        return request("/v1/private-views",body)
+    }
     fun privateStatus(id: String): JSONObject = request("/v1/private-views/"+EndpointPolicy.identifier(id))
     fun privateFrame(id: String): ByteArray = bytes("/v1/private-views/"+EndpointPolicy.identifier(id)+"/content",maximum=8*1024*1024+65536)
+    fun privateDisplayed(id: String) {bytes("/v1/private-views/"+EndpointPolicy.identifier(id)+"/displayed",method="POST",body=JSONObject().put("displayed",true),maximum=1024)}
     fun cancelPrivate(id: String) {bytes("/v1/private-views/"+EndpointPolicy.identifier(id),method="DELETE",maximum=1024)}
     fun feed(day: LocalDate,kind: String,query: String,offset: Int=0): JSONObject {
         require(query.length<=256 && offset in 0..1000000)

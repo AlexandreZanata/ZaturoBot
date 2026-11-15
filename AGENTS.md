@@ -21,6 +21,10 @@ exclusive DeepSeek and subscription-only response acceptance. Keep provider Extr
 off; no Console credit fallback, automatic top-up or model substitution. The prior402 is
 historical evidence, not a prerequisite for the new route. See ADR-0021 and the provider
 contract; this opt-in never relabels personal data as public coding.
+The owner additionally authorized the real installed OpenCode/typed intent slice and
+consented memory-only Wayland capture; see docs/OPENCODE_EXECUTION.md and ADR-0022.
+Administrative hub deployment and same-signature Android build belong on the main PC;
+use an inert revision-pinned shared handoff when requested, never copy its private keys.
 Full desktop isolation, general vault,
 scheduling and arbitrary account actions remain planned.
 

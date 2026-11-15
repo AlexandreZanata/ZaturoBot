@@ -99,3 +99,24 @@ A resolver/chooser is rejected. `Status: ok` means Android accepted navigation; 
 not establish that the unlocked inbox is visible. The local catalog records this exact
 acceptance condition, not a claim that an SMS was read.
 See the [Android Intent reference](https://developer.android.com/reference/android/content/Intent#CATEGORY_APP_MESSAGING).
+
+
+## Prepared capture on the viewer phone
+
+A native confirmation can prepare one USB capture after a fixed15-second delay, only for
+Android/watch0 and the original viewer/recipient. Total server expiry remains<=60seconds.
+The native owner leaves Hub for an unlocked nonsecret screen, waits, returns and explicitly
+opens the prepared view. The app retains only an opaque preparation ID/expiry in RAM; it
+never downloads/decrypts a frame while in the background. Hub keeps the same one-time RAM
+ciphertext relay. Destroying the client revokes its pending preparation where reachable;
+server expiry is independent. Ordinary active sessions and displayed images still clear
+on focus/navigation loss; FLAG_SECURE, authentication and native consent remain unchanged.
+This flow requires updated hub and a same-signature Android build, plus actual device
+acceptance. A command exit or server-ready flag alone is not proof that the owner saw it.
+
+
+The updated Android viewer posts a fixed metadata-only displayed receipt only after
+successful decryption/PNG decoding, layout/draw scheduling, a visible view rectangle,
+foreground focus and the current unexpired revision. Hub accepts it only from the original
+viewer after a claimed frame was consumed, and emits one fixed history notice. This is
+separate from worker upload readiness; no pixels or user-supplied description enter feed.

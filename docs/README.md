@@ -40,3 +40,8 @@ Android documents distinguish [USB foundations](ANDROID_INTEGRATION.md),
 [device security](ANDROID_DEVICE_SECURITY.md), [sensitive screens](ANDROID_SENSITIVE_SCREENS.md),
 [remote-control limits](ANDROID_REMOTE_CONTROL.md), and
 [future app-testing acceptance](ANDROID_APP_TESTING.md).
+
+
+[Installed OpenCode execution](OPENCODE_EXECUTION.md) defines typed natural routing, the
+job broker/one-forward Go gateway, owned cancellation, media evidence and the difference
+between source/deployment checks and physical work-PC acceptance.

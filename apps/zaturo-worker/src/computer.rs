@@ -447,6 +447,7 @@ print(json.dumps(result))
                 models_config: None,
                 assistant_models_config: None,
                 computer_models_config: None,
+                opencode: None,
                 computer: Some(zaturo_computer::ComputerConfig {
                     python: "/usr/bin/python3".into(),
                     scripts_root: scripts,
@@ -456,6 +457,7 @@ print(json.dumps(result))
                     bitlupa_database: None,
                     social_profile: None,
                     capture_target: None,
+                    wayland_portal_capture: false,
                 }),
                 files: None,
                 youtube: None,

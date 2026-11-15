@@ -82,7 +82,13 @@ pub fn chat_intent(message: &str) -> ChatIntent {
             }
         }
     }
-    let normalized = message
+    let normalized = normalize_owner_text(message);
+    let text = normalized.trim().trim_end_matches(['.', '!']);
+    explicit_normalized(text)
+}
+
+pub(crate) fn normalize_owner_text(message: &str) -> String {
+    message
         .to_lowercase()
         .chars()
         .map(|c| match c {
@@ -94,8 +100,10 @@ pub fn chat_intent(message: &str) -> ChatIntent {
             'ç' => 'c',
             _ => c,
         })
-        .collect::<String>();
-    let text = normalized.trim().trim_end_matches(['.', '!']);
+        .collect::<String>()
+}
+
+fn explicit_normalized(text: &str) -> ChatIntent {
     match text {
         "diagnostico" | "/diagnostico" | "status do pc" => return ChatIntent::Diagnostic,
         "canais" | "listar canais" | "/canais" => return ChatIntent::YoutubeProfiles,
@@ -136,15 +144,23 @@ pub fn chat_intent(message: &str) -> ChatIntent {
     {
         channel.remove(0);
     }
-    let slug = match channel.join(" ").as_str() {
-        "fallem prince" | "fallem price" | "fallem-prince" | "fallemprince" => "fallem-prince",
-        "whispers from heaven" | "whispers-from-heaven" => "whispers-from-heaven",
-        "zaflas" => "zaflas",
-        _ => return ChatIntent::Conversation,
+    let Some(slug) = canonical_youtube_channel(&channel.join(" ")) else {
+        return ChatIntent::Conversation;
     };
     ChatIntent::YoutubeGenerate {
         channel: slug.into(),
         count,
+    }
+}
+
+pub fn canonical_youtube_channel(alias: &str) -> Option<&'static str> {
+    match alias {
+        "fallem prince" | "fallem price" | "falllem price" | "fallem-prince" | "fallemprince" => {
+            Some("fallem-prince")
+        }
+        "whispers from heaven" | "whispers-from-heaven" => Some("whispers-from-heaven"),
+        "zaflas" => Some("zaflas"),
+        _ => None,
     }
 }
 #[cfg(test)]
@@ -168,6 +184,13 @@ mod tests {
     #[test]
     fn explicit_commands_have_a_zero_model_fast_path() {
         assert_eq!(
+            chat_intent("faça 2 videos para o falllem price"),
+            ChatIntent::YoutubeGenerate {
+                channel: "fallem-prince".into(),
+                count: 2
+            }
+        );
+        assert_eq!(
             chat_intent("faça 4 videos do fallem price"),
             ChatIntent::YoutubeGenerate {
                 channel: "fallem-prince".into(),
@@ -187,6 +210,12 @@ mod tests {
             "faça 4 videos do fallem price e publique",
             "faça 999 videos do fallem price",
             "faça 4 videos do canal desconhecido",
+            "faça -2 videos para o falllem price",
+            "faça 2.5 videos para o falllem price",
+            "faça dois videos para o falllem price e agende",
+            "se pudesse, faça 2 videos para o falllem price",
+            "não faça 2 videos para o falllem price",
+            "faça 2 videos para o falllem price e zaflas",
         ] {
             assert_eq!(chat_intent(text), ChatIntent::Conversation);
         }

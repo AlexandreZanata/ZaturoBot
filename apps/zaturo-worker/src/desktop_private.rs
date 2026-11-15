@@ -39,10 +39,7 @@ async fn run(
         return Err(FailureCode::PolicyDenied);
     };
     let computer = config.computer.as_ref().ok_or(FailureCode::PolicyDenied)?;
-    let target = computer
-        .capture_target
-        .as_ref()
-        .ok_or(FailureCode::PolicyDenied)?;
+
     let client = crate::files::client(config, token).map_err(|_| FailureCode::ExecutionFailed)?;
     let grant: PrivateViewGrant = client
         .get(&format!("/v1/device/private-views/{session_id}/grant"))
@@ -64,9 +61,16 @@ async fn run(
         deadline_at: work.task.deadline_at,
         owner_approved: true,
     };
-    let pixels = zaturo_computer::capture(computer, &lease, target.clone())
-        .await
-        .map_err(|_| FailureCode::ExecutionFailed)?;
+    let pixels = if computer.wayland_portal_capture {
+        zaturo_computer::capture_wayland(computer, &lease).await
+    } else {
+        let target = computer
+            .capture_target
+            .as_ref()
+            .ok_or(FailureCode::PolicyDenied)?;
+        zaturo_computer::capture(computer, &lease, target.clone()).await
+    }
+    .map_err(|_| FailureCode::ExecutionFailed)?;
     let cipher = zaturo_transfer::crypto::encrypt_private_image(&pixels, recipient)
         .map_err(|_| FailureCode::ExecutionFailed)?;
     drop(pixels);

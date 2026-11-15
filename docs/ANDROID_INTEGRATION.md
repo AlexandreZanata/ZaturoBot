@@ -90,3 +90,15 @@ interactive control, notifications or these later phases exist.
 Official references: [ADB](https://developer.android.com/tools/adb),
 [hardware authorization](https://developer.android.com/studio/run/device),
 [scrcpy connection](https://github.com/Genymobile/scrcpy/blob/master/doc/connection.md).
+
+
+Messaging navigation now requires an approved Google/Samsung messaging component, a
+matching resumed activity and an unlocked keyguard, beyond Status:ok. Fixed dumpsys
+activity/policy reads are bounded in RAM and discarded; only package/activity/time metadata
+is returned. Unknown/default resolver/locked/wrong foreground is blocked. This adds no
+SMS extraction, input, contact selection, unlock or arbitrary shell capability.
+
+The default MAIN/APP_MESSAGING component is resolved and restricted to approved Google/
+Samsung packages before fixed component launch. A locked phone is blocked before input;
+unknown keyguard state is not relabeled as a lock. Matching resumed activity and a fresh
+unlocked keyguard are still required afterwards. No task supplies the component.

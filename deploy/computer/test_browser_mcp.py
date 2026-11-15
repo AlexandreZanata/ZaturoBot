@@ -30,7 +30,7 @@ for line in sys.stdin:
  request=json.loads(line)
  with (root/'calls.jsonl').open('a') as log:log.write(json.dumps(request)+'\n')
  if request['method']=='notifications/initialized':continue
- if request['method']=='initialize':result={'protocolVersion':'2025-11-25','serverInfo':{'name':'Playwright','version':'0.0.85'},'capabilities':{'tools':{}}}
+ if request['method']=='initialize':result={'protocolVersion':'2025-11-25','serverInfo':{'name':'Playwright','version':'1.66.0-alpha-2026-11-09'},'capabilities':{'tools':{}}}
  else:
   params=request['params'];name=params['name'];args=params['arguments'];state=json.loads((root/'state.json').read_text())
   if name=='browser_snapshot':text=state['snapshot']

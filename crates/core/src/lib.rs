@@ -7,6 +7,10 @@ mod activity;
 pub use activity::*;
 mod intent;
 pub use intent::*;
+mod intent_router;
+pub use intent_router::*;
+mod opencode;
+pub use opencode::*;
 mod shared;
 pub use shared::*;
 mod service;
@@ -380,3 +384,6 @@ mod tests {
         );
     }
 }
+
+mod video_artifact;
+pub use video_artifact::{MediaStreamEvidence, VideoArtifactEvidence};

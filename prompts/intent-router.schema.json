@@ -1,0 +1,12 @@
+{
+  "oneOf": [
+    {"type":"object","additionalProperties":false,"required":["kind","text"],"properties":{"kind":{"const":"reply"},"text":{"type":"string","maxLength":1500}}},
+    {"type":"object","additionalProperties":false,"required":["kind","question"],"properties":{"kind":{"const":"clarify"},"question":{"type":"string","maxLength":500}}},
+    {"type":"object","additionalProperties":false,"required":["kind","action"],"properties":{"kind":{"const":"action"},"action":{"oneOf":[
+      {"type":"object","additionalProperties":false,"required":["action","channel","count"],"properties":{"action":{"const":"youtube_generate"},"channel":{"enum":["fallem-prince","whispers-from-heaven","zaflas"]},"count":{"type":"integer","minimum":1,"maximum":10}}},
+      {"type":"object","additionalProperties":false,"required":["action","request"],"properties":{"action":{"const":"browser_research"},"request":{"type":"string","maxLength":2048}}},
+      {"type":"object","additionalProperties":false,"required":["action"],"properties":{"action":{"const":"android_devices"}}},
+      {"type":"object","additionalProperties":false,"required":["action","device_id"],"properties":{"action":{"const":"android_open_messages"},"device_id":{"const":"owner-phone"}}}
+    ]}}}
+  ]
+}

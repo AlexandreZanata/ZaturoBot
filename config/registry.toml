@@ -201,3 +201,24 @@ status = "implemented"
 id = "stored-price-search"
 phase = 5
 status = "implemented"
+
+[[configurations]]
+name = "OpenCodeConfig"
+source = "crates/opencode/src/lib.rs"
+examples = ["config/opencode.example.toml"]
+
+[[integrations]]
+id = "installed-opencode"
+status = "implemented"
+source = "crates/opencode/src/lib.rs"
+documentation = "docs/OPENCODE_EXECUTION.md"
+
+[[features]]
+id = "installed-opencode"
+phase = 2
+status = "implemented"
+
+[[features]]
+id = "wayland-private-capture"
+phase = 3
+status = "implemented"
