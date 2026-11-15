@@ -373,8 +373,8 @@ fn messages_fixture(delay: bool) -> String {
 elif args==['-s','USB_SYNTHETIC_01','shell','am','start','-W','-n','com.google.android.apps.messaging/com.google.android.apps.messaging.ui.ConversationListActivity']:
  DELAY
  print('Status: ok\nActivity: com.google.android.apps.messaging/.ui.ConversationListActivity')
-elif args==['-s','USB_SYNTHETIC_01','shell','dumpsys','activity','activities']:
- print('mResumedActivity: ActivityRecord{abc u0 com.google.android.apps.messaging/.ui.ConversationListActivity t1}')
+elif args==['-s','USB_SYNTHETIC_01','shell','dumpsys','window','displays']:
+ print('mCurrentFocus=Window{abc u0 com.google.android.apps.messaging/com.google.android.apps.messaging.ui.ConversationListActivity}\nmFocusedApp=ActivityRecord{abc u0 com.google.android.apps.messaging/.ui.ConversationListActivity t1}')
 elif args==['-s','USB_SYNTHETIC_01','shell','dumpsys','window','policy']:
  print('KeyguardServiceDelegate\n showing=false\n inputRestricted=false\nKeyguardStateMonitor')
 elif args[:3]==['-s','USB_SYNTHETIC_01','shell']:"#;

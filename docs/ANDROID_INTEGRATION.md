@@ -93,12 +93,19 @@ Official references: [ADB](https://developer.android.com/tools/adb),
 
 
 Messaging navigation now requires an approved Google/Samsung messaging component, a
-matching resumed activity and an unlocked keyguard, beyond Status:ok. Fixed dumpsys
+matching focused window/application and an unlocked keyguard, beyond Status:ok. Fixed dumpsys
 activity/policy reads are bounded in RAM and discarded; only package/activity/time metadata
 is returned. Unknown/default resolver/locked/wrong foreground is blocked. This adds no
 SMS extraction, input, contact selection, unlock or arbitrary shell capability.
 
 The default MAIN/APP_MESSAGING component is resolved and restricted to approved Google/
 Samsung packages before fixed component launch. A locked phone is blocked before input;
-unknown keyguard state is not relabeled as a lock. Matching resumed activity and a fresh
+unknown keyguard state is not relabeled as a lock. Matching focused window/application and a fresh
 unlocked keyguard are still required afterwards. No task supplies the component.
+
+Physical acceptance found that the full activity dump exceeded the unchanged64KiB
+limit on the enrolled Samsung. Navigation verification now reads only fixed
+`dumpsys window displays` metadata and requires exactly one current-focus window and
+one focused application, both matching the launched approved component. Missing,
+conflicting or multiple-display focus is blocked. No client activity/UI dump is read.
+The fresh keyguard proof remains mandatory; output is still bounded and zeroized.

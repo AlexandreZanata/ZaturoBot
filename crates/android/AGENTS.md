@@ -29,5 +29,5 @@ metadata only and mark verified operations honestly. Private captures still use 
 
 The default MAIN/APP_MESSAGING component is resolved and restricted to approved Google/
 Samsung packages before fixed component launch. A locked phone is blocked before input;
-unknown keyguard state is not relabeled as a lock. Matching resumed activity and a fresh
+unknown keyguard state is not relabeled as a lock. Matching focused window/application and a fresh
 unlocked keyguard are still required afterwards. No task supplies the component.
