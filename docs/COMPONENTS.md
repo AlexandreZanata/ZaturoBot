@@ -49,7 +49,7 @@ stable discovery keys; [architecture.toml](../architecture.toml) is the dependen
 - `zaturo-worker` — `apps/zaturo-worker`: outbound connection, journal reconciliation,
   authorized execution, result reporting, Mercado Livre batch MinIO-upload + Hub ingestion
   CLI (`commerce ingest-ml`), official Telegram Bot API publisher/poller & human-assisted
-  WhatsApp Web draft exporter (`telegram.rs`), and reconnect.
+  WhatsApp Web draft exporter (`telegram/`), and reconnect.
 - Local MCP — `deploy/mcp`: four compact stdio tools over scoped authenticated hub APIs,
   private profile installation and inert shared coordination; no automatic executor.
 - `xtask` — `xtask`: the shared CI/local quality entry point, architecture/documentation
@@ -60,10 +60,10 @@ stable discovery keys; [architecture.toml](../architecture.toml) is the dependen
 The [Procurali content/site proposal](planning/commerce-refined/PROCURALI-BUSINESS-AND-SITE.md)
 and its creative/Fable handoffs remain planning artifacts without automatic group auto-publishing
 or model-driven recommendations. Separately, the owner-authorized Mercado Livre affiliate
-ingestor spans `crates/core/src/mercadolivre.rs`, `crates/db/src/mercadolivre.rs` (Hub
-schema 11), `crates/transfer/src/minio.rs`, `crates/services/src/mercadolivre.rs`,
-`apps/zaturo-hub/src/mercadolivre.rs`, `apps/zaturo-worker/src/mercadolivre.rs`,
-`apps/zaturo-worker/src/telegram.rs`, and the zero-downtime pull deployment helpers in
+ingestor spans `crates/core/src/mercadolivre/`, `crates/db/src/mercadolivre/` (Hub
+schema 11), `crates/transfer/src/minio.rs`, `crates/services/src/mercadolivre/`,
+`apps/zaturo-hub/src/mercadolivre/`, `apps/zaturo-worker/src/mercadolivre/`,
+`apps/zaturo-worker/src/telegram/`, and the zero-downtime pull deployment helpers in
 [Procurali deploy](../deploy/procurali/README.md),
 serving validated snapshots to the Procurali static site builder, the official Telegram Bot
 API queue/command responder, and human-assisted WhatsApp Web draft packages without Meta API.
