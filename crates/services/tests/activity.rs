@@ -163,3 +163,43 @@ fn service_kinds_capabilities_fence_completion_and_job_updates() {
         first.id
     );
 }
+
+#[test]
+fn phone_print_prompts_for_private_capture_instead_of_navigation_or_model_work() {
+    let e = Engine::open(":memory:", Limits::default()).unwrap();
+    e.register(
+        "pc",
+        &[
+            "diagnostic.v1".into(),
+            "android.messages.v1".into(),
+            "assistant.route.v1".into(),
+        ],
+        14_400_000,
+    )
+    .unwrap();
+    for (i, action) in [
+        None,
+        Some(ChatAction::Assistant),
+        Some(ChatAction::AndroidOpenMessages),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let req = ChatRequest {
+            message: "envie print do sm mesmo que nenhum SMS foi enviado".into(),
+            idempotency_key: format!("phone-print-{i}"),
+            target_worker: Some("pc".into()),
+            action,
+        };
+        let reply = e.chat(req.clone(), "pc", 14_400_001 + i as i64).unwrap();
+        assert!(reply.task.is_none());
+        assert!(reply.message.text.contains("não depende de SMS"));
+        let hint = reply.message.capture.as_ref().unwrap();
+        assert_eq!(hint.source, "android");
+        assert_eq!(hint.worker, "pc");
+        assert_eq!(
+            e.chat(req, "pc", 14_500_000).unwrap().message.id,
+            reply.message.id
+        );
+    }
+}

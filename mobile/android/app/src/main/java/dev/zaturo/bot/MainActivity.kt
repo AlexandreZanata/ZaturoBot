@@ -109,7 +109,7 @@ class MainActivity : Activity() {
         buildShell()
         phoneView=PrivatePhoneView(this,ui,{api()},{card ->
             if(visible && currentPage=="hub") {feed.addView(card,LinearLayout.LayoutParams(-1,-2));revealVisibleEnd()}
-        },{message ->if(visible) setStatus(message)})
+        },{message ->if(visible) setStatus(message)},{visible && currentPage=="hub" && hasWindowFocus()})
         showHub()
     }
 
@@ -299,6 +299,7 @@ class MainActivity : Activity() {
         container.addView(composer)
         renderFeed(false, forceNewest = true)
         if (visible) refresh(false)
+        if(::phoneView.isInitialized) phoneView.resumePrepared()
     }
 
     private fun dayLabel(): String = if (selectedDay == LocalDate.now()) "Hoje"
@@ -414,6 +415,7 @@ class MainActivity : Activity() {
             setTextIsSelectable(true); setLineSpacing(dp(2).toFloat(), 1f)
         }, LinearLayout.LayoutParams(-2, -2))
         item.optJSONObject("capture")?.let {hint ->
+            if(hint.optString("source")=="android") bubble.addView(ui.button("Capturar tela atual do celular",R.drawable.ic_shield){requestMessagesCapture(hint.getString("worker"))})
             if(hint.optString("source")=="desktop") bubble.addView(ui.button("Ver tela atual do computador",R.drawable.ic_shield){phoneView.start(hint.getString("worker"),"desktop","desktop")})
         }
         if (!item.isNull("artifact_id")) bubble.addView(ui.text("Anexo disponível no computador", 11, muted).apply {
@@ -554,15 +556,22 @@ class MainActivity : Activity() {
                 else setStatus("Informe um endereço http:// ou https:// válido, sem usuário ou senha na URL.")
             }.show()
     }
-    private fun requestMessagesCapture() {
+    private fun requestMessagesCapture(targetWorker: String?=null,openFirst: Boolean=false) {
         val fields=column().apply {setPadding(dp(16),0,dp(16),0)}
         val device=ui.edit("Identificador do celular USB").apply {setText("owner-phone");maxLines=1}
         val samePhone=CheckBox(this).apply {text="Estou usando o Hub nesse mesmo celular";isChecked=false;setTextColor(MobileUi.WHITE)}
-        fields.addView(device);fields.addView(samePhone)
-        AlertDialog.Builder(this).setTitle("Print da tela de SMS?").setMessage("Em 15 segundos o PC abrirá Mensagens no celular USB desbloqueado e enviará uma imagem real da tela. Se marcar a opção abaixo, ele voltará ao Hub deste celular para exibir a imagem. Nenhum SMS será enviado ou lido pela IA.").setView(fields)
-            .setNegativeButton("Cancelar",null).setPositiveButton("Abrir Mensagens e capturar") {_,_->
+        val openMessages=CheckBox(this).apply {text="Abrir Mensagens antes de capturar";isChecked=openFirst;setTextColor(MobileUi.WHITE)}
+        fields.addView(device);fields.addView(openMessages);fields.addView(samePhone)
+        AlertDialog.Builder(this).setTitle("Enviar print do celular?").setMessage("Envia uma imagem da tela atual, mesmo sem SMS novo ou enviado. Você pode escolher abrir Mensagens antes. Se estiver usando o Hub nesse mesmo celular, a captura será preparada para que você possa mostrar outra tela. A imagem aparece automaticamente ao voltar ao Hub e expira em até 60 segundos.").setView(fields)
+            .setNegativeButton("Cancelar",null).setPositiveButton("Capturar e enviar print") {_,_->
                 val id=device.text.toString()
-                if(runCatching {EndpointPolicy.identifier(id)}.isSuccess) {showHub();phoneView.prepare(configuration?.optString("target_worker","work-pc") ?: "work-pc",id,true,samePhone.isChecked)}
+                if(runCatching {EndpointPolicy.identifier(id)}.isSuccess) {
+                    val worker=targetWorker ?: configuration?.optString("target_worker","work-pc") ?: "work-pc"
+                    showHub()
+                    if(openMessages.isChecked) phoneView.prepare(worker,id,true,samePhone.isChecked,autoOpen=true)
+                    else if(samePhone.isChecked) phoneView.prepare(worker,id,autoOpen=true)
+                    else phoneView.start(worker,id)
+                }
                 else setStatus("Identificador do celular inválido.")
             }.show()
     }
@@ -596,11 +605,8 @@ class MainActivity : Activity() {
         })
         form.addView(ui.button("Abrir captura preparada",R.drawable.ic_shield){showHub();phoneView.openPrepared()})
         form.addView(serviceCard("Print de página", "Escolha qualquer endereço público. O bot abre a página no próprio navegador e envia a imagem privada.",R.drawable.ic_shield,"Escolher página e capturar") {requestPageCapture()})
-        form.addView(serviceCard("Print de SMS", "Abra Mensagens no celular USB e receba a imagem real da tela, sem leitura pela IA.",R.drawable.ic_phone,"Abrir Mensagens e capturar") {requestMessagesCapture()})
-        form.addView(serviceCard("Mensagens do celular", "Abra somente a caixa de mensagens do celular USB registrado. Não envia SMS nem desbloqueia a tela.",R.drawable.ic_phone,"Abrir mensagens") {
-            AlertDialog.Builder(this).setTitle("Abrir mensagens no celular remoto?").setMessage("Esta ação abre o aplicativo de mensagens no celular owner-phone do computador selecionado. Nenhuma mensagem será enviada.")
-                .setNegativeButton("Cancelar",null).setPositiveButton("Abrir") {_,_->submit("Abra a caixa de mensagens do celular registrado owner-phone.","android_open_messages")}.show()
-        })
+        form.addView(serviceCard("Print de SMS / tela atual", "Envia a tela atual mesmo sem SMS novo. Abrir Mensagens antes é opcional.",R.drawable.ic_phone,"Capturar e enviar print") {requestMessagesCapture()})
+        form.addView(serviceCard("Mensagens do celular", "Abre Mensagens e envia um print da tela, mesmo sem SMS novo ou enviado.",R.drawable.ic_phone,"Abrir Mensagens e enviar print") {requestMessagesCapture(openFirst=true)})
         form.addView(serviceCard("Computador Linux", "Árvore de acessibilidade e navegador dedicado. Use /computador seguido da tarefa; entradas e publicações pedem confirmação.",R.drawable.ic_terminal,"Ver tela atual do computador") {
             AlertDialog.Builder(this).setTitle("Captura privada do computador?").setMessage("Capturar a janela autorizada ou aquela que você selecionar no diálogo nativo do PC? A imagem é temporária e não entra no histórico nem na IA.").setNegativeButton("Cancelar",null).setPositiveButton("Ver tela") {_,_->
                 val worker=configuration?.optString("target_worker","work-pc") ?: "work-pc";showHub();phoneView.start(worker,"desktop","desktop")

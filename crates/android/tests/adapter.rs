@@ -581,3 +581,31 @@ async fn sms_image_can_return_only_to_the_fixed_companion_with_explicit_grant() 
         1
     );
 }
+
+#[tokio::test]
+async fn one_shot_phone_and_sms_captures_return_unchanged_pixels_without_any_sms_event() {
+    let _fixture = EXECUTABLE_FIXTURES.lock().await;
+    let dir = tempfile::tempdir().unwrap();
+    let path = fake(dir.path(), &messages_fixture(false));
+    let adb = AdbClient::new(&path).unwrap();
+    let mut device = registration();
+    device.capabilities.extend([
+        AndroidCapability::OpenMessages,
+        AndroidCapability::MessagesScreenView,
+    ]);
+    let manager = SessionManager::new(vec![device.clone()]).unwrap();
+    let lease = manager
+        .acquire(&device.device_id, AndroidControlActor::Owner, 30, 1000)
+        .unwrap();
+    let first = adb.capture(&device, &lease, 1000).await.unwrap();
+    let second = adb.capture(&device, &lease, 1000).await.unwrap();
+    assert_eq!(first.bytes(), second.bytes());
+    let sms = adb
+        .capture_messages(&device, &lease, 1000, false)
+        .await
+        .unwrap();
+    assert_eq!(second.bytes(), sms.bytes());
+    let calls = fs::read_to_string(dir.path().join("arguments.jsonl")).unwrap();
+    assert_eq!(calls.matches("screencap").count(), 3);
+    assert!(!calls.contains("content query") && !calls.contains("broadcast"));
+}

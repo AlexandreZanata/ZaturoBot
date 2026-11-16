@@ -368,7 +368,8 @@ impl ServiceResult {
         if metadata.len() == 2
             && metadata.get("state").and_then(serde_json::Value::as_str) == Some("unchanged")
         {
-            return self.summary == PRIVATE_VIEW_UNCHANGED_SUMMARY;
+            return matches!(request,ServiceRequest::AndroidPrivateView{watch_seconds,..} if *watch_seconds>0)
+                && self.summary == PRIVATE_VIEW_UNCHANGED_SUMMARY;
         }
         metadata.len() == 3
             && self.summary == PRIVATE_VIEW_READY_SUMMARY
@@ -488,6 +489,42 @@ mod private_result_tests {
         }
     }
     #[test]
+    fn one_shot_sources_never_complete_as_unchanged() {
+        for request in [
+            request(),
+            ServiceRequest::AndroidMessagesPrivateView {
+                device_id: "owner-phone".into(),
+                session_id: SESSION.into(),
+                recipient: "age1synthetic-public-recipient".into(),
+                owner_confirmed: true,
+                return_to_hub: false,
+            },
+            ServiceRequest::DesktopPrivateView {
+                session_id: SESSION.into(),
+                recipient: "age1synthetic-public-recipient".into(),
+                owner_confirmed: true,
+            },
+            ServiceRequest::BrowserPrivateView {
+                session_id: SESSION.into(),
+                recipient: "age1synthetic-public-recipient".into(),
+                owner_confirmed: true,
+            },
+        ] {
+            let result = ServiceResult {
+                action: request.name().into(),
+                summary: PRIVATE_VIEW_UNCHANGED_SUMMARY.into(),
+                data: serde_json::json!({"session_id":SESSION,"state":"unchanged"}),
+                ..ready()
+            };
+            assert!(!result.validates(OP, &request));
+            let delivered = ServiceResult {
+                action: request.name().into(),
+                ..ready()
+            };
+            assert!(delivered.validates(OP, &request));
+        }
+    }
+    #[test]
     fn private_result_contains_only_fixed_delivery_metadata_or_unchanged_state() {
         assert!(ready().validates(OP, &request()));
         let unchanged = ServiceResult {
@@ -495,7 +532,12 @@ mod private_result_tests {
             data: serde_json::json!({"session_id":SESSION,"state":"unchanged"}),
             ..ready()
         };
-        assert!(unchanged.validates(OP, &request()));
+        assert!(!unchanged.validates(OP, &request()));
+        let mut watch = request();
+        if let ServiceRequest::AndroidPrivateView { watch_seconds, .. } = &mut watch {
+            *watch_seconds = 5;
+        }
+        assert!(unchanged.validates(OP, &watch));
     }
     #[test]
     fn even_tiny_private_pixels_codes_and_free_form_private_summaries_are_rejected() {

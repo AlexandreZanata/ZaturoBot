@@ -90,3 +90,9 @@ native-confirmed URL → bounded PNG memory transport using a separate profile a
 existing subreaper. Typed USB SMS capture verifies foreground/keyguard around the frame
 and optionally returns to the companion under a separate grant. Native Android commands
 intercept private capture requests before ordinary chat/model submission.
+
+
+Android PreparedCapturePolicy binds automatic prepared-print opening to ready state,
+focused Hub and expiry. Hub/core recognize phone print requests and expose only an
+Android native-capture hint, preserving the private-view consent boundary. No SMS event
+or pixel-change gate applies to one-shot delivery; unchanged belongs to explicit watch.

@@ -99,3 +99,10 @@ retain ordinary `assistant_chat` compatibility. See [execution](OPENCODE_EXECUTI
 
 
 Version0.8 adds native URL and actual SMS-screen capture; see the [remote private capture contract](REMOTE_PRIVATE_CAPTURE.md) for grants, transport, update and physical acceptance.
+
+
+Android0.8.1 phone-print fallback adds CaptureHint.source=android alongside desktop.
+The hint contains target worker only, is not consent, and has no pixels/SMS data. Private
+one-shot completion requires frame-delivery metadata; unchanged is accepted only for
+AndroidPrivateView with explicit watch_seconds>0. This additive hint does not authorize
+navigation, SMS sending, background viewing or a model call.

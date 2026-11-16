@@ -44,3 +44,8 @@ conflict detection and non-sensitive activity notice emission), `mercadolivre_si
 `approve_mercadolivre_telegram_delivery`, and `ack_mercadolivre_telegram_delivery`
 (enforcing `TelegramDeliveryStatus::ack_transition_allowed`, pre-send `queued -> sending` claim,
 freshness/superseded guards, and warm cache invalidation on ack).
+
+ADR-0026: a phone print is a current-screen one-shot, never SMS navigation or a send/arrival
+watch. Hub fallback returns a native Android hint without model/task execution. One-shot
+results require a frame; only explicit watch may be unchanged. Prepared print consumption
+requires ready state, focused Hub and unexpired original native confirmation.
