@@ -215,6 +215,94 @@ class ProcuraliDeployTests(unittest.TestCase):
             self.assertEqual((live_link / "index.html").read_text(encoding="utf-8"), "<html>bootstrap</html>")
             self.assertEqual([p.name for p in releases_dir.iterdir()], ["bootstrap"])
 
+    def test_idle_run_once_short_circuits_without_rest_api_calls(self) -> None:
+        self.assertEqual(
+            agent.parse_procurali_tag_from_url(
+                "https://github.com/AlexandreZanata/ZaturoBot/releases/tag/procurali-05493d3cfd1c"
+            ),
+            "procurali-05493d3cfd1c",
+        )
+        self.assertIsNone(
+            agent.parse_procurali_tag_from_url(
+                "https://github.com/AlexandreZanata/ZaturoBot/releases/tag/v0.9.0"
+            )
+        )
+        self.assertEqual(
+            agent.parse_latest_procurali_tag_from_atom(
+                '<entry><link href="/AlexandreZanata/ZaturoBot/releases/tag/v1.0"/></entry>'
+                '<entry><link href="/AlexandreZanata/ZaturoBot/releases/tag/procurali-abcdef123456"/></entry>'
+            ),
+            "procurali-abcdef123456",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            paths = agent.DeployPaths(opt_root=root / "opt", state_dir=root / "state")
+            agent.write_deploy_record(
+                paths.deploy_record_file,
+                {
+                    "status": "ok",
+                    "commit_sha": "abcdef1234567890",
+                    "release_tag": "procurali-abcdef123456",
+                },
+            )
+
+            def fail_rest(*_args, **_kwargs):
+                raise AssertionError("idle poll must not consume GitHub REST API quota")
+
+            out = agent.run_once(
+                repo="AlexandreZanata/ZaturoBot",
+                paths=paths,
+                required_checks=("check", "android"),
+                latest_tag_fn=lambda _repo: "procurali-abcdef123456",
+                get_json_fn=fail_rest,
+                download_fn=fail_rest,
+            )
+            self.assertEqual(out["status"], "up_to_date")
+            self.assertEqual(out["release_tag"], "procurali-abcdef123456")
+
+    def test_blue_green_swap_updates_installed_deploy_agent_when_present(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            opt = root / "opt"
+            (opt / "agent").mkdir(parents=True, exist_ok=True)
+            rel = opt / "releases" / "deadbeef"
+            (rel / "bin").mkdir(parents=True, exist_ok=True)
+            (rel / "bin" / "zaturo-hub").write_bytes(b"hub")
+            (rel / "bin" / "zaturo-worker").write_bytes(b"worker")
+            (rel / "deploy" / "procurali").mkdir(parents=True, exist_ok=True)
+            (rel / "deploy" / "procurali" / "procurali_deploy_agent.py").write_text(
+                "# agent-v2\n", encoding="utf-8"
+            )
+
+            paths = agent.DeployPaths(
+                opt_root=opt,
+                state_dir=root / "state",
+                hub_db=root / "nonexistent.db",
+                hub_backups_dir=root / "backups",
+                caddy_main_config=root / "Caddyfile",
+                caddy_upstream_file=root / "procurali-upstream.caddy",
+                site_live_link=root / "site",
+            )
+            paths.active_slot_file.write_text("b\n", encoding="utf-8")
+
+            def fake_cmd(args: list[str], *, check: bool = True, timeout: int = 60):
+                return subprocess.CompletedProcess(args, 0, "", "")
+
+            rec = agent.deploy_blue_green_release(
+                paths,
+                {"commit_sha": "deadbeef12345678", "release_tag": "procurali-deadbeef1234"},
+                rel,
+                health_check_fn=lambda _port: None,
+                cmd_runner=fake_cmd,
+                drain_seconds=0,
+            )
+            self.assertEqual(rec["active_slot"], "a")
+            self.assertEqual(
+                (opt / "agent" / "procurali-deploy-agent.py").read_text(encoding="utf-8"),
+                "# agent-v2\n",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
