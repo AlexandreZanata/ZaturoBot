@@ -44,7 +44,16 @@ pub fn router(state: AppState) -> Router {
 }
 
 async fn admission(State(state): State<AppState>, request: Request<Body>, next: Next) -> Response {
-    let Ok(_permit) = state.requests.clone().try_acquire_owned() else {
+    let pool = if request
+        .uri()
+        .path()
+        .starts_with("/v1/commerce/mercadolivre/")
+    {
+        state.commerce_requests.clone()
+    } else {
+        state.requests.clone()
+    };
+    let Ok(_permit) = pool.try_acquire_owned() else {
         return (StatusCode::SERVICE_UNAVAILABLE, "request capacity reached").into_response();
     };
     let seconds = if request.uri().path().starts_with("/v1/device/transfers") {

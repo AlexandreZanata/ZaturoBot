@@ -56,3 +56,18 @@ manually mark an uncertain operation completed just to clear the queue.
 systemd caps are examples requiring testing on the target machine. Logging retention,
 disk monitoring, TLS certificates, VPN ACLs, backup encryption, and token rotation are
 operator responsibilities. Review [security](SECURITY.md) and [limits](RESOURCE_LIMITS.md).
+
+## Procurali CI-gated zero-downtime pull auto-deploy
+
+Updates merged to `main` are published only after `.github/workflows/check.yml` passes both
+`check` (`cargo xtask check --locked`) and `android`:
+
+1. The `release-bundle` job compiles `zaturo-hub` and `zaturo-worker`, packages the pure-Node
+   site builder, and attaches `procurali-bundle-linux-amd64.tar.gz` + `manifest.json` +
+   `SHA256SUMS` to an immutable `procurali-<shortsha>` GitHub Release (no VPS IP or SSH key
+   exists in repository secrets).
+2. On the Linux VPS, the [Procurali auto-deploy helpers](../deploy/procurali/README.md)
+   independently verify both `check` and `android` check-runs for `commit_sha`, verify SHA-256
+   digests, back up `hub.db` via `sqlite3 .backup`, boot the standby Hub slot (`a` <-> `b`),
+   health-check `/healthz`, gracefully reload Caddy, swap `/srv/procurali/site` via an atomic
+   POSIX symlink, drain the old slot, and roll back automatically if any post-cutover check fails.

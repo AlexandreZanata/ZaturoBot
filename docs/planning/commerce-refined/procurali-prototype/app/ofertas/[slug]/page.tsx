@@ -10,8 +10,10 @@ import {
   isOfferFresh,
   verifySevenDaySample,
 } from "@/lib/contracts.mjs";
+import { usablePriceIntelligence } from "@/lib/price-intel";
 import { breadcrumbLd, pageMetadata } from "@/lib/seo";
 import { Badge, Breadcrumbs, JsonLd, Notice } from "@/components/site/primitives";
+import { PriceIntelPanel } from "@/components/site/price-intel";
 import { AffiliateCta, MiniOfferCard, PriceBlock, StatusBadge, mediaSrc } from "@/components/site/offer";
 import { SaveButton } from "@/components/site/saved";
 import { CopyButton } from "@/components/site/copy-button";
@@ -67,18 +69,30 @@ export default async function OfferDetailPage({ params }: Params) {
   const live = !offer.isDemoFixture && offer.state === "approved";
   const availability = offer.availability === "InStock" ? "Em estoque no anúncio (snapshot)" : offer.availability || "";
   const route = `/ofertas/${offer.slug}/`;
+  const priceIntel = usablePriceIntelligence(offer.priceIntelligence);
+  const faqItems = Array.isArray(offer.dynamicFaq) ? offer.dynamicFaq.filter((item) => item?.question && item?.answer) : [];
+  const jsonLd: object[] = [
+    breadcrumbLd([
+      { name: "Início", path: "/" },
+      { name: "Ofertas", path: "/ofertas/" },
+      { name: offer.title, path: route },
+    ]),
+  ];
+  if (faqItems.length > 0) {
+    jsonLd.push({
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: faqItems.map((item) => ({
+        "@type": "Question",
+        name: item.question,
+        acceptedAnswer: { "@type": "Answer", text: item.answer },
+      })),
+    });
+  }
 
   return (
     <>
-      <JsonLd
-        data={[
-          breadcrumbLd([
-            { name: "Início", path: "/" },
-            { name: "Ofertas", path: "/ofertas/" },
-            { name: offer.title, path: route },
-          ]),
-        ]}
-      />
+      <JsonLd data={jsonLd} />
       <div className="border-b border-line">
         <div className="container-site pt-8 pb-16">
           <Breadcrumbs
@@ -407,6 +421,8 @@ export default async function OfferDetailPage({ params }: Params) {
           </section>
         )}
 
+        {priceIntel && <PriceIntelPanel intel={priceIntel} />}
+
         <section>
           <SectionHeading sub={offer.sevenDayCoverageNote}>
             Histórico de observações de preço ({offer.priceObservations.length})
@@ -444,6 +460,20 @@ export default async function OfferDetailPage({ params }: Params) {
             </table>
           </div>
         </section>
+
+        {faqItems.length > 0 && (
+          <section>
+            <SectionHeading>Perguntas frequentes sobre esta oferta</SectionHeading>
+            <div className="divide-y divide-line border-t border-line">
+              {faqItems.map((faq, idx) => (
+                <details key={faq.question} className="group py-4" open={idx === 0}>
+                  <summary className="cursor-pointer list-none font-medium text-ink">{faq.question}</summary>
+                  <p className="mt-2 max-w-3xl text-sm leading-relaxed text-neutral-700">{faq.answer}</p>
+                </details>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section>
           <SectionHeading>Evidência e direitos de mídia</SectionHeading>

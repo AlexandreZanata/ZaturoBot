@@ -39,7 +39,8 @@ actions. Explicit general computer tasks retain their separate bounded native gr
 
 `mercadolivre.rs` owns `Engine::ingest_mercadolivre_batch` (idempotency-key + SHA-256
 conflict detection and non-sensitive activity notice emission), `mercadolivre_site_catalog`,
-`mercadolivre_telegram_queue`, the owner-only `approve_mercadolivre_telegram_delivery`, and
-`ack_mercadolivre_telegram_delivery`. Ingest never approves publication; acks follow
-`TelegramDeliveryStatus::ack_transition_allowed` (claim `queued -> sending` before any send,
-then `sending -> published|failed`), and a claim on a stale or superseded offer is skipped.
+`mercadolivre_reference_catalog` (precompiled ETag-cached `CommerceReferenceCatalog` with
+30d price trends and Telegram stats), `mercadolivre_telegram_queue`, owner-only
+`approve_mercadolivre_telegram_delivery`, and `ack_mercadolivre_telegram_delivery`
+(enforcing `TelegramDeliveryStatus::ack_transition_allowed`, pre-send `queued -> sending` claim,
+freshness/superseded guards, and warm cache invalidation on ack).

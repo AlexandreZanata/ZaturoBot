@@ -42,7 +42,10 @@ stable discovery keys; [architecture.toml](../architecture.toml) is the dependen
   client shares the presentation/navigation contract in `docs/NATIVE_CLIENTS.md`.
 - `zaturo-hub` — `apps/zaturo-hub`: HTTP/WebSocket composition, pre-HTTP bounded TCP listener,
   notification-driven dispatch with durable fallback, authenticated Mercado Livre commerce
-  ingest/catalog/Telegram-queue HTTP & CLI endpoints, and owner CLI.
+  ingest/catalog/Telegram-queue HTTP & CLI endpoints, warm-cached Cloobe-style taxonomy,
+  faceted search, PDP price intelligence, redirect, telemetry and price-alert routes
+  (precompiled `CompiledCommerceIndex` in `zaturo-services`, zero-copy `ETag` bodies),
+  and owner CLI.
 - `zaturo-worker` — `apps/zaturo-worker`: outbound connection, journal reconciliation,
   authorized execution, result reporting, Mercado Livre batch MinIO-upload + Hub ingestion
   CLI (`commerce ingest-ml`), official Telegram Bot API publisher/poller & human-assisted
@@ -59,8 +62,9 @@ and its creative/Fable handoffs remain planning artifacts without automatic grou
 or model-driven recommendations. Separately, the owner-authorized Mercado Livre affiliate
 ingestor spans `crates/core/src/mercadolivre.rs`, `crates/db/src/mercadolivre.rs` (Hub
 schema 11), `crates/transfer/src/minio.rs`, `crates/services/src/mercadolivre.rs`,
-`apps/zaturo-hub/src/mercadolivre.rs`, `apps/zaturo-worker/src/mercadolivre.rs`, and
-`apps/zaturo-worker/src/telegram.rs`,
+`apps/zaturo-hub/src/mercadolivre.rs`, `apps/zaturo-worker/src/mercadolivre.rs`,
+`apps/zaturo-worker/src/telegram.rs`, and the zero-downtime pull deployment helpers in
+[Procurali deploy](../deploy/procurali/README.md),
 serving validated snapshots to the Procurali static site builder, the official Telegram Bot
 API queue/command responder, and human-assisted WhatsApp Web draft packages without Meta API.
 

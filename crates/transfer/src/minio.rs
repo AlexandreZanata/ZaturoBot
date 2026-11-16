@@ -100,11 +100,11 @@ pub struct InspectedImage {
 }
 
 impl InspectedImage {
-    /// Flags portrait mobile-video thumbnails (e.g. 9:16 vertical frames) so square/landscape
-    /// catalog photography takes precedence during automated ingestion.
+    /// Flags portrait mobile-video thumbnails (e.g. 9:16 vertical frames where h/w > 1.5)
+    /// so square, landscape, and standard vertical retail-box photos (e.g. 851x1200) take precedence.
     pub fn is_vertical_video_frame(&self) -> bool {
         self.dimensions
-            .is_some_and(|(w, h)| w > 0 && h.saturating_mul(3) > w.saturating_mul(4))
+            .is_some_and(|(w, h)| w > 0 && h.saturating_mul(2) > w.saturating_mul(3))
     }
 
     pub fn object_key(&self, product_id: &str, position: u16) -> Result<String> {
@@ -569,6 +569,9 @@ mod tests {
 
         let reel = inspect_image_bytes(&minimal_png(720, 1280)).unwrap();
         assert!(reel.is_vertical_video_frame());
+
+        let retail_box = inspect_image_bytes(&minimal_png(851, 1200)).unwrap();
+        assert!(!retail_box.is_vertical_video_frame());
 
         assert!(inspect_image_bytes(b"<svg></svg>").is_err());
         assert!(inspect_image_bytes(b"").is_err());

@@ -86,9 +86,13 @@ The bounded Mercado Livre affiliate batch pipeline (`zaturo-worker commerce inge
 MinIO SigV4 upload in `zaturo-transfer` -> Hub HTTP `POST /v1/device/commerce/mercadolivre/ingest`
 and `POST /v1/commerce/mercadolivre/ingest` -> normalized SQLite schema 10) validates bot
 product JSON, preserves exact `https://meli.la/...` URLs without query tampering, filters
-vertical 9:16 video thumbnails, strips `.local/` filesystem paths before persistence, and
-exposes `GET /v1/commerce/mercadolivre/site-catalog` for the Procurali static builder plus
-`GET /v1/commerce/mercadolivre/telegram-queue` / `.../ack` for controlled Telegram delivery.
+vertical 9:16 video thumbnails, strips `.local/` filesystem paths before persistence, tracks
+per-SKU 30-day deduplicated price history (`MercadoLivrePriceComparison` deltas, smart
+Telegram price-drop re-queueing without duplicate spam, SKU-deduplicated WhatsApp drafts), and
+exposes `GET /v1/commerce/mercadolivre/site-catalog` for the Procurali static builder,
+`GET /v1/device/commerce/mercadolivre/reference-catalog` (`ETag`) for fast local worker/bot
+reference lookups, plus `GET /v1/commerce/mercadolivre/telegram-queue` / `.../ack` for controlled
+Telegram delivery.
 
 ## Official Telegram Bot publisher, interactive poller, and WhatsApp Web copilot
 

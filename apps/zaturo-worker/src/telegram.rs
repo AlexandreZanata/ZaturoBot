@@ -4,13 +4,44 @@
 use anyhow::{Context, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::{fmt, fs, path::PathBuf, time::Duration};
+use std::{
+    collections::BTreeMap,
+    fmt, fs,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 use zaturo_core::{
     TelegramBotCommand, TelegramDeliveryAck, TelegramDeliveryStatus, TelegramInlineKeyboardMarkup,
     TelegramOfferQueueItem, WhatsappAssistedPackage, build_telegram_offer_keyboard,
     build_whatsapp_assisted_package, format_telegram_bot_command_reply_pt_br,
-    format_telegram_html_caption_pt_br, valid_telegram_channel,
+    format_telegram_html_caption_pt_br, valid_minio_object_key, valid_telegram_channel,
 };
+use zaturo_transfer::minio::{ImageFormat, inspect_image_bytes};
+
+const PLACEHOLDER_BOT_TOKEN: &str = "COLE_SEU_TOKEN_DO_BOT_AQUI";
+const MAX_TELEGRAM_SEND_INTERVAL_MS: u64 = 600_000;
+const DEFAULT_LOCAL_ENV_FILE: &str = ".secrets/telegram.env";
+const DEFAULT_ROOT_ENV_FILE: &str = ".env";
+const TELEGRAM_ENV_KEYS: &[&str] = &[
+    "ZATURO_TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_BOT_TOKEN",
+    "ZATURO_TELEGRAM_CHANNEL_ID",
+    "TELEGRAM_CHANNEL_ID",
+    "ZATURO_TELEGRAM_ALLOW_LIVE_PUBLISH",
+    "TELEGRAM_ALLOW_LIVE_PUBLISH",
+    "ZATURO_TELEGRAM_AUTO_PUBLISH_ON_INGEST",
+    "TELEGRAM_AUTO_PUBLISH_ON_INGEST",
+    "ZATURO_TELEGRAM_MIN_INTERVAL_SECS",
+    "TELEGRAM_MIN_INTERVAL_SECS",
+    "ZATURO_TELEGRAM_MAX_INTERVAL_SECS",
+    "TELEGRAM_MAX_INTERVAL_SECS",
+    "ZATURO_TELEGRAM_LOCAL_MINIO_ENDPOINT",
+    "TELEGRAM_LOCAL_MINIO_ENDPOINT",
+    "ZATURO_TELEGRAM_MINIO_BUCKET",
+    "TELEGRAM_MINIO_BUCKET",
+    "ZATURO_TELEGRAM_SITE_BASE_URL",
+    "TELEGRAM_SITE_BASE_URL",
+];
 
 fn default_telegram_api_base_url() -> String {
     "https://api.telegram.org".to_owned()
@@ -29,6 +60,7 @@ fn default_send_interval_ms() -> u64 {
 pub struct TelegramBotConfig {
     #[serde(default = "default_telegram_api_base_url")]
     pub api_base_url: String,
+    #[serde(default)]
     pub bot_token_file: PathBuf,
     #[serde(default = "default_channel_id")]
     pub default_channel_id: String,
@@ -37,25 +69,242 @@ pub struct TelegramBotConfig {
     #[serde(default = "default_send_interval_ms")]
     pub min_send_interval_ms: u64,
     #[serde(default)]
+    pub max_send_interval_ms: Option<u64>,
+    #[serde(default)]
     pub allow_live_publish: bool,
+    #[serde(default)]
+    pub auto_publish_on_ingest: bool,
+    #[serde(default)]
+    pub local_minio_endpoint: Option<String>,
+    #[serde(default)]
+    pub minio_bucket: Option<String>,
+    #[serde(default)]
+    pub env_file: Option<PathBuf>,
 }
 
 impl TelegramBotConfig {
     pub fn validate(&self) -> Result<()> {
         zaturo_security::validate_endpoint(&self.api_base_url)?;
+        let has_env_token = has_configured_token_env(self.env_file.as_deref());
         ensure!(
-            !self.bot_token_file.as_os_str().is_empty(),
-            "telegram bot_token_file must be set"
+            !self.bot_token_file.as_os_str().is_empty() || self.env_file.is_some() || has_env_token,
+            "telegram bot_token_file or env_file/TELEGRAM_BOT_TOKEN must be set"
         );
         ensure!(
             valid_telegram_channel(&self.default_channel_id),
             "invalid telegram default_channel_id"
         );
+        ensure!(
+            self.min_send_interval_ms <= MAX_TELEGRAM_SEND_INTERVAL_MS,
+            "telegram min_send_interval_ms exceeds maximum 600000 ms"
+        );
+        if let Some(max_ms) = self.max_send_interval_ms {
+            ensure!(
+                max_ms >= self.min_send_interval_ms && max_ms <= MAX_TELEGRAM_SEND_INTERVAL_MS,
+                "telegram max_send_interval_ms must be between min_send_interval_ms and 600000 ms"
+            );
+        }
         if let Some(site_url) = &self.site_base_url {
             zaturo_security::validate_endpoint(site_url)?;
         }
+        if let Some(minio_url) = &self.local_minio_endpoint {
+            zaturo_security::validate_endpoint(minio_url)?;
+        }
+        if let Some(bucket) = &self.minio_bucket {
+            ensure!(
+                !bucket.trim().is_empty()
+                    && bucket
+                        .bytes()
+                        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-'),
+                "invalid telegram minio_bucket"
+            );
+        }
         Ok(())
     }
+
+    /// Resolves overrides from configured `env_file` (or `.secrets/telegram.env` when present
+    /// and `bot_token_file` is absent) plus process environment variables.
+    pub fn with_env_overrides(&self) -> Result<Self> {
+        let fallback_to_default = !cfg!(test)
+            && (self.bot_token_file.as_os_str().is_empty() || !self.bot_token_file.exists());
+        let env_map = load_telegram_env_map(self.env_file.as_deref(), fallback_to_default)?;
+        let mut resolved = self.clone();
+
+        if let Some(channel) = pick_env(
+            &env_map,
+            &["ZATURO_TELEGRAM_CHANNEL_ID", "TELEGRAM_CHANNEL_ID"],
+        ) {
+            resolved.default_channel_id = channel;
+        }
+        if let Some(allow) = pick_env_bool(
+            &env_map,
+            &[
+                "ZATURO_TELEGRAM_ALLOW_LIVE_PUBLISH",
+                "TELEGRAM_ALLOW_LIVE_PUBLISH",
+            ],
+        )? {
+            resolved.allow_live_publish = allow;
+        }
+        if let Some(auto_pub) = pick_env_bool(
+            &env_map,
+            &[
+                "ZATURO_TELEGRAM_AUTO_PUBLISH_ON_INGEST",
+                "TELEGRAM_AUTO_PUBLISH_ON_INGEST",
+            ],
+        )? {
+            resolved.auto_publish_on_ingest = auto_pub;
+        }
+        if let Some(min_secs) = pick_env_u64(
+            &env_map,
+            &[
+                "ZATURO_TELEGRAM_MIN_INTERVAL_SECS",
+                "TELEGRAM_MIN_INTERVAL_SECS",
+            ],
+        )? {
+            resolved.min_send_interval_ms = min_secs.saturating_mul(1000);
+        }
+        if let Some(max_secs) = pick_env_u64(
+            &env_map,
+            &[
+                "ZATURO_TELEGRAM_MAX_INTERVAL_SECS",
+                "TELEGRAM_MAX_INTERVAL_SECS",
+            ],
+        )? {
+            resolved.max_send_interval_ms = Some(max_secs.saturating_mul(1000));
+        } else if let Some(max_ms) = resolved.max_send_interval_ms
+            && max_ms < resolved.min_send_interval_ms
+        {
+            resolved.max_send_interval_ms = Some(resolved.min_send_interval_ms);
+        }
+        if let Some(endpoint) = pick_env(
+            &env_map,
+            &[
+                "ZATURO_TELEGRAM_LOCAL_MINIO_ENDPOINT",
+                "TELEGRAM_LOCAL_MINIO_ENDPOINT",
+            ],
+        ) {
+            resolved.local_minio_endpoint = Some(endpoint);
+        }
+        if let Some(bucket) = pick_env(
+            &env_map,
+            &["ZATURO_TELEGRAM_MINIO_BUCKET", "TELEGRAM_MINIO_BUCKET"],
+        ) {
+            resolved.minio_bucket = Some(bucket);
+        }
+        if let Some(site_url) = pick_env(
+            &env_map,
+            &["ZATURO_TELEGRAM_SITE_BASE_URL", "TELEGRAM_SITE_BASE_URL"],
+        ) {
+            resolved.site_base_url = Some(site_url);
+        }
+        resolved.validate()?;
+        Ok(resolved)
+    }
+}
+
+fn has_configured_token_env(env_file: Option<&Path>) -> bool {
+    if ["ZATURO_TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_TOKEN"]
+        .iter()
+        .any(|k| {
+            std::env::var(k)
+                .ok()
+                .map(|v| !v.trim().is_empty())
+                .unwrap_or(false)
+        })
+    {
+        return true;
+    }
+    env_file.is_some()
+        || (!cfg!(test)
+            && (Path::new(DEFAULT_LOCAL_ENV_FILE).exists()
+                || Path::new(DEFAULT_ROOT_ENV_FILE).exists()))
+}
+
+pub fn load_telegram_env_map(
+    env_file: Option<&Path>,
+    fallback_to_default_secrets: bool,
+) -> Result<BTreeMap<String, String>> {
+    let mut map = BTreeMap::new();
+    let candidate_files: Vec<PathBuf> = match env_file {
+        Some(path) => vec![path.to_path_buf()],
+        None if fallback_to_default_secrets => [DEFAULT_LOCAL_ENV_FILE, DEFAULT_ROOT_ENV_FILE]
+            .into_iter()
+            .map(PathBuf::from)
+            .filter(|p| p.exists())
+            .collect(),
+        None => Vec::new(),
+    };
+    for path in candidate_files {
+        if !path.exists() {
+            continue;
+        }
+        let content = fs::read_to_string(&path)
+            .with_context(|| format!("failed reading Telegram env file {}", path.display()))?;
+        for raw_line in content.lines() {
+            let trimmed = raw_line.trim();
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                continue;
+            }
+            let Some((raw_key, raw_val)) = trimmed.split_once('=') else {
+                continue;
+            };
+            let key = raw_key
+                .trim()
+                .strip_prefix("export ")
+                .unwrap_or(raw_key)
+                .trim();
+            if !TELEGRAM_ENV_KEYS.contains(&key) {
+                continue;
+            }
+            let mut val = raw_val.trim();
+            if ((val.starts_with('"') && val.ends_with('"'))
+                || (val.starts_with('\'') && val.ends_with('\'')))
+                && val.len() >= 2
+            {
+                val = &val[1..val.len() - 1];
+            }
+            if !val.trim().is_empty() {
+                map.insert(key.to_owned(), val.trim().to_owned());
+            }
+        }
+    }
+
+    for key in TELEGRAM_ENV_KEYS {
+        if let Ok(val) = std::env::var(key)
+            && !val.trim().is_empty()
+        {
+            map.insert((*key).to_owned(), val.trim().to_owned());
+        }
+    }
+    Ok(map)
+}
+
+fn pick_env(map: &BTreeMap<String, String>, keys: &[&str]) -> Option<String> {
+    keys.iter()
+        .find_map(|k| map.get(*k))
+        .map(|v| v.trim().to_owned())
+        .filter(|v| !v.is_empty())
+}
+
+fn pick_env_bool(map: &BTreeMap<String, String>, keys: &[&str]) -> Result<Option<bool>> {
+    let Some(raw) = pick_env(map, keys) else {
+        return Ok(None);
+    };
+    match raw.to_ascii_lowercase().as_str() {
+        "true" | "1" | "yes" | "sim" => Ok(Some(true)),
+        "false" | "0" | "no" | "nao" => Ok(Some(false)),
+        _ => bail!("invalid boolean value for Telegram env setting: {raw}"),
+    }
+}
+
+fn pick_env_u64(map: &BTreeMap<String, String>, keys: &[&str]) -> Result<Option<u64>> {
+    let Some(raw) = pick_env(map, keys) else {
+        return Ok(None);
+    };
+    let parsed: u64 = raw
+        .parse()
+        .with_context(|| format!("invalid integer seconds value for Telegram env: {raw}"))?;
+    Ok(Some(parsed))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -99,6 +348,15 @@ pub struct TelegramPollReport {
     pub next_offset: Option<i64>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TelegramDaemonReport {
+    pub cycles_completed: usize,
+    pub published_count: usize,
+    pub failed_count: usize,
+    pub commands_answered: usize,
+}
+
 #[derive(Clone)]
 pub struct TelegramBotClient {
     config: TelegramBotConfig,
@@ -112,7 +370,13 @@ impl fmt::Debug for TelegramBotClient {
             .field("api_base_url", &self.config.api_base_url)
             .field("default_channel_id", &self.config.default_channel_id)
             .field("site_base_url", &self.config.site_base_url)
+            .field("min_send_interval_ms", &self.config.min_send_interval_ms)
+            .field("max_send_interval_ms", &self.config.max_send_interval_ms)
             .field("allow_live_publish", &self.config.allow_live_publish)
+            .field(
+                "auto_publish_on_ingest",
+                &self.config.auto_publish_on_ingest,
+            )
             .field("bot_token", &"<redacted>")
             .finish()
     }
@@ -184,26 +448,52 @@ enum SendAttemptOutcome {
 
 impl TelegramBotClient {
     pub fn from_config(config: TelegramBotConfig) -> Result<Self> {
-        config.validate()?;
-        let env_token = std::env::var("ZATURO_TELEGRAM_BOT_TOKEN")
-            .ok()
-            .map(|s| s.trim().to_owned())
-            .filter(|s| !s.is_empty());
+        let resolved_config = config.with_env_overrides()?;
+        let fallback_to_default = !cfg!(test)
+            && (resolved_config.bot_token_file.as_os_str().is_empty()
+                || !resolved_config.bot_token_file.exists());
+        let env_map =
+            load_telegram_env_map(resolved_config.env_file.as_deref(), fallback_to_default)?;
+        let env_token = pick_env(
+            &env_map,
+            &["ZATURO_TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_TOKEN"],
+        );
         let bot_token = match env_token {
+            Some(tok) if tok == PLACEHOLDER_BOT_TOKEN => {
+                if !resolved_config.bot_token_file.as_os_str().is_empty()
+                    && resolved_config.bot_token_file.exists()
+                {
+                    fs::read_to_string(&resolved_config.bot_token_file)
+                        .with_context(|| {
+                            format!(
+                                "failed reading Telegram bot token file {}",
+                                resolved_config.bot_token_file.display()
+                            )
+                        })?
+                        .trim()
+                        .to_owned()
+                } else {
+                    bail!(
+                        "TELEGRAM_BOT_TOKEN still contains placeholder '{PLACEHOLDER_BOT_TOKEN}' — paste your BotFather token in the .env file"
+                    );
+                }
+            }
             Some(tok) => tok,
-            None => fs::read_to_string(&config.bot_token_file)
+            None => fs::read_to_string(&resolved_config.bot_token_file)
                 .with_context(|| {
                     format!(
                         "failed reading Telegram bot token file {}",
-                        config.bot_token_file.display()
+                        resolved_config.bot_token_file.display()
                     )
                 })?
                 .trim()
                 .to_owned(),
         };
         ensure!(
-            !bot_token.is_empty() && bot_token.bytes().all(|b| b.is_ascii_graphic()),
-            "Telegram bot token is empty or contains invalid whitespace"
+            bot_token != PLACEHOLDER_BOT_TOKEN
+                && !bot_token.is_empty()
+                && bot_token.bytes().all(|b| b.is_ascii_graphic()),
+            "Telegram bot token is empty, placeholder, or contains invalid whitespace"
         );
         zaturo_security::Credential::new(&bot_token)?;
         let http = reqwest::Client::builder()
@@ -212,7 +502,7 @@ impl TelegramBotClient {
             .redirect(reqwest::redirect::Policy::none())
             .build()?;
         Ok(Self {
-            config,
+            config: resolved_config,
             bot_token,
             http,
         })
@@ -220,6 +510,39 @@ impl TelegramBotClient {
 
     pub fn config(&self) -> &TelegramBotConfig {
         &self.config
+    }
+
+    pub fn effective_send_interval_range_ms(&self) -> (u64, u64) {
+        let min_ms = self.config.min_send_interval_ms;
+        let max_ms = self
+            .config
+            .max_send_interval_ms
+            .unwrap_or(min_ms)
+            .max(min_ms);
+        (min_ms, max_ms)
+    }
+
+    /// Computes a natural inter-post delay bounded by `[min_send_interval_ms, max_send_interval_ms]`.
+    pub fn compute_inter_post_delay(&self, item_index: usize, delivery_id: &str) -> Duration {
+        let (min_ms, max_ms) = self.effective_send_interval_range_ms();
+        if max_ms == 0 {
+            return Duration::ZERO;
+        }
+        if max_ms <= min_ms {
+            return Duration::from_millis(min_ms);
+        }
+        let span = max_ms - min_ms;
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| u64::from(d.subsec_nanos()) ^ d.as_secs())
+            .unwrap_or(0);
+        let mut acc = nanos ^ (item_index as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+        for byte in delivery_id.bytes() {
+            acc = acc
+                .wrapping_mul(1_099_511_628_211)
+                .wrapping_add(u64::from(byte));
+        }
+        Duration::from_millis(min_ms + (acc % (span + 1)))
     }
 
     pub fn build_whatsapp_package(
@@ -274,7 +597,7 @@ impl TelegramBotClient {
             "invalid Telegram channel_id"
         );
 
-        let queued = self
+        let mut queued = self
             .fetch_hub_queue(
                 hub_url,
                 hub_token,
@@ -283,6 +606,19 @@ impl TelegramBotClient {
                 limit,
             )
             .await?;
+        if queued.is_empty() && channel_id.is_none() {
+            // If using a custom .env target channel (e.g. a group ID), also claim queued offers
+            // inserted under the default catalog channel.
+            queued = self
+                .fetch_hub_queue(
+                    hub_url,
+                    hub_token,
+                    None,
+                    Some(TelegramDeliveryStatus::Queued),
+                    limit,
+                )
+                .await?;
+        }
 
         let whatsapp_package = build_whatsapp_assisted_package(
             &queued,
@@ -309,7 +645,7 @@ impl TelegramBotClient {
                     TelegramPublishItemOutcome {
                         delivery_id: item.delivery_id.clone(),
                         product_id: item.product_id.clone(),
-                        channel_id: item.channel_id.clone(),
+                        channel_id: target_channel.clone(),
                         method: method.to_owned(),
                         status: TelegramDeliveryStatus::Queued,
                         external_message_id: None,
@@ -349,8 +685,16 @@ impl TelegramBotClient {
         };
 
         for (idx, item) in queued.iter().enumerate() {
-            if idx > 0 && self.config.min_send_interval_ms > 0 {
-                tokio::time::sleep(Duration::from_millis(self.config.min_send_interval_ms)).await;
+            if idx > 0 {
+                let delay = self.compute_inter_post_delay(idx, &item.delivery_id);
+                if !delay.is_zero() {
+                    tracing::info!(
+                        delivery_id = %item.delivery_id,
+                        delay_secs = delay.as_secs(),
+                        "waiting natural interval before posting next Telegram offer"
+                    );
+                    tokio::time::sleep(delay).await;
+                }
             }
             let caption =
                 format_telegram_html_caption_pt_br(item, self.config.site_base_url.as_deref());
@@ -383,7 +727,7 @@ impl TelegramBotClient {
                 outcomes.push(TelegramPublishItemOutcome {
                     delivery_id: item.delivery_id.clone(),
                     product_id: item.product_id.clone(),
-                    channel_id: item.channel_id.clone(),
+                    channel_id: target_channel.clone(),
                     method: method_for(item),
                     status: claimed_status,
                     external_message_id: None,
@@ -394,7 +738,9 @@ impl TelegramBotClient {
                 continue;
             }
 
-            let outcome = self.deliver_single_item(item, &caption, &keyboard).await;
+            let outcome = self
+                .deliver_single_item(&target_channel, item, &caption, &keyboard)
+                .await;
             let (ack_status, ext_id, err_code, method_used) = match outcome {
                 SendAttemptOutcome::Delivered {
                     method,
@@ -445,7 +791,7 @@ impl TelegramBotClient {
             outcomes.push(TelegramPublishItemOutcome {
                 delivery_id: item.delivery_id.clone(),
                 product_id: item.product_id.clone(),
-                channel_id: item.channel_id.clone(),
+                channel_id: target_channel.clone(),
                 method: method_used,
                 status: ack_status,
                 external_message_id: ext_id,
@@ -473,30 +819,115 @@ impl TelegramBotClient {
         })
     }
 
+    async fn fetch_local_minio_image(
+        &self,
+        item: &TelegramOfferQueueItem,
+    ) -> Option<(Vec<u8>, &'static str, &'static str)> {
+        let endpoint = self.config.local_minio_endpoint.as_deref()?;
+        let object_key = item.image_object_key.as_deref()?;
+        if !valid_minio_object_key(object_key) {
+            return None;
+        }
+        let bucket = self
+            .config
+            .minio_bucket
+            .as_deref()
+            .or_else(|| {
+                item.image_public_url
+                    .as_deref()
+                    .and_then(|url| extract_bucket_from_public_url(url, object_key))
+            })
+            .unwrap_or("procurali-media");
+        let url = format!(
+            "{}/{}/{}",
+            endpoint.trim_end_matches('/'),
+            bucket.trim_matches('/'),
+            object_key.trim_start_matches('/')
+        );
+        let resp = self.http.get(url).send().await.ok()?;
+        if !resp.status().is_success() {
+            return None;
+        }
+        let bytes = resp.bytes().await.ok()?;
+        if bytes.is_empty() || bytes.len() > 10 * 1024 * 1024 {
+            return None;
+        }
+        let inspected = inspect_image_bytes(&bytes).ok()?;
+        let (filename, mime) = match inspected.format {
+            ImageFormat::Jpeg => ("offer.jpg", "image/jpeg"),
+            ImageFormat::Png => ("offer.png", "image/png"),
+            ImageFormat::Webp => return None,
+        };
+        Some((bytes.to_vec(), filename, mime))
+    }
+
+    async fn attempt_photo_or_message(
+        &self,
+        target_channel: &str,
+        item: &TelegramOfferQueueItem,
+        caption_html: &str,
+        keyboard: &TelegramInlineKeyboardMarkup,
+        cached_photo: Option<&(Vec<u8>, &'static str, &'static str)>,
+    ) -> SendAttemptOutcome {
+        if let Some((bytes, filename, mime)) = cached_photo {
+            let multipart_outcome = self
+                .call_send_photo_multipart(
+                    target_channel,
+                    bytes,
+                    filename,
+                    mime,
+                    caption_html,
+                    keyboard,
+                )
+                .await;
+            if !matches!(
+                multipart_outcome,
+                SendAttemptOutcome::DeterministicFailure { status: 400, .. }
+            ) {
+                return multipart_outcome;
+            }
+        }
+        if let Some(photo_url) = &item.image_public_url {
+            let url_outcome = self
+                .call_send_photo(target_channel, photo_url, caption_html, keyboard)
+                .await;
+            if !matches!(
+                url_outcome,
+                SendAttemptOutcome::DeterministicFailure { status: 400, .. }
+            ) {
+                return url_outcome;
+            }
+        }
+        self.call_send_message(
+            target_channel,
+            caption_html,
+            Some(&item.share_link),
+            false,
+            Some(keyboard),
+            None,
+        )
+        .await
+    }
+
     async fn deliver_single_item(
         &self,
+        target_channel: &str,
         item: &TelegramOfferQueueItem,
         caption_html: &str,
         keyboard: &TelegramInlineKeyboardMarkup,
     ) -> SendAttemptOutcome {
-        let first_attempt = if let Some(photo_url) = &item.image_public_url {
-            self.call_send_photo(&item.channel_id, photo_url, caption_html, keyboard)
-                .await
-        } else {
-            self.call_send_message(
-                &item.channel_id,
+        let cached_photo = self.fetch_local_minio_image(item).await;
+        let first_attempt = self
+            .attempt_photo_or_message(
+                target_channel,
+                item,
                 caption_html,
-                Some(&item.share_link),
-                false,
-                Some(keyboard),
-                None,
+                keyboard,
+                cached_photo.as_ref(),
             )
-            .await
-        };
+            .await;
 
         match first_attempt {
-            SendAttemptOutcome::Delivered { .. }
-            | SendAttemptOutcome::UncertainTransportFailure => first_attempt,
             SendAttemptOutcome::DeterministicFailure {
                 status: 429,
                 retry_after_secs,
@@ -504,20 +935,15 @@ impl TelegramBotClient {
             } => {
                 let wait_secs = retry_after_secs.unwrap_or(1).clamp(1, 30);
                 tokio::time::sleep(Duration::from_secs(wait_secs)).await;
-                let retry_attempt = if let Some(photo_url) = &item.image_public_url {
-                    self.call_send_photo(&item.channel_id, photo_url, caption_html, keyboard)
-                        .await
-                } else {
-                    self.call_send_message(
-                        &item.channel_id,
+                let retry_attempt = self
+                    .attempt_photo_or_message(
+                        target_channel,
+                        item,
                         caption_html,
-                        Some(&item.share_link),
-                        false,
-                        Some(keyboard),
-                        None,
+                        keyboard,
+                        cached_photo.as_ref(),
                     )
-                    .await
-                };
+                    .await;
                 match retry_attempt {
                     SendAttemptOutcome::DeterministicFailure { status: 429, .. } => {
                         SendAttemptOutcome::DeterministicFailure {
@@ -529,21 +955,101 @@ impl TelegramBotClient {
                     other => other,
                 }
             }
-            SendAttemptOutcome::DeterministicFailure { status: 400, .. }
-                if item.image_public_url.is_some() =>
-            {
-                self.call_send_message(
-                    &item.channel_id,
-                    caption_html,
-                    Some(&item.share_link),
-                    false,
-                    Some(keyboard),
-                    None,
-                )
-                .await
-            }
             other => other,
         }
+    }
+
+    pub async fn run_telegram_daemon_cycles(
+        &self,
+        hub_url: &str,
+        hub_token: &str,
+        poll_timeout_secs: u64,
+        tick_interval: Duration,
+        max_cycles: Option<usize>,
+    ) -> Result<TelegramDaemonReport> {
+        let mut poll_offset: Option<i64> = None;
+        let mut next_post_allowed_at: Option<tokio::time::Instant> = None;
+        let mut cycles_completed = 0usize;
+        let mut published_count = 0usize;
+        let mut failed_count = 0usize;
+        let mut commands_answered = 0usize;
+
+        loop {
+            let effective_timeout = match next_post_allowed_at {
+                Some(deadline) => {
+                    let remaining = deadline
+                        .saturating_duration_since(tokio::time::Instant::now())
+                        .as_secs();
+                    if remaining == 0 {
+                        0
+                    } else {
+                        poll_timeout_secs.min(remaining)
+                    }
+                }
+                None => poll_timeout_secs,
+            };
+            match self
+                .poll_commands_once(hub_url, hub_token, poll_offset, effective_timeout)
+                .await
+            {
+                Ok(poll_rep) => {
+                    poll_offset = poll_rep.next_offset;
+                    commands_answered += poll_rep.commands_answered;
+                }
+                Err(err) => {
+                    tracing::warn!(%err, "telegram command poll failed; retrying next tick");
+                }
+            }
+
+            if self.config.allow_live_publish
+                && next_post_allowed_at
+                    .is_none_or(|deadline| tokio::time::Instant::now() >= deadline)
+            {
+                let now_ms = crate::now_ms();
+                match self
+                    .publish_queued_from_hub(hub_url, hub_token, None, 1, false, now_ms)
+                    .await
+                {
+                    Ok(rep) => {
+                        published_count += rep.published_count;
+                        failed_count += rep.failed_count;
+                        if let Some(first) = rep.items.first() {
+                            let delay = self.compute_inter_post_delay(
+                                published_count + failed_count,
+                                &first.delivery_id,
+                            );
+                            tracing::info!(
+                                delivery_id = %first.delivery_id,
+                                product_id = %first.product_id,
+                                channel_id = %first.channel_id,
+                                status = ?first.status,
+                                next_interval_secs = delay.as_secs(),
+                                "telegram daemon processed queued product"
+                            );
+                            next_post_allowed_at = Some(tokio::time::Instant::now() + delay);
+                        }
+                    }
+                    Err(err) => {
+                        tracing::warn!(%err, "telegram queue publish step failed; retrying next tick");
+                    }
+                }
+            }
+
+            cycles_completed += 1;
+            if max_cycles.is_some_and(|max| cycles_completed >= max) {
+                break;
+            }
+            if !tick_interval.is_zero() {
+                tokio::time::sleep(tick_interval).await;
+            }
+        }
+
+        Ok(TelegramDaemonReport {
+            cycles_completed,
+            published_count,
+            failed_count,
+            commands_answered,
+        })
     }
 
     pub async fn poll_commands_once(
@@ -594,7 +1100,7 @@ impl TelegramBotClient {
 
         let mut commands_answered = 0usize;
         if !parsed_commands.is_empty() {
-            let catalog_items = self
+            let mut catalog_items = self
                 .fetch_hub_queue(
                     hub_url,
                     hub_token,
@@ -603,6 +1109,11 @@ impl TelegramBotClient {
                     20,
                 )
                 .await?;
+            if catalog_items.is_empty() {
+                catalog_items = self
+                    .fetch_hub_queue(hub_url, hub_token, None, None, 20)
+                    .await?;
+            }
             for (chat_id, reply_to_message_id, cmd) in parsed_commands {
                 let (reply_html, markup) = format_telegram_bot_command_reply_pt_br(
                     &cmd,
@@ -640,6 +1151,67 @@ impl TelegramBotClient {
             self.bot_token,
             method
         )
+    }
+
+    async fn call_send_photo_multipart(
+        &self,
+        chat_id: &str,
+        photo_bytes: &[u8],
+        filename: &str,
+        content_type: &str,
+        caption_html: &str,
+        keyboard: &TelegramInlineKeyboardMarkup,
+    ) -> SendAttemptOutcome {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let boundary = format!("ZaturoTgBoundary{nanos}");
+        let reply_markup_json = serde_json::to_string(keyboard).unwrap_or_else(|_| "{}".to_owned());
+
+        let mut payload = Vec::with_capacity(photo_bytes.len() + caption_html.len() + 1024);
+        for (name, val) in [
+            ("chat_id", chat_id),
+            ("caption", caption_html),
+            ("parse_mode", "HTML"),
+            ("show_caption_above_media", "false"),
+            ("reply_markup", reply_markup_json.as_str()),
+        ] {
+            payload.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+            payload.extend_from_slice(
+                format!("Content-Disposition: form-data; name=\"{name}\"\r\n\r\n").as_bytes(),
+            );
+            payload.extend_from_slice(val.as_bytes());
+            payload.extend_from_slice(b"\r\n");
+        }
+        payload.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+        payload.extend_from_slice(
+            format!("Content-Disposition: form-data; name=\"photo\"; filename=\"{filename}\"\r\n")
+                .as_bytes(),
+        );
+        payload.extend_from_slice(format!("Content-Type: {content_type}\r\n\r\n").as_bytes());
+        payload.extend_from_slice(photo_bytes);
+        payload.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+
+        let url = self.bot_method_url("sendPhoto");
+        let Ok(resp) = self
+            .http
+            .post(url)
+            .header(
+                reqwest::header::CONTENT_TYPE,
+                format!("multipart/form-data; boundary={boundary}"),
+            )
+            .body(payload)
+            .send()
+            .await
+        else {
+            return SendAttemptOutcome::UncertainTransportFailure;
+        };
+        let status = resp.status().as_u16();
+        let Ok(text) = resp.text().await else {
+            return SendAttemptOutcome::UncertainTransportFailure;
+        };
+        parse_send_response("sendPhoto", status, &text)
     }
 
     async fn call_send_photo(
@@ -702,38 +1274,51 @@ impl TelegramBotClient {
         let Ok(text) = resp.text().await else {
             return SendAttemptOutcome::UncertainTransportFailure;
         };
-        if (200..300).contains(&status) {
-            if let Ok(parsed) = serde_json::from_str::<TelegramSendSuccess>(&text)
-                && parsed.ok
-                && let Some(msg) = parsed.result
-            {
-                return SendAttemptOutcome::Delivered {
-                    method,
-                    external_message_id: msg.message_id.to_string(),
-                };
-            }
-            return SendAttemptOutcome::DeterministicFailure {
-                status,
-                error_code: format!("telegram_{method}_unexpected_ok"),
-                retry_after_secs: None,
+        parse_send_response(method, status, &text)
+    }
+}
+
+fn parse_send_response(method: &'static str, status: u16, text: &str) -> SendAttemptOutcome {
+    if (200..300).contains(&status) {
+        if let Ok(parsed) = serde_json::from_str::<TelegramSendSuccess>(text)
+            && parsed.ok
+            && let Some(msg) = parsed.result
+        {
+            return SendAttemptOutcome::Delivered {
+                method,
+                external_message_id: msg.message_id.to_string(),
             };
         }
-
-        let retry_after_secs = serde_json::from_str::<TelegramApiErrorBody>(&text)
-            .ok()
-            .and_then(|err| err.parameters)
-            .and_then(|p| p.retry_after);
-        let error_code = if status == 429 {
-            "telegram_rate_limited_429".to_owned()
-        } else {
-            format!("telegram_{method}_http_{status}")
-        };
-        SendAttemptOutcome::DeterministicFailure {
+        return SendAttemptOutcome::DeterministicFailure {
             status,
-            error_code,
-            retry_after_secs,
-        }
+            error_code: format!("telegram_{method}_unexpected_ok"),
+            retry_after_secs: None,
+        };
     }
+
+    let retry_after_secs = serde_json::from_str::<TelegramApiErrorBody>(text)
+        .ok()
+        .and_then(|err| err.parameters)
+        .and_then(|p| p.retry_after);
+    let error_code = if status == 429 {
+        "telegram_rate_limited_429".to_owned()
+    } else {
+        format!("telegram_{method}_http_{status}")
+    };
+    SendAttemptOutcome::DeterministicFailure {
+        status,
+        error_code,
+        retry_after_secs,
+    }
+}
+
+fn extract_bucket_from_public_url<'a>(public_url: &'a str, object_key: &str) -> Option<&'a str> {
+    let (_, after_scheme) = public_url.split_once("://")?;
+    let (_, path) = after_scheme.split_once('/')?;
+    let trimmed = path.trim_matches('/');
+    let prefix = trimmed.strip_suffix(object_key.trim_start_matches('/'))?;
+    let bucket = prefix.trim_matches('/').rsplit('/').next()?;
+    (!bucket.is_empty()).then_some(bucket)
 }
 
 pub async fn fetch_hub_queue_with_token(
@@ -832,9 +1417,10 @@ mod tests {
     use super::*;
     use axum::{
         Json, Router,
+        body::Bytes,
         extract::{Path as AxumPath, State},
-        http::StatusCode,
-        routing::post,
+        http::{HeaderMap, StatusCode},
+        routing::{get, post},
     };
     use sha2::{Digest, Sha256};
     use std::{
@@ -860,19 +1446,78 @@ mod tests {
         }
     }
 
+    fn test_tg_config(
+        api_base_url: String,
+        bot_token_file: PathBuf,
+        min_send_interval_ms: u64,
+        allow_live_publish: bool,
+    ) -> TelegramBotConfig {
+        TelegramBotConfig {
+            api_base_url,
+            bot_token_file,
+            default_channel_id: "@procurali".into(),
+            site_base_url: Some("https://procurali.com.br".into()),
+            min_send_interval_ms,
+            max_send_interval_ms: None,
+            allow_live_publish,
+            auto_publish_on_ingest: false,
+            local_minio_endpoint: None,
+            minio_bucket: None,
+            env_file: None,
+        }
+    }
+
+    fn minimal_png_bytes(width: u32, height: u32) -> Vec<u8> {
+        let mut out = Vec::new();
+        out.extend_from_slice(b"\x89PNG\r\n\x1a\n");
+        out.extend_from_slice(&13u32.to_be_bytes());
+        out.extend_from_slice(b"IHDR");
+        out.extend_from_slice(&width.to_be_bytes());
+        out.extend_from_slice(&height.to_be_bytes());
+        out.extend_from_slice(&[8, 6, 0, 0, 0, 0, 0, 0, 0]);
+        out
+    }
+
+    struct MultipartPhotoRecord {
+        content_type: String,
+        body: Vec<u8>,
+    }
+
     #[derive(Clone, Default)]
     struct MockTelegramState {
         send_photo_plans: Arc<Mutex<VecDeque<(u16, Value)>>>,
         send_message_calls: Arc<Mutex<Vec<Value>>>,
         send_photo_calls: Arc<Mutex<Vec<Value>>>,
+        send_photo_multipart_bodies: Arc<Mutex<Vec<MultipartPhotoRecord>>>,
         updates_queue: Arc<Mutex<Vec<Value>>>,
     }
 
     async fn mock_tg_method(
         State(state): State<MockTelegramState>,
         AxumPath((_bot_path, method)): AxumPath<(String, String)>,
-        Json(body): Json<Value>,
+        headers: HeaderMap,
+        raw_body: Bytes,
     ) -> (StatusCode, Json<Value>) {
+        let ctype = headers
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_owned();
+        if method == "sendPhoto" && ctype.starts_with("multipart/form-data") {
+            state
+                .send_photo_multipart_bodies
+                .lock()
+                .unwrap()
+                .push(MultipartPhotoRecord {
+                    content_type: ctype,
+                    body: raw_body.to_vec(),
+                });
+            return (
+                StatusCode::OK,
+                Json(json!({ "ok": true, "result": { "message_id": 5555 } })),
+            );
+        }
+        let body: Value = serde_json::from_slice(&raw_body).unwrap_or(Value::Null);
         match method.as_str() {
             "sendPhoto" => {
                 state.send_photo_calls.lock().unwrap().push(body);
@@ -975,12 +1620,12 @@ mod tests {
             images: vec![MinioProductImage {
                 position: 0,
                 bucket: "procurali-media".into(),
-                object_key: format!("ml/{product_id}/hero.jpg"),
+                object_key: format!("mercadolivre/{product_id}/hero.png"),
                 public_url: format!(
-                    "https://media.procurali.com.br/procurali-media/ml/{product_id}/hero.jpg"
+                    "https://media.procurali.com.br/procurali-media/mercadolivre/{product_id}/hero.png"
                 ),
                 source_origin_url: None,
-                content_type: "image/jpeg".into(),
+                content_type: "image/png".into(),
                 size_bytes: 4096,
                 sha256_hex: "a".repeat(64),
                 alt_text: title.to_owned(),
@@ -996,25 +1641,73 @@ mod tests {
 
     #[test]
     fn telegram_config_rejects_empty_token_and_invalid_endpoints() {
-        let bad = TelegramBotConfig {
-            api_base_url: "ftp://api.telegram.org".into(),
-            bot_token_file: PathBuf::from("/tmp/tg.token"),
-            default_channel_id: "@procurali".into(),
-            site_base_url: Some("https://procurali.com.br".into()),
-            min_send_interval_ms: 0,
-            allow_live_publish: false,
-        };
+        let bad = test_tg_config(
+            "ftp://api.telegram.org".into(),
+            PathBuf::from("/tmp/tg.token"),
+            0,
+            false,
+        );
         assert!(bad.validate().is_err());
 
-        let good = TelegramBotConfig {
-            api_base_url: "https://api.telegram.org".into(),
-            bot_token_file: PathBuf::from("/tmp/tg.token"),
-            default_channel_id: "@procurali".into(),
-            site_base_url: Some("https://procurali.com.br".into()),
-            min_send_interval_ms: 1100,
-            allow_live_publish: false,
-        };
+        let mut bad_max = test_tg_config(
+            "https://api.telegram.org".into(),
+            PathBuf::from("/tmp/tg.token"),
+            60_000,
+            false,
+        );
+        bad_max.max_send_interval_ms = Some(30_000);
+        assert!(bad_max.validate().is_err());
+
+        let good = test_tg_config(
+            "https://api.telegram.org".into(),
+            PathBuf::from("/tmp/tg.token"),
+            1100,
+            false,
+        );
         good.validate().unwrap();
+    }
+
+    #[test]
+    fn env_file_overrides_and_natural_one_to_three_minute_delay_work() {
+        let dir = tempfile::tempdir().unwrap();
+        let env_path = dir.path().join("telegram.env");
+        fs::write(
+            &env_path,
+            [
+                "# Procurali Telegram bot test env",
+                "TELEGRAM_BOT_TOKEN=\"synthetic-123456:env_file_bot_token\"",
+                "TELEGRAM_CHANNEL_ID=-1001987654321",
+                "TELEGRAM_MIN_INTERVAL_SECS=60",
+                "TELEGRAM_MAX_INTERVAL_SECS=180",
+                "TELEGRAM_ALLOW_LIVE_PUBLISH=true",
+                "TELEGRAM_AUTO_PUBLISH_ON_INGEST=true",
+            ]
+            .join("\n"),
+        )
+        .unwrap();
+
+        let mut cfg = test_tg_config(
+            "https://api.telegram.org".into(),
+            PathBuf::new(),
+            1100,
+            false,
+        );
+        cfg.env_file = Some(env_path);
+
+        let client = TelegramBotClient::from_config(cfg).unwrap();
+        assert_eq!(client.config().default_channel_id, "-1001987654321");
+        assert!(client.config().allow_live_publish);
+        assert!(client.config().auto_publish_on_ingest);
+        assert_eq!(client.effective_send_interval_range_ms(), (60_000, 180_000));
+
+        for idx in 0..10 {
+            let delay = client.compute_inter_post_delay(idx, &format!("tg-delivery-{idx}"));
+            assert!(
+                delay >= Duration::from_secs(60) && delay <= Duration::from_secs(180),
+                "expected 60..=180s delay, got {:?}",
+                delay
+            );
+        }
     }
 
     #[tokio::test]
@@ -1066,27 +1759,27 @@ mod tests {
         }));
 
         // Ingest 2 validated products into Hub queue.
+        let mut c1 = sample_validated_product("MLB39410080", "SSD Kingston NV3 1TB NVMe", 44_990);
+        c1.state = MercadoLivreProductState::Candidate;
+        let mut c2 =
+            sample_validated_product("MLB53222888", "Teclado Mecanico Redragon K500", 13_879);
+        c2.state = MercadoLivreProductState::Candidate;
         let batch = MercadoLivreIngestBatchRequest {
             worker_id: "worker-ml".into(),
             search_query: "hardware".into(),
             channel_id: "@procurali".into(),
             captured_at_ms: 1_763_252_000_000,
-            products: vec![
-                sample_validated_product("MLB39410080", "SSD Kingston NV3 1TB NVMe", 44_990),
-                sample_validated_product("MLB53222888", "Teclado Mecanico Redragon K500", 13_879),
-            ],
+            products: vec![c1, c2],
         };
         crate::mercadolivre::ingest_to_hub(&hub_url, DEVICE, &batch, "tg-e2e-batch-1")
             .await
             .unwrap();
-        let empty = TelegramBotClient::from_config(TelegramBotConfig {
-            api_base_url: "http://127.0.0.1:9".into(),
-            bot_token_file: write_token(dir.path(), "unused.token"),
-            default_channel_id: "@procurali".into(),
-            site_base_url: None,
-            min_send_interval_ms: 0,
-            allow_live_publish: true,
-        })
+        let empty = TelegramBotClient::from_config(test_tg_config(
+            "http://127.0.0.1:9".into(),
+            write_token(dir.path(), "unused.token"),
+            0,
+            true,
+        ))
         .unwrap()
         .publish_queued_from_hub(&hub_url, DEVICE, None, 10, false, crate::now_ms())
         .await
@@ -1134,14 +1827,7 @@ mod tests {
         fs::write(&token_file, format!("{BOT_TOKEN}\n")).unwrap();
         fs::set_permissions(&token_file, fs::Permissions::from_mode(0o600)).unwrap();
 
-        let cfg = TelegramBotConfig {
-            api_base_url: format!("http://{tg_addr}"),
-            bot_token_file: token_file,
-            default_channel_id: "@procurali".into(),
-            site_base_url: Some("https://procurali.com.br".into()),
-            min_send_interval_ms: 0,
-            allow_live_publish: true,
-        };
+        let cfg = test_tg_config(format!("http://{tg_addr}"), token_file, 0, true);
         let tg = TelegramBotClient::from_config(cfg).unwrap();
 
         // 1) Dry run produces previews & WhatsApp Web drafts without sending or acking.
@@ -1152,6 +1838,11 @@ mod tests {
         assert!(preview.dry_run);
         assert_eq!(preview.fetched_count, 2);
         assert_eq!(preview.whatsapp_package.draft_count, 2);
+        assert!(
+            preview.items[0]
+                .caption_html_preview
+                .contains("OFERTA RELÂMPAGO")
+        );
         assert!(tg_state.send_photo_calls.lock().unwrap().is_empty());
 
         // 2) Live publish exercises 429 retry and 400 -> sendMessage fallback, acking Hub.
@@ -1235,16 +1926,15 @@ mod tests {
         let dead_addr = dead_listener.local_addr().unwrap();
         drop(dead_listener);
 
+        let mut c3 =
+            sample_validated_product("MLB48468943", "Headset Gamer Redragon Zeus Lite", 19_990);
+        c3.state = MercadoLivreProductState::Candidate;
         let batch2 = MercadoLivreIngestBatchRequest {
             worker_id: "worker-ml".into(),
             search_query: "headset".into(),
             channel_id: "@procurali".into(),
             captured_at_ms: 1_763_252_300_000,
-            products: vec![sample_validated_product(
-                "MLB48468943",
-                "Headset Gamer Redragon Zeus Lite",
-                19_990,
-            )],
+            products: vec![c3],
         };
         crate::mercadolivre::ingest_to_hub(&hub_url, DEVICE, &batch2, "tg-e2e-batch-2")
             .await
@@ -1253,14 +1943,12 @@ mod tests {
         let dead_token_file = dir.path().join("telegram-dead.token");
         fs::write(&dead_token_file, format!("{BOT_TOKEN}\n")).unwrap();
         fs::set_permissions(&dead_token_file, fs::Permissions::from_mode(0o600)).unwrap();
-        let dead_tg = TelegramBotClient::from_config(TelegramBotConfig {
-            api_base_url: format!("http://{dead_addr}"),
-            bot_token_file: dead_token_file,
-            default_channel_id: "@procurali".into(),
-            site_base_url: Some("https://procurali.com.br".into()),
-            min_send_interval_ms: 0,
-            allow_live_publish: true,
-        })
+        let dead_tg = TelegramBotClient::from_config(test_tg_config(
+            format!("http://{dead_addr}"),
+            dead_token_file,
+            0,
+            true,
+        ))
         .unwrap();
         let dead_report = dead_tg
             .publish_queued_from_hub(&hub_url, DEVICE, None, 10, false, crate::now_ms())
@@ -1285,6 +1973,146 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(failed_queue.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn multipart_photo_upload_from_local_minio_and_daemon_cycle_work() {
+        let dir = tempfile::tempdir().unwrap();
+        let hub_dir = dir.path().join("hub");
+        fs::create_dir_all(&hub_dir).unwrap();
+        let recipient =
+            zaturo_transfer::crypto::generate_identity(&hub_dir.join("worker-ml.identity"))
+                .unwrap();
+        let devices_toml = format!(
+            "[[devices]]\nid=\"worker-ml\"\ntoken_sha256=\"{:x}\"\nencryption_recipient={recipient:?}\n",
+            Sha256::digest(DEVICE)
+        );
+        fs::write(hub_dir.join("devices.toml"), devices_toml).unwrap();
+        fs::set_permissions(
+            hub_dir.join("devices.toml"),
+            fs::Permissions::from_mode(0o600),
+        )
+        .unwrap();
+
+        let hub_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let hub_addr = hub_listener.local_addr().unwrap();
+        let hub_url = format!("http://{hub_addr}");
+        let hub_state = AppState::new(
+            HubConfig {
+                bind: hub_addr,
+                client_url: hub_url.clone(),
+                database: hub_dir.join("hub.db"),
+                worker_id: "worker-ml".into(),
+                max_connections: 4,
+                max_queued_tasks: 16,
+                max_page_size: 100,
+                lease_seconds: 30,
+                max_workers: 4,
+                devices_file: Some(hub_dir.join("devices.toml")),
+                apps_file: None,
+                transfer_root: Some(hub_dir.join("spool")),
+                transfer_limits: Default::default(),
+            },
+            OWNER,
+            DEVICE,
+        )
+        .unwrap();
+        let _hub_server = AbortOnDrop(tokio::spawn(async move {
+            axum::serve(hub_listener, zaturo_hub::router(hub_state))
+                .await
+                .unwrap();
+        }));
+
+        let png_bytes = minimal_png_bytes(600, 600);
+        let served_png = png_bytes.clone();
+        let minio_router = Router::new().route(
+            "/{bucket}/{*key}",
+            get(move || {
+                let bytes = served_png.clone();
+                async move { (StatusCode::OK, bytes) }
+            }),
+        );
+        let minio_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let minio_addr = minio_listener.local_addr().unwrap();
+        let _minio_server = AbortOnDrop(tokio::spawn(async move {
+            axum::serve(minio_listener, minio_router).await.unwrap();
+        }));
+
+        // Ingest offer queued under @procurali, then have a custom group ID claim & publish it.
+        let batch = MercadoLivreIngestBatchRequest {
+            worker_id: "worker-ml".into(),
+            search_query: "ssd".into(),
+            channel_id: "@procurali".into(),
+            captured_at_ms: 1_763_252_400_000,
+            products: vec![sample_validated_product(
+                "MLB39410080",
+                "SSD Kingston NV3 1TB NVMe",
+                44_990,
+            )],
+        };
+        crate::mercadolivre::ingest_to_hub(&hub_url, DEVICE, &batch, "tg-mp-batch-1")
+            .await
+            .unwrap();
+
+        let tg_state = MockTelegramState::default();
+        tg_state.updates_queue.lock().unwrap().push(json!({
+            "update_id": 201,
+            "message": { "message_id": 21, "chat": { "id": -1001555666777i64 }, "text": "/ofertas" }
+        }));
+        let tg_router = Router::new()
+            .route("/{bot_token}/{method}", post(mock_tg_method))
+            .with_state(tg_state.clone());
+        let tg_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let tg_addr = tg_listener.local_addr().unwrap();
+        let _tg_server = AbortOnDrop(tokio::spawn(async move {
+            axum::serve(tg_listener, tg_router).await.unwrap();
+        }));
+
+        let env_path = dir.path().join("telegram.env");
+        fs::write(
+            &env_path,
+            [
+                "TELEGRAM_BOT_TOKEN=synthetic-987654:telegram_bot_token_value",
+                "TELEGRAM_CHANNEL_ID=-1001555666777",
+                "TELEGRAM_MIN_INTERVAL_SECS=1",
+                "TELEGRAM_MAX_INTERVAL_SECS=2",
+                "TELEGRAM_ALLOW_LIVE_PUBLISH=true",
+            ]
+            .join("\n"),
+        )
+        .unwrap();
+        let mut cfg = test_tg_config(format!("http://{tg_addr}"), PathBuf::new(), 0, false);
+        cfg.env_file = Some(env_path);
+        cfg.local_minio_endpoint = Some(format!("http://{minio_addr}"));
+        cfg.minio_bucket = Some("procurali-media".into());
+
+        let tg = TelegramBotClient::from_config(cfg).unwrap();
+        let daemon_rep = tg
+            .run_telegram_daemon_cycles(&hub_url, DEVICE, 0, Duration::ZERO, Some(1))
+            .await
+            .unwrap();
+        assert_eq!(daemon_rep.cycles_completed, 1);
+        assert_eq!(daemon_rep.published_count, 1);
+        assert_eq!(daemon_rep.failed_count, 0);
+        assert_eq!(daemon_rep.commands_answered, 1);
+
+        let multipart_calls = tg_state.send_photo_multipart_bodies.lock().unwrap();
+        assert_eq!(multipart_calls.len(), 1);
+        assert!(
+            multipart_calls[0]
+                .content_type
+                .starts_with("multipart/form-data; boundary=")
+        );
+        let body_lossy = String::from_utf8_lossy(&multipart_calls[0].body);
+        assert!(body_lossy.contains("-1001555666777"));
+        assert!(body_lossy.contains("OFERTA RELÂMPAGO"));
+        assert!(body_lossy.contains("filename=\"offer.png\""));
+        assert!(
+            multipart_calls[0]
+                .body
+                .windows(png_bytes.len())
+                .any(|w| w == png_bytes.as_slice())
+        );
     }
 
     fn write_token(dir: &std::path::Path, name: &str) -> PathBuf {
@@ -1420,14 +2248,12 @@ mod tests {
         let _tg = AbortOnDrop(tokio::spawn(async move {
             axum::serve(tg_listener, tg_router).await.unwrap();
         }));
-        let tg = TelegramBotClient::from_config(TelegramBotConfig {
-            api_base_url: format!("http://{tg_addr}"),
-            bot_token_file: write_token(dir.path(), "telegram.token"),
-            default_channel_id: "@procurali".into(),
-            site_base_url: None,
-            min_send_interval_ms: 0,
-            allow_live_publish: true,
-        })
+        let tg = TelegramBotClient::from_config(test_tg_config(
+            format!("http://{tg_addr}"),
+            write_token(dir.path(), "telegram.token"),
+            0,
+            true,
+        ))
         .unwrap();
         let sends = || tg_state.send_photo_calls.lock().unwrap().len();
         let status_of = |id: &str| {

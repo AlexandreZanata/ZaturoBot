@@ -22,6 +22,22 @@ export type PriceObservation = {
   priceBrlCents: number;
   observedAt: string;
 };
+/** Hub-supplied 30-day price window. Rendered only when the catalog sends it. */
+export type PriceIntelligence = {
+  windowDays?: number;
+  currentPriceCents?: number;
+  lowestPrice30dCents?: number;
+  averagePrice30dCents?: number;
+  highestPrice30dCents?: number;
+  priceLevel?: string;
+  priceLevelLabel?: string;
+  priceTrend?: "down" | "up" | string;
+  priceDeltaPct?: number;
+  observationCount?: number;
+  verifiedAtDisplay?: string;
+  svgSparkline?: string | null;
+};
+export type DynamicFaqItem = { question: string; answer: string };
 export type OfferState = "approved" | "stale" | "expired" | "missing_rights" | string;
 export type Offer = {
   id: string;
@@ -76,6 +92,8 @@ export type Offer = {
   tags?: string[];
   sevenDayCoverageNote: string;
   priceObservations: PriceObservation[];
+  priceIntelligence?: PriceIntelligence | null;
+  dynamicFaq?: DynamicFaqItem[];
   specs?: Spec[];
   variants?: Variant[];
   longDescription?: string;
