@@ -88,3 +88,18 @@ The installed executor adds typed service JSON variants and extends the existing
 service-observer whitelist; it introduces no competing SQL store or schema migration.
 Private fsynced OpenCode intents/process/billing/tool/media receipts remain under the
 explicit local0700 state root. Preserve them together with the worker journal for recovery.
+
+
+## Hub 9 to 10: Mercado Livre commerce ingestor and delivery queue
+
+`crates/db/migrations/0010_hub_mercadolivre_commerce.sql` adds normalized Mercado Livre
+commerce tables: `ml_ingest_batches` (with idempotency key and payload SHA-256),
+`ml_products`, `ml_product_offers`, `ml_product_specs`, `ml_product_variants`,
+`ml_product_media` (MinIO bucket, object key, content-addressable SHA-256, public HTTPS URL,
+and image dimensions—never local `.local/` filesystem paths), `ml_price_observations`, and
+`ml_telegram_deliveries` (queued/sent/failed Telegram broadcast queue). `HubStore`
+transactionally upgrades old `1 | 4 | 5 | 7 | 9` databases to version `10` while
+preserving all existing task, feed, transfer, shared-task, and computer-step data intact.
+Worker schema remains `8`. Back up SQLite consistently before starting the upgraded Hub;
+tests verify `1/4/5/7/9 -> 10` upgrades, data preservation, idempotency replay/conflict, and
+rollback on schema errors.

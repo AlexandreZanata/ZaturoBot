@@ -17,6 +17,8 @@ mod service;
 pub use service::*;
 mod android;
 pub use android::*;
+mod mercadolivre;
+pub use mercadolivre::*;
 
 mod files;
 pub use files::*;

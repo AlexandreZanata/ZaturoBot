@@ -1,0 +1,91 @@
+/* Procurali Design Tokens — Functional Offer Catalog System */
+@font-face {
+  font-family: "Fira Mono";
+  src: url("./fonts/FiraMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* 1. Semantic Functional Palette */
+  --color-petrol: #143D2B;
+  --color-petrol-dark: #0E2C1E;
+  --color-petrol-mid: #1C5039;
+  --color-emerald: #143D2B;
+  --color-emerald-hover: #0E2C1E;
+  --color-emerald-bright: #1E5A40;
+
+  /* Commercial Offer Primary CTA (Burnt Orange) */
+  --color-action: #C2410C;
+  --color-action-hover: #9A3412;
+  --color-coral: #C2410C;
+  --color-coral-hover: #9A3412;
+  --color-coral-text: #9A3412;
+  --color-ink-on-coral: #FFFFFF;
+
+  /* Neutral Catalog Surfaces */
+  --color-canvas: #F7F8FA;
+  --color-surface: #FFFFFF;
+  --color-surface-alt: #F1F3F6;
+  --color-ink: #171717;
+  --color-muted: #5F6368;
+  --color-border: #E5E7EB;
+  --color-border-strong: #6B7280;
+
+  /* Confirmed Savings / Positive Condition */
+  --color-mint-bg: #F0FDF4;
+  --color-mint-text: #15803D;
+  --color-warm-pill-bg: #F0FDF4;
+  --color-warm-pill-text: #143D2B;
+
+  /* Punctual Brand Highlight (always paired with dark #143D2B ink) */
+  --color-lime: #A3E635;
+  --color-lime-hover: #B3EB52;
+  --color-ink-on-petrol: #FFFFFF;
+  --color-ink-on-lime: #143D2B;
+  --color-ink-on-emerald: #FFFFFF;
+
+  /* Verified Scarcity / Real Limitations / Status */
+  --color-warning-bg: #FEF3C7;
+  --color-warning-border: #D97706;
+  --color-warning-text: #92400E;
+  --color-danger-bg: #FEF2F2;
+  --color-danger-border: #FCA5A5;
+  --color-danger-text: #B91C1C;
+  --color-neutral-bg: #F3F4F6;
+  --color-neutral-text: #374151;
+
+  /* Open Sans Typography Stack */
+  --font-display: 'Inter', 'Noto Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Inter', 'Noto Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Fira Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Spacing Rhythm (4, 8, 12, 16, 24, 32 px) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Card / Button / Layout Geometry */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 12px;
+  --radius-xl: 12px;
+  --radius-pill: 999px;
+  --container-max: 1280px;
+  --shadow-subtle: 0 1px 2px rgba(23, 23, 23, 0.04), 0 4px 12px rgba(23, 23, 23, 0.03);
+  --shadow-elevated: 0 12px 32px rgba(23, 23, 23, 0.14);
+
+  /* Focus & Motion */
+  --focus-ring: 3px solid #143D2B;
+  --focus-ring-light: 3px solid #A3E635;
+  --focus-offset: 2px;
+  --transition-fast: 140ms ease;
+}

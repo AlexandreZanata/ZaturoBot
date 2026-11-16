@@ -29,6 +29,10 @@ Broader scope and remaining gates are specified in [computer use](COMPUTER_USE.m
 
 Each topic has one canonical document. Link to it instead of copying its policy.
 
+[Procurali planning](planning/commerce-refined/PROCURALI-BUSINESS-AND-SITE.md) covers the
+owner-requested affiliate business/site proposal, with linked creative instructions and
+a Fable identity/website prompt. This remains planning, separate from runtime activation.
+
 [Encrypted device file contracts](FILE_TRANSFERS.md), [verification report](FILE_TRANSFER_REPORT.md),
 and [Linux device enrollment](../deploy/device/README.md) cover the authorized file extension.
 

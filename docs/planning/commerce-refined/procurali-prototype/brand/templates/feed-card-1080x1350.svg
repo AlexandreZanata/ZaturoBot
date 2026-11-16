@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1350" width="1080" height="1350" role="img" aria-label="Template de card de oferta 1080 por 1350">
+  <title>Template Procurali — Feed Card 1080×1350 (Demonstração)</title>
+  <rect width="1080" height="1350" fill="#FAF8F3"/>
+  <!-- Outer editorial border -->
+  <rect x="44" y="44" width="992" height="1262" rx="24" fill="#FFFFFF" stroke="#DCD7CA" stroke-width="3"/>
+
+  <!-- Header bar: #publi + brand mark -->
+  <rect x="84" y="84" width="142" height="48" rx="24" fill="#123D3B"/>
+  <text x="155" y="116" text-anchor="middle" font-family="'Fira Sans', sans-serif" font-size="24" font-weight="700" fill="#FAF8F3">#publi</text>
+
+  <rect x="244" y="84" width="290" height="48" rx="24" fill="#DCECB0"/>
+  <text x="389" y="116" text-anchor="middle" font-family="'Fira Sans', sans-serif" font-size="21" font-weight="700" fill="#123D3B">EXEMPLO DE TEMPLATE</text>
+
+  <g transform="translate(796, 84) scale(0.75)">
+    <path d="M28 8C16.954 8 8 16.954 8 28c0 11.046 8.954 20 20 20 4.35 0 8.374-1.39 11.656-3.75l10.222 10.222a3.75 3.75 0 0 0 5.304-5.304L44.96 38.946C46.885 35.81 48 32.035 48 28 48 16.954 39.046 8 28 8Zm0 7.25c7.042 0 12.75 5.708 12.75 12.75S35.042 40.75 28 40.75 15.25 35.042 15.25 28 20.958 15.25 28 15.25Z" fill="#123D3B"/>
+    <path d="M20.5 28.5 25.5 33.5 36.25 22.25" fill="none" stroke="#ED6346" stroke-width="5.25" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="848" y="118" font-family="'Fira Sans', sans-serif" font-size="32" font-weight="700" letter-spacing="-1" fill="#123D3B">procurali</text>
+
+  <!-- Benefit headline -->
+  <text x="84" y="212" font-family="'Fira Sans', sans-serif" font-size="42" font-weight="700" fill="#123D3B">Vale conferir para quem trabalha</text>
+  <text x="84" y="264" font-family="'Fira Sans', sans-serif" font-size="42" font-weight="700" fill="#123D3B">horas no notebook e quer postura</text>
+  <text x="84" y="310" font-family="'Fira Sans', sans-serif" font-size="25" font-weight="500" fill="#4E5A58">Produto exemplo: Suporte Articulado Alumínio (Versão 2 · Prata)</text>
+
+  <!-- Safe product asset insertion zone -->
+  <rect x="84" y="344" width="912" height="440" rx="20" fill="#F2EFE7" stroke="#B8B2A3" stroke-width="2" stroke-dasharray="10 8"/>
+  <!-- Schematic laptop stand silhouette inside slot -->
+  <g transform="translate(360, 418)" stroke="#123D3B" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="40" y="24" width="280" height="176" rx="12" fill="#FFFFFF"/>
+    <line x1="88" y1="68" x2="272" y2="68" stroke="#ED6346"/>
+    <path d="M72 220 L288 220 L254 270 L106 270 Z" fill="#DCECB0" fill-opacity="0.5"/>
+    <line x1="180" y1="200" x2="180" y2="270"/>
+  </g>
+  <text x="540" y="754" text-anchor="middle" font-family="'Fira Mono', monospace" font-size="20" fill="#4E5A58">ZONA DE MÍDIA LICENCIADA · ILUSTRAÇÃO DEMONSTRATIVA</text>
+
+  <!-- Deterministic price & conditions zone -->
+  <rect x="84" y="814" width="912" height="176" rx="18" fill="#123D3B"/>
+  <text x="122" y="866" font-family="'Fira Sans', sans-serif" font-size="24" font-weight="500" fill="#DCECB0">Preço ilustrativo (dados fictícios · Pix na loja exemplo)</text>
+  <text x="122" y="938" font-family="'Fira Sans', sans-serif" font-size="64" font-weight="700" fill="#FAF8F3">R$ 89,90</text>
+  <text x="456" y="906" font-family="'Fira Sans', sans-serif" font-size="23" fill="#FAF8F3">Frete: depende do CEP no checkout</text>
+  <text x="456" y="942" font-family="'Fira Mono', monospace" font-size="20" fill="#DCECB0">Observado em 15/11/2026 14:15 BRT</text>
+
+  <!-- Caveat box -->
+  <rect x="84" y="1018" width="912" height="106" rx="16" fill="#FDF1DA" stroke="#B36B08" stroke-width="2"/>
+  <text x="116" y="1062" font-family="'Fira Sans', sans-serif" font-size="24" font-weight="700" fill="#6C4000">Atenção à compatibilidade:</text>
+  <text x="116" y="1098" font-family="'Fira Sans', sans-serif" font-size="23" fill="#6C4000">Indicado para notebooks até 16" e 4 kg. Não inclui teclado externo.</text>
+
+  <!-- Primary CTA & Affiliate disclosure -->
+  <rect x="84" y="1152" width="446" height="72" rx="14" fill="#ED6346"/>
+  <text x="307" y="1197" text-anchor="middle" font-family="'Fira Sans', sans-serif" font-size="28" font-weight="700" fill="#0D1D1C">Ver oferta na Shopee (demo)</text>
+
+  <text x="556" y="1182" font-family="'Fira Sans', sans-serif" font-size="21" font-weight="600" fill="#123D3B">Link de afiliado: podemos receber comissão.</text>
+  <text x="556" y="1214" font-family="'Fira Sans', sans-serif" font-size="19" fill="#4E5A58">Preço e estoque mudam. Confirme na loja.</text>
+  <text x="84" y="1272" font-family="'Fira Mono', monospace" font-size="18" fill="#4E5A58">Template 1080×1350 · revisão de contrato v0.1 · proibido editar URL oficial</text>
+</svg>

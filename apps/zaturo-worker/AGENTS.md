@@ -36,6 +36,15 @@ are observations, not new permissions. Keep media generation separate from publi
 
 `opencode.rs` composes the real installed runner with the same durable Personal budget and service journal. `service_jobs.rs` requires full ready-media proof before installed-executor completion. Never replay a paid intent or detached actor. Separate portal capture requires explicit local/native grants; no pixels enter journals.
 
+`mercadolivre.rs` composes `commerce ingest-ml`: reads bot JSON batches locally, filters
+9:16 vertical reel thumbnails and strips `.local/` filesystem paths, uploads verified static
+images to MinIO, and posts validated Hub ingest batches with `Idempotency-Key`.
+
+`telegram.rs` composes official Telegram Bot API publishing (`commerce telegram-publish` and
+optional `ingest-ml --publish-telegram/--dry-run-telegram`), interactive `getUpdates`
+command replies (`commerce telegram-poll`), and human-assisted WhatsApp Web draft exports
+(`commerce whatsapp-drafts`) without Meta API or unofficial browser automation.
+
 
 The owner authorized0.8 remote private URL and SMS images plus source publication.
 Follow docs/REMOTE_PRIVATE_CAPTURE.md (repository root): native URL grant is RAM-only,

@@ -23,7 +23,8 @@ stable discovery keys; [architecture.toml](../architecture.toml) is the dependen
 - `zaturo-orchestrator` — `crates/orchestrator`: strict structured proposals, bounded
   diagnostic planning, policy/executor ports, evidence-based completion, and no shell.
 - `zaturo-transfer` — `crates/transfer`: streaming age encryption, bounded opaque spool,
-  durable resumable client caches, per-transfer inbox publication and checksum verification.
+  durable resumable client caches, per-transfer inbox publication, checksum verification,
+  and SigV4 MinIO object uploads (`minio.rs`) with image inspection/vertical-reel filtering.
 - `zaturo-android` — `crates/android`: fixed serial-bound ADB discovery/status/capture,
   revocable owner leases, process-group limits and opaque zeroizing screen frames.
 - `zaturo-computer` — `crates/computer`: fixed reviewed semantic MCP/service helpers,
@@ -40,15 +41,28 @@ stable discovery keys; [architecture.toml](../architecture.toml) is the dependen
   service actions and an ephemeral memory-only private-screen panel. Android's Kotlin
   client shares the presentation/navigation contract in `docs/NATIVE_CLIENTS.md`.
 - `zaturo-hub` — `apps/zaturo-hub`: HTTP/WebSocket composition, pre-HTTP bounded TCP listener,
-  notification-driven dispatch with durable fallback, and owner CLI.
+  notification-driven dispatch with durable fallback, authenticated Mercado Livre commerce
+  ingest/catalog/Telegram-queue HTTP & CLI endpoints, and owner CLI.
 - `zaturo-worker` — `apps/zaturo-worker`: outbound connection, journal reconciliation,
-  authorized execution, result reporting, and reconnect.
+  authorized execution, result reporting, Mercado Livre batch MinIO-upload + Hub ingestion
+  CLI (`commerce ingest-ml`), official Telegram Bot API publisher/poller & human-assisted
+  WhatsApp Web draft exporter (`telegram.rs`), and reconnect.
 - Local MCP — `deploy/mcp`: four compact stdio tools over scoped authenticated hub APIs,
   private profile installation and inert shared coordination; no automatic executor.
 - `xtask` — `xtask`: the shared CI/local quality entry point, architecture/documentation
   contracts, and bounded Git-visible secret/history publication checks.
 
 ## Registrations and extension points
+
+The [Procurali content/site proposal](planning/commerce-refined/PROCURALI-BUSINESS-AND-SITE.md)
+and its creative/Fable handoffs remain planning artifacts without automatic group auto-publishing
+or model-driven recommendations. Separately, the owner-authorized Mercado Livre affiliate
+ingestor spans `crates/core/src/mercadolivre.rs`, `crates/db/src/mercadolivre.rs` (Hub
+schema 10), `crates/transfer/src/minio.rs`, `crates/services/src/mercadolivre.rs`,
+`apps/zaturo-hub/src/mercadolivre.rs`, `apps/zaturo-worker/src/mercadolivre.rs`, and
+`apps/zaturo-worker/src/telegram.rs`,
+serving validated snapshots to the Procurali static site builder, the official Telegram Bot
+API queue/command responder, and human-assisted WhatsApp Web draft packages without Meta API.
 
 `diagnostic` is the direct task kind. Phase 2 adds `assisted_diagnostic` with capability
 `agent.diagnostic.v1`; both use the one executable tool `diagnostic.v1`.

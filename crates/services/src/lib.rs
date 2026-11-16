@@ -1,6 +1,7 @@
 //! Transactional application use cases shared by transport and CLI composition roots.
 mod activity;
 mod computer;
+mod mercadolivre;
 mod service_tasks;
 mod shared;
 mod transfers;

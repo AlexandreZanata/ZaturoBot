@@ -164,6 +164,10 @@ status = "implemented"
 path = "crates/db/migrations/0009_hub_computer.sql"
 documentation = "docs/MIGRATIONS.md"
 
+[[migrations]]
+path = "crates/db/migrations/0010_hub_mercadolivre_commerce.sql"
+documentation = "docs/MIGRATIONS.md"
+
 [[configurations]]
 name = "ComputerConfig"
 source = "crates/computer/src/lib.rs"

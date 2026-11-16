@@ -435,6 +435,8 @@ async fn explicit_app_diagnostic_reaches_real_worker_and_publishes_one_completio
         files: None,
         youtube: None,
         android: None,
+        minio: None,
+        telegram: None,
     };
     let journal = Arc::new(WorkerJournal::open(&config.database).unwrap());
     let worker =

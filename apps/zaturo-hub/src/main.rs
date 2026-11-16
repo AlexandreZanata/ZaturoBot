@@ -23,10 +23,37 @@ enum Command {
         #[command(subcommand)]
         command: WorkerCommand,
     },
+    Commerce {
+        #[command(subcommand)]
+        command: CommerceCommand,
+    },
 }
 #[derive(Subcommand)]
 enum WorkerCommand {
     List,
+}
+#[derive(Subcommand)]
+enum CommerceCommand {
+    SiteCatalog {
+        #[arg(long)]
+        output: Option<PathBuf>,
+    },
+    TelegramQueue {
+        #[arg(long)]
+        channel: Option<String>,
+        #[arg(long)]
+        status: Option<String>,
+        #[arg(long)]
+        limit: Option<u32>,
+    },
+    WhatsappDrafts {
+        #[arg(long, default_value = "@procurali")]
+        channel: String,
+        #[arg(long, default_value_t = 20)]
+        limit: u32,
+        #[arg(long)]
+        output: Option<PathBuf>,
+    },
 }
 #[derive(Subcommand)]
 enum TaskCommand {
@@ -95,6 +122,81 @@ async fn main() -> Result<()> {
                 .send()
                 .await?
         }
+        Command::Commerce { command } => match command {
+            CommerceCommand::SiteCatalog { output } => {
+                let response = get("/v1/commerce/mercadolivre/site-catalog".into())
+                    .send()
+                    .await?;
+                if let Some(path) = output {
+                    let value: serde_json::Value = response.error_for_status()?.json().await?;
+                    if let Some(parent) = path.parent()
+                        && !parent.as_os_str().is_empty()
+                    {
+                        std::fs::create_dir_all(parent)?;
+                    }
+                    std::fs::write(&path, serde_json::to_string_pretty(&value)?)?;
+                    println!("Wrote catalog snapshot to {}", path.display());
+                    return Ok(());
+                }
+                response
+            }
+            CommerceCommand::TelegramQueue {
+                channel,
+                status,
+                limit,
+            } => {
+                let mut params = Vec::new();
+                if let Some(channel_id) = channel {
+                    params.push(("channel_id", channel_id));
+                }
+                if let Some(status) = status {
+                    params.push(("status", status));
+                }
+                if let Some(limit) = limit {
+                    params.push(("limit", limit.to_string()));
+                }
+                get("/v1/commerce/mercadolivre/telegram-queue".into())
+                    .query(&params)
+                    .send()
+                    .await?
+            }
+            CommerceCommand::WhatsappDrafts {
+                channel,
+                limit,
+                output,
+            } => {
+                let items: Vec<zaturo_core::TelegramOfferQueueItem> =
+                    get("/v1/commerce/mercadolivre/telegram-queue".into())
+                        .query(&[
+                            ("channel_id", channel.as_str()),
+                            ("limit", &limit.clamp(1, 100).to_string()),
+                        ])
+                        .send()
+                        .await?
+                        .error_for_status()?
+                        .json()
+                        .await?;
+                let pkg = zaturo_core::build_whatsapp_assisted_package(
+                    &items,
+                    &channel,
+                    None,
+                    zaturo_hub::now_ms(),
+                );
+                let json_str = serde_json::to_string_pretty(&pkg)?;
+                if let Some(path) = output {
+                    if let Some(parent) = path.parent()
+                        && !parent.as_os_str().is_empty()
+                    {
+                        std::fs::create_dir_all(parent)?;
+                    }
+                    std::fs::write(&path, json_str)?;
+                    println!("Wrote WhatsApp assisted drafts to {}", path.display());
+                } else {
+                    println!("{json_str}");
+                }
+                return Ok(());
+            }
+        },
         Command::Task { command } => match command {
             TaskCommand::Create {
                 kind,

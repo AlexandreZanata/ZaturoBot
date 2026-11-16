@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920" role="img" aria-label="Capa vertical Story e Vídeo Curto 1080 por 1920">
+  <title>Capa Vertical Procurali 1080×1920 com zonas seguras</title>
+  <rect width="1080" height="1920" fill="#123D3B"/>
+
+  <!-- Top and Bottom Platform UI Unsafe Zones (220px top, 340px bottom) -->
+  <rect x="0" y="0" width="1080" height="220" fill="#0C2A28" fill-opacity="0.72"/>
+  <line x1="48" y1="220" x2="1032" y2="220" stroke="#DCECB0" stroke-width="3" stroke-dasharray="14 10"/>
+  <text x="540" y="130" text-anchor="middle" font-family="'Fira Mono', monospace" font-size="24" fill="#DCECB0">ZONA DE INTERFACE SUPERIOR (EVITAR TEXTO ESSENCIAL · 220px)</text>
+
+  <rect x="0" y="1580" width="1080" height="340" fill="#0C2A28" fill-opacity="0.72"/>
+  <line x1="48" y1="1580" x2="1032" y2="1580" stroke="#DCECB0" stroke-width="3" stroke-dasharray="14 10"/>
+  <text x="540" y="1740" text-anchor="middle" font-family="'Fira Mono', monospace" font-size="24" fill="#DCECB0">ZONA DE INTERFACE INFERIOR / LEGENDAS (340px)</text>
+
+  <!-- Safe Area Content Card (y: 250 .. 1540) -->
+  <rect x="64" y="256" width="952" height="1288" rx="28" fill="#FAF8F3"/>
+
+  <!-- Top Disclosure & Brand inside Safe Zone -->
+  <rect x="112" y="308" width="446" height="52" rx="26" fill="#123D3B"/>
+  <text x="335" y="342" text-anchor="middle" font-family="'Fira Sans', sans-serif" font-size="24" font-weight="700" fill="#FAF8F3">Publicidade / link de afiliado</text>
+
+  <text x="968" y="344" text-anchor="end" font-family="'Fira Sans', sans-serif" font-size="34" font-weight="700" letter-spacing="-1" fill="#123D3B">procurali</text>
+
+  <!-- Hook headline -->
+  <text x="112" y="452" font-family="'Fira Sans', sans-serif" font-size="54" font-weight="700" fill="#123D3B">Antes de comprar</text>
+  <text x="112" y="518" font-family="'Fira Sans', sans-serif" font-size="54" font-weight="700" fill="#123D3B">luminária de monitor,</text>
+  <text x="112" y="584" font-family="'Fira Sans', sans-serif" font-size="54" font-weight="700" fill="#A8361E">cheque a espessura</text>
+  <text x="112" y="650" font-family="'Fira Sans', sans-serif" font-size="54" font-weight="700" fill="#A8361E">e a curva da tela.</text>
+
+  <!-- Visual slot -->
+  <rect x="112" y="704" width="856" height="440" rx="22" fill="#F2EFE7" stroke="#B8B2A3" stroke-width="2" stroke-dasharray="10 8"/>
+  <g transform="translate(260, 810)" stroke="#123D3B" stroke-width="7" fill="none">
+    <rect x="20" y="90" width="520" height="28" rx="14" fill="#FFFFFF"/>
+    <path d="M180 90 L220 34 H340 L380 90" fill="#DCECB0"/>
+    <path d="M90 140 L45 235 M200 140 L185 235 M360 140 L375 235 M470 140 L515 235" stroke="#ED6346" stroke-width="6" stroke-dasharray="10 10"/>
+  </g>
+  <text x="540" y="1114" text-anchor="middle" font-family="'Fira Mono', monospace" font-size="20" fill="#4E5A58">ILUSTRAÇÃO DEMONSTRATIVA · SEM TESTE FÍSICO INVENTADO</text>
+
+  <!-- Subtitle safe zone indicator -->
+  <rect x="112" y="1182" width="856" height="148" rx="18" fill="#123D3B"/>
+  <text x="540" y="1240" text-anchor="middle" font-family="'Fira Sans', sans-serif" font-size="30" font-weight="700" fill="#FAF8F3">“Ilumina a mesa sem bater reflexo</text>
+  <text x="540" y="1284" text-anchor="middle" font-family="'Fira Sans', sans-serif" font-size="30" font-weight="700" fill="#FAF8F3">direto na tela — se a borda couber.”</text>
+
+  <!-- CTA note respecting platform link guidance -->
+  <rect x="112" y="1364" width="856" height="132" rx="18" fill="#ED6346"/>
+  <text x="540" y="1418" text-anchor="middle" font-family="'Fira Sans', sans-serif" font-size="28" font-weight="700" fill="#0D1D1C">Guia completo no link do perfil</text>
+  <text x="540" y="1464" text-anchor="middle" font-family="'Fira Sans', sans-serif" font-size="19" font-weight="600" fill="#0D1D1C">Shorts: link na descrição não é clicável — use o perfil ou vídeo relacionado</text>
+</svg>

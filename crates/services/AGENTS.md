@@ -36,3 +36,7 @@ Registered browser research retains its durable routing origin. Hub validates th
 on both child creation and executor grant, and permits only public browser reads; neither
 model output nor native approval expands it into desktop observation, input or social
 actions. Explicit general computer tasks retain their separate bounded native grants.
+
+`mercadolivre.rs` owns `Engine::ingest_mercadolivre_batch` (idempotency-key + SHA-256
+conflict detection and non-sensitive activity notice emission), `mercadolivre_site_catalog`,
+`mercadolivre_telegram_queue`, and `ack_mercadolivre_telegram_delivery`.

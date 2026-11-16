@@ -1,0 +1,685 @@
+/* Procurali Progressive Enhancement DOM Controller (compiled inside IIFE by build.mjs) */
+
+const STORAGE_SAVED_KEY = "procurali_saved_v1";
+const STORAGE_CONSENT_KEY = "procurali_analytics_consent_v1";
+const STORAGE_EVENTS_KEY = "procurali_demo_events_v1";
+
+function safeReadJson(key, fallback) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function safeWriteJson(key, value) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Storage disabled or private mode; degrade silently without errors.
+  }
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function getRootPrefix() {
+  return document.documentElement.getAttribute("data-root") || "./";
+}
+
+function getCatalogData() {
+  const node = document.getElementById("procurali-catalog-data");
+  if (!node) return null;
+  try {
+    return JSON.parse(node.textContent || "{}");
+  } catch {
+    return null;
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Mobile navigation drawer
+ * ------------------------------------------------------------------------ */
+function initMobileDrawer() {
+  const toggleBtn = document.querySelector("[data-menu-toggle]");
+  const drawer = document.getElementById("mobile-drawer");
+  if (!toggleBtn || !drawer) return;
+
+  toggleBtn.addEventListener("click", () => {
+    const isOpen = toggleBtn.getAttribute("aria-expanded") === "true";
+    toggleBtn.setAttribute("aria-expanded", String(!isOpen));
+    drawer.hidden = isOpen;
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !drawer.hidden) {
+      drawer.hidden = true;
+      toggleBtn.setAttribute("aria-expanded", "false");
+      toggleBtn.focus();
+    }
+  });
+}
+
+/* --------------------------------------------------------------------------
+ * Saved items drawer (opt-in local browser storage only)
+ * ------------------------------------------------------------------------ */
+function renderSavedDrawer() {
+  const saved = safeReadJson(STORAGE_SAVED_KEY, []);
+  const countEls = document.querySelectorAll("[data-saved-count]");
+  countEls.forEach((el) => {
+    el.textContent = String(saved.length);
+    el.hidden = saved.length === 0;
+  });
+
+  const saveButtons = document.querySelectorAll("[data-save-offer]");
+  saveButtons.forEach((btn) => {
+    const slug = btn.getAttribute("data-save-offer");
+    const isSaved = saved.some((item) => item.slug === slug);
+    btn.setAttribute("aria-pressed", String(isSaved));
+    if (btn.getAttribute("data-save-icon") === "true") {
+      btn.classList.toggle("is-saved", isSaved);
+      const title = btn.getAttribute("data-offer-title") || slug;
+      btn.setAttribute(
+        "aria-label",
+        isSaved ? `Remover ${title} dos salvos` : `Salvar ${title} na lista`
+      );
+    } else {
+      btn.textContent = isSaved ? "Salvo na sua lista" : "Salvar item";
+    }
+  });
+
+  const listContainer = document.getElementById("saved-items-list");
+  if (!listContainer) return;
+
+  const root = getRootPrefix();
+  if (saved.length === 0) {
+    listContainer.innerHTML =
+      '<p class="muted">Nenhum item salvo ainda. Use o botão "Salvar item" em qualquer oferta para comparar depois.</p>';
+    return;
+  }
+
+  listContainer.innerHTML = saved
+    .map(
+      (item) => `
+      <div class="card">
+        <div>
+          <span class="badge badge-neutral">Demonstração salva localmente</span>
+        </div>
+        <strong>${escapeHtml(item.title)}</strong>
+        <span class="muted">${escapeHtml(item.priceLabel)}</span>
+        <div class="btn-row">
+          <a class="btn btn-secondary" href="${escapeHtml(root)}ofertas/${escapeHtml(item.slug)}/index.html">Abrir ficha</a>
+          <button type="button" class="btn btn-secondary" data-remove-saved="${escapeHtml(item.slug)}">Remover</button>
+        </div>
+      </div>`
+    )
+    .join("");
+}
+
+function initSavedDrawer() {
+  const drawer = document.getElementById("saved-drawer");
+  const openBtns = document.querySelectorAll("[data-open-saved]");
+  const closeBtn = document.querySelector("[data-close-saved]");
+  const clearBtn = document.querySelector("[data-clear-saved]");
+
+  let lastTrigger = null;
+
+  function openDrawer(trigger) {
+    if (!drawer) return;
+    lastTrigger = trigger;
+    renderSavedDrawer();
+    drawer.hidden = false;
+    if (closeBtn) closeBtn.focus();
+  }
+
+  function closeDrawer() {
+    if (!drawer) return;
+    drawer.hidden = true;
+    if (lastTrigger && typeof lastTrigger.focus === "function") {
+      lastTrigger.focus();
+    }
+  }
+
+  openBtns.forEach((btn) => {
+    btn.addEventListener("click", () => openDrawer(btn));
+  });
+
+  if (closeBtn) {
+    closeBtn.addEventListener("click", closeDrawer);
+  }
+
+  if (drawer) {
+    drawer.addEventListener("click", (event) => {
+      if (event.target === drawer) closeDrawer();
+    });
+  }
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && drawer && !drawer.hidden) {
+      closeDrawer();
+    }
+  });
+
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      safeWriteJson(STORAGE_SAVED_KEY, []);
+      renderSavedDrawer();
+    });
+  }
+
+  document.addEventListener("click", (event) => {
+    const saveBtn = event.target.closest("[data-save-offer]");
+    if (saveBtn) {
+      const slug = saveBtn.getAttribute("data-save-offer");
+      const title = saveBtn.getAttribute("data-offer-title") || slug;
+      const priceLabel = saveBtn.getAttribute("data-offer-price") || "";
+      const current = safeReadJson(STORAGE_SAVED_KEY, []);
+      const exists = current.some((i) => i.slug === slug);
+      const next = exists
+        ? current.filter((i) => i.slug !== slug)
+        : [...current, { slug, title, priceLabel }];
+      safeWriteJson(STORAGE_SAVED_KEY, next);
+      renderSavedDrawer();
+      return;
+    }
+
+    const removeBtn = event.target.closest("[data-remove-saved]");
+    if (removeBtn) {
+      const slug = removeBtn.getAttribute("data-remove-saved");
+      const current = safeReadJson(STORAGE_SAVED_KEY, []);
+      safeWriteJson(
+        STORAGE_SAVED_KEY,
+        current.filter((i) => i.slug !== slug)
+      );
+      renderSavedDrawer();
+    }
+  });
+
+  renderSavedDrawer();
+}
+
+/* --------------------------------------------------------------------------
+ * Privacy-first optional local analytics (off by default, never blocks links)
+ * ------------------------------------------------------------------------ */
+function recordLocalAnalyticsEvent(eventName, detail) {
+  const consent = safeReadJson(STORAGE_CONSENT_KEY, { optionalAnalytics: false });
+  if (!consent.optionalAnalytics) return;
+  const events = safeReadJson(STORAGE_EVENTS_KEY, []);
+  const entry = {
+    event: eventName,
+    detail: detail || "",
+    at: new Date().toISOString(),
+  };
+  safeWriteJson(STORAGE_EVENTS_KEY, [entry, ...events].slice(0, 20));
+  renderAnalyticsLog();
+}
+
+function renderAnalyticsLog() {
+  const logEl = document.getElementById("analytics-demo-log");
+  const statusEl = document.getElementById("analytics-consent-status");
+  const consent = safeReadJson(STORAGE_CONSENT_KEY, { optionalAnalytics: false });
+  if (statusEl) {
+    statusEl.textContent = consent.optionalAnalytics
+      ? "Medição local demonstrativa ATIVADA (nenhum dado sai do seu navegador)."
+      : "Medição opcional DESATIVADA por padrão.";
+  }
+  if (!logEl) return;
+  const events = safeReadJson(STORAGE_EVENTS_KEY, []);
+  if (events.length === 0) {
+    logEl.innerHTML =
+      '<p class="muted">Nenhum evento registrado localmente ainda.</p>';
+    return;
+  }
+  logEl.innerHTML = `<ul class="mono">${events
+    .map(
+      (ev) =>
+        `<li>${escapeHtml(ev.at)} · <strong>${escapeHtml(ev.event)}</strong> (${escapeHtml(ev.detail)})</li>`
+    )
+    .join("")}</ul>`;
+}
+
+function initAnalyticsControls() {
+  const toggle = document.getElementById("analytics-consent-toggle");
+  const clearBtn = document.getElementById("analytics-clear-log");
+  if (toggle) {
+    const consent = safeReadJson(STORAGE_CONSENT_KEY, { optionalAnalytics: false });
+    toggle.checked = Boolean(consent.optionalAnalytics);
+    toggle.addEventListener("change", () => {
+      safeWriteJson(STORAGE_CONSENT_KEY, { optionalAnalytics: toggle.checked });
+      renderAnalyticsLog();
+    });
+  }
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      safeWriteJson(STORAGE_EVENTS_KEY, []);
+      renderAnalyticsLog();
+    });
+  }
+
+  // Track voluntary outbound clicks asynchronously without ever preventing navigation
+  document.addEventListener("click", (event) => {
+    const tracked = event.target.closest("[data-analytics-event]");
+    if (!tracked) return;
+    const evName = tracked.getAttribute("data-analytics-event");
+    const evDetail = tracked.getAttribute("data-analytics-detail") || "";
+    recordLocalAnalyticsEvent(evName, evDetail);
+  });
+
+  renderAnalyticsLog();
+}
+
+/* --------------------------------------------------------------------------
+ * Offers catalog interactive filter & sort (/ofertas/)
+ * ------------------------------------------------------------------------ */
+function offerStatusBadge(offer) {
+  if (offer.state === "approved") {
+    const sevenDay = verifySevenDaySample(offer);
+    if (!offer.isDemoFixture) {
+      return sevenDay.eligible
+        ? `<span class="badge badge-emerald">✓ Ativa · ${escapeHtml(offer.marketplaceLabel)} · Série 7 dias</span>`
+        : `<span class="badge badge-emerald">✓ Ativa · ${escapeHtml(offer.marketplaceLabel)}</span>`;
+    }
+    if (sevenDay.eligible) {
+      return '<span class="badge badge-emerald">✓ Ativa (demo) · Série 7 dias</span>';
+    }
+    return '<span class="badge badge-petrol">✓ Ativa (demo)</span>';
+  }
+  if (offer.state === "stale") {
+    return '<span class="badge badge-warning">⏳ Preço em atualização (&gt;30 min)</span>';
+  }
+  if (offer.state === "expired") {
+    return '<span class="badge badge-neutral">⏱ Prazo encerrado (histórico)</span>';
+  }
+  if (offer.state === "missing_rights") {
+    return '<span class="badge badge-danger">⛔ Bloqueada: direitos de mídia</span>';
+  }
+  return '<span class="badge badge-neutral">Indisponível</span>';
+}
+
+function initOffersFilter() {
+  const form = document.getElementById("offers-filter-form");
+  const resultsEl = document.getElementById("offers-results");
+  const countEl = document.getElementById("offers-results-count");
+  const resetBtn = document.getElementById("offers-reset-btn");
+  const filterDetails = form ? form.querySelector("[data-filter-details]") : null;
+  const catalog = getCatalogData();
+  if (!form || !resultsEl || !catalog || !Array.isArray(catalog.offers)) return;
+
+  if (
+    filterDetails &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(max-width: 767px)").matches &&
+    !window.location.search
+  ) {
+    filterDetails.open = false;
+  }
+
+  const root = getRootPrefix();
+  const params = new URLSearchParams(window.location.search);
+
+  const fields = {
+    query: form.querySelector('[name="q"]'),
+    category: form.querySelector('[name="categoria"]'),
+    priceBand: form.querySelector('[name="faixa"]'),
+    condition: form.querySelector('[name="condicao"]'),
+    sort: form.querySelector('[name="ordem"]'),
+    statusFilter: form.querySelector('[name="status"]'),
+  };
+
+  if (params.get("q") && fields.query) fields.query.value = params.get("q");
+  if (params.get("categoria") && fields.category) fields.category.value = params.get("categoria");
+  if (params.get("faixa") && fields.priceBand) fields.priceBand.value = params.get("faixa");
+  if (params.get("condicao") && fields.condition) fields.condition.value = params.get("condicao");
+  if (params.get("ordem") && fields.sort) fields.sort.value = params.get("ordem");
+  if (params.get("status") && fields.statusFilter) fields.statusFilter.value = params.get("status");
+
+  function renderOffers() {
+    const state = {
+      query: fields.query ? fields.query.value : "",
+      category: fields.category ? fields.category.value : "todas",
+      priceBand: fields.priceBand ? fields.priceBand.value : "todas",
+      condition: fields.condition ? fields.condition.value : "todas",
+      sort: fields.sort ? fields.sort.value : "relevance",
+      statusFilter: fields.statusFilter ? fields.statusFilter.value : "ativas",
+    };
+
+    const nextParams = new URLSearchParams();
+    if (state.query.trim()) nextParams.set("q", state.query.trim());
+    if (state.category !== "todas") nextParams.set("categoria", state.category);
+    if (state.priceBand !== "todas") nextParams.set("faixa", state.priceBand);
+    if (state.condition !== "todas") nextParams.set("condicao", state.condition);
+    if (state.sort !== "relevance") nextParams.set("ordem", state.sort);
+    if (state.statusFilter !== "ativas") nextParams.set("status", state.statusFilter);
+
+    try {
+      const qs = nextParams.toString();
+      const targetUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+      window.history.replaceState(null, "", targetUrl);
+    } catch {
+      // Ignore under restricted origins.
+    }
+
+    const filtered = filterAndSortOffers(catalog.offers, state);
+    const sortLabels = {
+      relevance: "Relevância editorial",
+      price_asc: "Menor preço informado (frete não incluído)",
+      recent: "Observação mais recente",
+    };
+
+    if (countEl) {
+      countEl.textContent = `${filtered.length} oferta(s) exibida(s) · Ordenação: ${sortLabels[state.sort] || "Relevância editorial"}.`;
+    }
+
+    if (filtered.length === 0) {
+      resultsEl.innerHTML = `
+        <div class="notice-box notice-box--warning">
+          <h3>Nenhuma oferta encontrada com esses filtros</h3>
+          <p>Nenhuma opção do catálogo demonstrativo corresponde a todos os critérios escolhidos (ou itens desatualizados/expirados estão ocultos pelo filtro atual).</p>
+          <button type="button" class="btn btn-secondary" id="inline-reset-filters">Limpar filtros</button>
+        </div>`;
+      const inlineBtn = document.getElementById("inline-reset-filters");
+      if (inlineBtn) {
+        inlineBtn.addEventListener("click", resetFilters);
+      }
+      return;
+    }
+
+    resultsEl.innerHTML = filtered
+      .map((offer) => {
+        const price = formatBrl(offer.priceBrlCents);
+        const refPrice = offer.referencePriceCents ? formatBrl(offer.referencePriceCents) : "";
+        const savingsCents =
+          offer.referencePriceCents && offer.referencePriceCents > offer.priceBrlCents
+            ? offer.referencePriceCents - offer.priceBrlCents
+            : 0;
+        const sevenDay = verifySevenDaySample(offer);
+        const imageSrc = resolveMediaSrc(root, offer.imagePath);
+        const detailHref = `${root}ofertas/${offer.slug}/index.html`;
+        const conditionText =
+          offer.shortCondition ||
+          (offer.couponCondition
+            ? `Com condição de cupom · ${offer.paymentConditions}`
+            : offer.paymentConditions);
+        const ctaProps = buildOfficialAffiliateAnchorProps(offer, catalog.mediaRights || []);
+        const isActionable = offer.state === "approved";
+        const destLabel =
+          ctaProps.enabled
+            ? ctaProps.label
+            : offer.ctaDestLabel ||
+              (isActionable
+                ? offer.marketplaceLabel === "Mercado Livre"
+                  ? "Ver oferta no Mercado Livre"
+                  : "Ver oferta na Shopee"
+                : "Conferir status do item");
+        const ctaClass = isActionable ? "btn btn-action" : "btn btn-secondary";
+
+        return `
+        <article class="offer-row">
+          <a class="offer-thumb" href="${escapeHtml(detailHref)}" tabindex="-1" aria-hidden="true">
+            <img src="${escapeHtml(imageSrc)}" alt="${escapeHtml(offer.imageAlt)}" width="640" height="480" loading="lazy">
+          </a>
+          <div class="offer-body">
+            <div class="offer-meta-row">
+              ${offerStatusBadge(offer)}
+              <span class="offer-merchant">${escapeHtml(offer.merchant)}</span>
+              ${offer.sponsored ? '<span class="badge badge-warning">Patrocinado no ML</span>' : ""}
+            </div>
+            <h2 class="offer-title"><a href="${escapeHtml(detailHref)}">${escapeHtml(offer.title)}</a></h2>
+            <p class="offer-variant">${offer.brand && offer.model ? `<strong>${escapeHtml(offer.brand)} · ${escapeHtml(offer.model)}</strong> · ` : ""}Variante: ${escapeHtml(offer.exactVariant)}</p>
+            <p class="offer-reason">${escapeHtml(offer.oneLineReason)}</p>
+            ${
+              offer.marketplaceRating
+                ? `<p class="offer-rating-line"><strong>Anúncio ML:</strong> ${escapeHtml(offer.marketplaceRating)} ★${offer.marketplaceSalesLabel ? ` (${escapeHtml(offer.marketplaceSalesLabel)})` : ""}${offer.returnDays ? ` · Devolução grátis ${escapeHtml(offer.returnDays)}d` : ""}</p>`
+                : ""
+            }
+            ${
+              sevenDay.eligible
+                ? `<p class="offer-flag"><svg class="icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg><span>${escapeHtml(sevenDay.label)}</span></p>`
+                : ""
+            }
+            ${
+              offer.couponCode
+                ? `<div class="offer-inline-coupon"><button type="button" class="coupon-pill" data-copy-code="${escapeHtml(offer.couponCode)}">Copiar cupom: <strong>${escapeHtml(offer.couponCode)}</strong></button></div>`
+                : ""
+            }
+          </div>
+          <div class="offer-aside">
+            <div class="offer-price-block">
+              ${
+                refPrice
+                  ? `<div class="offer-ref-row"><span class="price-old">De ${escapeHtml(refPrice)}</span>${offer.discountPercentLabel ? `<span class="discount-chip">${escapeHtml(offer.discountPercentLabel)}</span>` : ""}</div>`
+                  : ""
+              }
+              <strong class="offer-price">${escapeHtml(price)}</strong>
+              ${savingsCents > 0 && !offer.discountPercentLabel ? `<span class="savings-pill">Economia de ${escapeHtml(formatBrl(savingsCents))}</span>` : ""}
+            </div>
+            <span class="offer-cond">${escapeHtml(offer.installmentSummary || conditionText)}</span>
+            ${offer.validUntilDisplay ? `<span class="deadline-pill">${escapeHtml(offer.validUntilDisplay)}</span>` : ""}
+            <span class="offer-obs"><svg class="icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg><span>Obs. ${escapeHtml(offer.observedAtDisplay)} · frete não incluído</span></span>
+            <div class="offer-actions">
+              ${
+                ctaProps.enabled
+                  ? `<a class="${ctaClass}" href="${escapeHtml(ctaProps.href)}" rel="${escapeHtml(ctaProps.rel)}" target="${escapeHtml(ctaProps.target)}" data-analytics-event="outbound_offer_click" data-analytics-detail="${escapeHtml(offer.slug)}">${escapeHtml(destLabel)}</a>
+                     <a class="btn btn-secondary" href="${escapeHtml(detailHref)}">Ficha técnica</a>`
+                  : `<a class="${ctaClass}" href="${escapeHtml(detailHref)}">${escapeHtml(destLabel)}</a>`
+              }
+              <button type="button" class="btn btn-secondary" data-save-offer="${escapeHtml(offer.slug)}" data-offer-title="${escapeHtml(offer.title)}" data-offer-price="${escapeHtml(price)}">Salvar</button>
+            </div>
+            ${ctaProps.enabled ? '<span class="offer-affiliate-note">Link de afiliado · podemos receber comissão.</span>' : ""}
+          </div>
+        </article>`;
+      })
+      .join("");
+
+    renderSavedDrawer();
+  }
+
+  function resetFilters() {
+    if (fields.query) fields.query.value = "";
+    if (fields.category) fields.category.value = "todas";
+    if (fields.priceBand) fields.priceBand.value = "todas";
+    if (fields.condition) fields.condition.value = "todas";
+    if (fields.sort) fields.sort.value = "relevance";
+    if (fields.statusFilter) fields.statusFilter.value = "ativas";
+    renderOffers();
+  }
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    renderOffers();
+  });
+  form.addEventListener("change", renderOffers);
+  if (fields.query) fields.query.addEventListener("input", renderOffers);
+  if (resetBtn) resetBtn.addEventListener("click", resetFilters);
+
+  renderOffers();
+}
+
+/* --------------------------------------------------------------------------
+ * Guided AI Finder local demonstration (/encontre-com-ia/)
+ * ------------------------------------------------------------------------ */
+function initAiFinder() {
+  const form = document.getElementById("ai-finder-form");
+  const outEl = document.getElementById("ai-finder-output");
+  const catalog = getCatalogData();
+  if (!form || !outEl || !catalog || !Array.isArray(catalog.offers)) return;
+
+  const root = getRootPrefix();
+
+  function evaluateFinder() {
+    const need = (form.querySelector('[name="need"]')?.value || "").trim();
+    const maxBudgetBrl = Number(form.querySelector('[name="budget"]')?.value || 180);
+    const requirement = form.querySelector('[name="requirement"]')?.value || "qualquer";
+    const simulatedState = form.querySelector('[name="simulatedState"]')?.value || "normal";
+
+    const result = runDeterministicFinder(
+      { need, maxBudgetBrl, requirement, simulatedState },
+      catalog.offers
+    );
+
+    recordLocalAnalyticsEvent("finder_demo_query", `status=${result.status}`);
+
+    const bannerClass =
+      result.status === "match"
+        ? "notice-box"
+        : result.status === "no-match"
+        ? "notice-box notice-box--warning"
+        : "notice-box notice-box--danger";
+
+    let bodyHtml = `
+      <div class="${bannerClass}">
+        <p><span class="badge badge-petrol">${escapeHtml(result.modeLabel)}</span></p>
+        <p><strong>${escapeHtml(result.explanation)}</strong></p>
+        <p class="muted" style="margin-bottom:0;">Base consultada: ${escapeHtml(result.catalogTimestamp)}</p>
+      </div>`;
+
+    if (result.matches.length > 0) {
+      bodyHtml += `<div class="finder-results-grid">` + result.matches
+        .map(
+          (m) => `
+          <article class="card finder-card">
+            <div><span class="badge badge-lime">✓ Compatível na demonstração</span></div>
+            <h3 class="finder-card-title">${escapeHtml(m.title)}</h3>
+            <p class="muted finder-card-variant">${escapeHtml(m.exactVariant)}</p>
+            <p class="offer-price">${escapeHtml(m.priceFormatted)}</p>
+            <p class="muted finder-card-obs">Observado em ${escapeHtml(m.observedAtDisplay)}</p>
+            <p><strong>Por que encaixa:</strong> ${escapeHtml(m.fitReason)}</p>
+            <p><strong>Limitação principal:</strong> ${escapeHtml(m.mainTradeoff)}</p>
+            <p class="muted"><strong>O que não sabemos:</strong> ${escapeHtml(m.unknownItem)}</p>
+            <div class="card-foot">
+              <a class="btn btn-petrol btn-block" href="${escapeHtml(root)}ofertas/${escapeHtml(m.slug)}/index.html">Ver ficha e condições</a>
+            </div>
+          </article>`
+        )
+        .join("") + `</div>`;
+    } else {
+      bodyHtml += `
+        <div class="btn-row">
+          <a class="btn btn-petrol" href="${escapeHtml(root)}ofertas/index.html">Explorar ofertas com filtros normais</a>
+          <a class="btn btn-secondary" href="${escapeHtml(root)}guias/index.html">Ler guias de compra</a>
+        </div>`;
+    }
+
+    outEl.innerHTML = bodyHtml;
+  }
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    evaluateFinder();
+  });
+
+  document.querySelectorAll("[data-finder-preset]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const needInput = form.querySelector('[name="need"]');
+      const budgetInput = form.querySelector('[name="budget"]');
+      const reqSelect = form.querySelector('[name="requirement"]');
+      const stateSelect = form.querySelector('[name="simulatedState"]');
+      if (needInput) needInput.value = btn.getAttribute("data-need") || "";
+      if (budgetInput) budgetInput.value = btn.getAttribute("data-budget") || "180";
+      if (reqSelect) reqSelect.value = btn.getAttribute("data-req") || "qualquer";
+      if (stateSelect) stateSelect.value = btn.getAttribute("data-state") || "normal";
+      evaluateFinder();
+    });
+  });
+
+  evaluateFinder();
+}
+
+/* --------------------------------------------------------------------------
+ * Copy buttons on Creative Kit (/criativos/)
+ * ------------------------------------------------------------------------ */
+function initCopyButtons() {
+  const statusEl = document.getElementById("copy-feedback");
+  document.addEventListener("click", async (event) => {
+    const codeBtn = event.target.closest("[data-copy-code]");
+    if (codeBtn) {
+      const code = codeBtn.getAttribute("data-copy-code") || "";
+      if (!code) return;
+      const origHtml = codeBtn.innerHTML;
+      try {
+        await navigator.clipboard.writeText(code);
+        codeBtn.textContent = `Copiado: ${code}`;
+      } catch {
+        codeBtn.textContent = `Código: ${code}`;
+      }
+      setTimeout(() => {
+        codeBtn.innerHTML = origHtml;
+      }, 1800);
+      return;
+    }
+
+    const btn = event.target.closest("[data-copy-target]");
+    if (!btn) return;
+    const id = btn.getAttribute("data-copy-target");
+    const target = document.getElementById(id);
+    if (!target) return;
+    const text = target.textContent || "";
+    try {
+      await navigator.clipboard.writeText(text);
+      if (statusEl) statusEl.textContent = "Texto copiado para a área de transferência.";
+      const original = btn.textContent;
+      btn.textContent = "Copiado";
+      setTimeout(() => {
+        btn.textContent = original;
+      }, 1800);
+    } catch {
+      if (statusEl) {
+        statusEl.textContent =
+          "Cópia automática indisponível neste navegador; selecione e copie o bloco manualmente.";
+      }
+    }
+  });
+}
+
+function initSearchFocusShortcut() {
+  const headerSearchTrigger = document.querySelector("[data-focus-search]");
+  const heroInput =
+    document.getElementById("hero-search-input") ||
+    document.getElementById("header-search-input") ||
+    document.getElementById("opening-search-input");
+  if (!headerSearchTrigger || !heroInput) return;
+
+  headerSearchTrigger.addEventListener("click", (event) => {
+    event.preventDefault();
+    heroInput.focus();
+    heroInput.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+}
+
+function initOfferGallery() {
+  const mainPhoto = document.querySelector("[data-gallery-main]");
+  const buttons = Array.from(document.querySelectorAll("[data-gallery-btn]"));
+  if (!mainPhoto || buttons.length === 0) return;
+
+  buttons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const nextSrc = btn.getAttribute("data-gallery-src");
+      const nextAlt = btn.getAttribute("data-gallery-alt");
+      if (nextSrc) mainPhoto.setAttribute("src", nextSrc);
+      if (nextAlt) mainPhoto.setAttribute("alt", nextAlt);
+      buttons.forEach((item) => {
+        const active = item === btn;
+        item.classList.toggle("is-active", active);
+        item.setAttribute("aria-pressed", String(active));
+      });
+    });
+  });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  initMobileDrawer();
+  initSavedDrawer();
+  initAnalyticsControls();
+  initOffersFilter();
+  initOfferGallery();
+  initAiFinder();
+  initCopyButtons();
+  initSearchFocusShortcut();
+});

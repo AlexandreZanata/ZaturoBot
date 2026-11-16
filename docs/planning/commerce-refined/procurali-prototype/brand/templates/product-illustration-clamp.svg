@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" width="640" height="480" role="img" aria-label="Ilustração demonstrativa de filtro de linha DPS 6 tomadas preto">
+  <title>Filtro de Linha com DPS 6 Tomadas — Ilustração demonstrativa</title>
+  <defs>
+    <linearGradient id="stripDark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#353D43"/>
+      <stop offset="100%" stop-color="#181D20"/>
+    </linearGradient>
+    <radialGradient id="dpsShadow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#072617" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#072617" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="640" height="480" fill="#FFFFFF"/>
+  <ellipse cx="320" cy="378" rx="240" ry="26" fill="url(#dpsShadow)"/>
+  <!-- Heavy power cord loop -->
+  <path d="M510 278 C580 278 584 352 520 364 C470 374 430 356 410 356" fill="none" stroke="#1E2428" stroke-width="18" stroke-linecap="round"/>
+  <!-- NBR 14136 plug end -->
+  <rect x="358" y="336" width="56" height="36" rx="8" fill="#23292D"/>
+  <rect x="340" y="346" width="18" height="5" rx="2" fill="#BFC7CE"/>
+  <rect x="340" y="357" width="18" height="5" rx="2" fill="#BFC7CE"/>
+  <!-- Main surge protector chassis -->
+  <rect x="92" y="180" width="430" height="122" rx="18" fill="url(#stripDark)" stroke="#121619" stroke-width="3"/>
+  <!-- Recessed top channel -->
+  <rect x="164" y="198" width="336" height="86" rx="10" fill="#121619"/>
+  <!-- illuminated rocker breaker switch -->
+  <rect x="112" y="216" width="34" height="50" rx="6" fill="#C92A2A" stroke="#0C0F11" stroke-width="2"/>
+  <circle cx="129" cy="202" r="4.5" fill="#8BEB28"/>
+  <!-- 6 spaced Brazilian sockets -->
+  <g fill="#262D32" stroke="#4D575F" stroke-width="1.5">
+    <circle cx="196" cy="241" r="22"/>
+    <circle cx="250" cy="241" r="22"/>
+    <circle cx="304" cy="241" r="22"/>
+    <circle cx="358" cy="241" r="22"/>
+    <circle cx="412" cy="241" r="22"/>
+    <circle cx="466" cy="241" r="22"/>
+  </g>
+  <g fill="#0A0D0E">
+    <circle cx="189" cy="241" r="3"/><circle cx="203" cy="241" r="3"/><circle cx="196" cy="233" r="3"/>
+    <circle cx="243" cy="241" r="3"/><circle cx="257" cy="241" r="3"/><circle cx="250" cy="233" r="3"/>
+    <circle cx="297" cy="241" r="3"/><circle cx="311" cy="241" r="3"/><circle cx="304" cy="233" r="3"/>
+    <circle cx="351" cy="241" r="3"/><circle cx="365" cy="241" r="3"/><circle cx="358" cy="233" r="3"/>
+    <circle cx="405" cy="241" r="3"/><circle cx="419" cy="241" r="3"/><circle cx="412" cy="233" r="3"/>
+    <circle cx="459" cy="241" r="3"/><circle cx="473" cy="241" r="3"/><circle cx="466" cy="233" r="3"/>
+  </g>
+</svg>

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" width="640" height="480" role="img" aria-label="Ilustração demonstrativa de bandeja organizadora de cabos em aço sob a mesa">
+  <title>Bandeja Organizadora de Cabos em Aço — Ilustração demonstrativa</title>
+  <defs>
+    <linearGradient id="woodDesk" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#D9C3A5"/>
+      <stop offset="100%" stop-color="#BEA27E"/>
+    </linearGradient>
+    <linearGradient id="steelTray" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#353E44"/>
+      <stop offset="100%" stop-color="#1B2024"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="480" fill="#FFFFFF"/>
+  <!-- Desk edge -->
+  <rect x="86" y="130" width="468" height="32" rx="6" fill="url(#woodDesk)" stroke="#9B7F5D" stroke-width="2.5"/>
+  <!-- No-drill C-clamps -->
+  <path d="M174 114 H210 V172 H174 V156 H194 V128 H174 Z" fill="#1F2529"/>
+  <rect x="180" y="168" width="22" height="16" rx="3" fill="#0E6B38"/>
+  <path d="M430 114 H466 V172 H430 V156 H450 V128 H430 Z" fill="#1F2529"/>
+  <rect x="436" y="168" width="22" height="16" rx="3" fill="#0E6B38"/>
+  <!-- Suspension arms -->
+  <rect x="188" y="170" width="12" height="72" fill="#252B30"/>
+  <rect x="440" y="170" width="12" height="72" fill="#252B30"/>
+  <!-- Cable basket in matte black carbon steel -->
+  <path d="M148 232 H492 V320 C492 332 482 342 470 342 H170 C158 342 148 332 148 320 Z" fill="url(#steelTray)" stroke="#111518" stroke-width="3"/>
+  <!-- Ventilation slots -->
+  <rect x="176" y="256" width="60" height="12" rx="6" fill="#0E1113"/>
+  <rect x="252" y="256" width="60" height="12" rx="6" fill="#0E1113"/>
+  <rect x="328" y="256" width="60" height="12" rx="6" fill="#0E1113"/>
+  <rect x="404" y="256" width="60" height="12" rx="6" fill="#0E1113"/>
+  <rect x="176" y="286" width="136" height="12" rx="6" fill="#0E1113"/>
+  <rect x="328" y="286" width="136" height="12" rx="6" fill="#0E1113"/>
+  <!-- Power brick inside -->
+  <path d="M128 214 C104 214 96 276 148 282" fill="none" stroke="#8BEB28" stroke-width="8" stroke-linecap="round"/>
+</svg>

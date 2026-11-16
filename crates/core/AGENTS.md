@@ -30,6 +30,8 @@ Generation requests do not imply publication. Opening SMS is a separate confirme
 
 `intent_router.rs` validates bounded registered proposals against original owner text; `opencode.rs` owns work orders/process/billing evidence and `video_artifact.rs` owns opaque media proof. No model proposal grants additional operations.
 
+`mercadolivre.rs` owns pure validation, deterministic price/commission/installment/spec/JSON-LD parsing, UTC/Cuiabá timestamp formatting, SHA-256 evidence digests, site catalog mapping (`SiteCatalogSnapshot`), and pt-BR Telegram caption formatting; preserve exact `https://meli.la/...` affiliate links and perform no I/O here.
+
 
 The owner authorized0.8 remote private URL and SMS images plus source publication.
 Follow docs/REMOTE_PRIVATE_CAPTURE.md (repository root): native URL grant is RAM-only,

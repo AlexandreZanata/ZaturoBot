@@ -79,3 +79,25 @@ The `private-browser-capture` integration renders one native-confirmed URL in a 
 private browser; `private-android-messages` captures the verified unlocked messaging
 foreground under explicit USB grants. Both reuse the encrypted ephemeral viewer and
 keep pixels/URLs out of model and durable history. See [remote private capture](REMOTE_PRIVATE_CAPTURE.md).
+
+## Authorized Mercado Livre affiliate ingestor and MinIO pipeline
+
+The bounded Mercado Livre affiliate batch pipeline (`zaturo-worker commerce ingest-ml` ->
+MinIO SigV4 upload in `zaturo-transfer` -> Hub HTTP `POST /v1/device/commerce/mercadolivre/ingest`
+and `POST /v1/commerce/mercadolivre/ingest` -> normalized SQLite schema 10) validates bot
+product JSON, preserves exact `https://meli.la/...` URLs without query tampering, filters
+vertical 9:16 video thumbnails, strips `.local/` filesystem paths before persistence, and
+exposes `GET /v1/commerce/mercadolivre/site-catalog` for the Procurali static builder plus
+`GET /v1/commerce/mercadolivre/telegram-queue` / `.../ack` for controlled Telegram delivery.
+
+## Official Telegram Bot publisher, interactive poller, and WhatsApp Web copilot
+
+`apps/zaturo-worker/src/telegram.rs` integrates the official Telegram Bot API (`sendPhoto`
+with <=1024-char HTML captions and `InlineKeyboardMarkup`, `429 retry_after` recovery,
+`400 -> sendMessage` fallback with `link_preview_options`, non-retried uncertain transport
+failure handling, and `getUpdates` interactive command replies for `/start`, `/ofertas`,
+`/hardware`, `/buscar`, `/whatsapp`, and `/ajuda`). WhatsApp group sharing uses only
+human-assisted WhatsApp Web copy/paste packages (`WhatsappAssistedPackage`, CLI
+`whatsapp-drafts`, and `site/api/whatsapp-assisted-drafts.json`) plus absolute `https://`
+Open Graph `og:image` tags on offer pages — never the Meta WhatsApp API or unofficial
+WhatsApp Web automation.

@@ -7,3 +7,7 @@ object paths, reject symlinks, and publish downloaded plaintext without overwrit
 Encrypt on the sender before upload; the hub never receives decryption identities.
 Use temporary roots and generated age identities in tests. See
 [file transfers](../../docs/FILE_TRANSFERS.md) for recovery and limits.
+
+`minio.rs` implements S3-compatible AWS SigV4 uploads for verified public product images
+(`MinioConfig`, `MinioClient`), inspecting PNG/JPEG/WebP dimensions to skip 9:16 vertical
+video frames before upload. Keep MinIO credentials redacted and out of logs/DB.
