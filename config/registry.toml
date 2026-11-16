@@ -168,6 +168,10 @@ documentation = "docs/MIGRATIONS.md"
 path = "crates/db/migrations/0010_hub_mercadolivre_commerce.sql"
 documentation = "docs/MIGRATIONS.md"
 
+[[migrations]]
+path = "crates/db/migrations/0011_hub_telegram_approval.sql"
+documentation = "docs/MIGRATIONS.md"
+
 [[configurations]]
 name = "ComputerConfig"
 source = "crates/computer/src/lib.rs"

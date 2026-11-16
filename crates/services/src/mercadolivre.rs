@@ -20,7 +20,7 @@ use zaturo_core::{
     ProductDetailResponse, SiteCatalogOffer, SiteCatalogSnapshot, TelegramDeliveryAck,
     TelegramDeliveryStatus, TelegramOfferQueueItem, TriggeredPriceAlert,
     build_commerce_reference_item, render_offer_cards_html_fragment, valid_sha256,
-    valid_telegram_channel,
+    valid_telegram_channel, validate_ml_product_id,
 };
 
 const MAX_PRICE_ALERTS: usize = 4096;
@@ -332,11 +332,11 @@ impl Engine {
                 kind: FeedKind::Service,
                 role: "system".into(),
                 text: format!(
-                    "Mercado Livre batch {} ingested ({} products, {} images, {} Telegram queued)",
+                    "Mercado Livre batch {} ingested ({} products, {} images, {} Telegram offers awaiting approval)",
                     report.batch_id,
                     report.product_count,
                     report.image_count,
-                    report.telegram_queued_count
+                    report.telegram_awaiting_approval_count
                 ),
                 task_id: None,
                 artifact_id: None,
@@ -771,11 +771,14 @@ impl Engine {
     }
 
     /// List bounded Telegram delivery queue items filtered by optional channel and status.
+    /// Listing `queued` deliveries only returns current offers still inside their freshness
+    /// window, so publishers never see a superseded or stale price.
     pub fn mercadolivre_telegram_queue(
         &self,
         channel_id: Option<&str>,
         status: Option<TelegramDeliveryStatus>,
         limit: u32,
+        now_ms: i64,
     ) -> Result<Vec<TelegramOfferQueueItem>> {
         if let Some(ch) = channel_id
             && !valid_telegram_channel(ch)
@@ -783,11 +786,70 @@ impl Engine {
             return Err(Error::Invalid("invalid Telegram channel_id".into()));
         }
         self.page(limit, 0)?;
+        let fresh_at = (status == Some(TelegramDeliveryStatus::Queued)).then_some(now_ms);
         self.store
-            .read(|repo| Ok(repo.ml_telegram_queue(channel_id, status, limit)?))
+            .read(|repo| Ok(repo.ml_telegram_queue(channel_id, status, fresh_at, limit)?))
     }
 
-    /// Acknowledge a Telegram delivery attempt (published, failed, skipped, or queued).
+    /// Owner approval for publishing one product's current offer on one Telegram channel.
+    /// Approval is idempotent for an already approved, claimed, or published offer and is
+    /// refused for a stale offer, which must be re-observed before it can be approved.
+    pub fn approve_mercadolivre_telegram_delivery(
+        &self,
+        product_id: &str,
+        channel_id: &str,
+        now_ms: i64,
+    ) -> Result<TelegramOfferQueueItem> {
+        if !validate_ml_product_id(product_id) {
+            return Err(Error::Invalid("invalid product_id".into()));
+        }
+        if !valid_telegram_channel(channel_id) {
+            return Err(Error::Invalid("invalid Telegram channel_id".into()));
+        }
+        if now_ms <= 0 {
+            return Err(Error::Invalid("now_ms must be positive".into()));
+        }
+        self.store.transaction(|repo| {
+            let item = repo
+                .ml_current_telegram_delivery(product_id, channel_id)?
+                .ok_or(Error::NotFound)?;
+            match item.status {
+                TelegramDeliveryStatus::Queued
+                | TelegramDeliveryStatus::Sending
+                | TelegramDeliveryStatus::Published => Ok(item),
+                TelegramDeliveryStatus::Skipped | TelegramDeliveryStatus::Failed => Err(
+                    Error::Conflict("telegram delivery is closed; re-ingest the offer".into()),
+                ),
+                TelegramDeliveryStatus::AwaitingApproval => {
+                    if !repo.ml_telegram_delivery_offer_fresh(&item.delivery_id, now_ms)? {
+                        return Err(Error::Conflict(
+                            "offer evidence is stale; re-ingest before approving".into(),
+                        ));
+                    }
+                    if !repo.set_ml_telegram_delivery_status(
+                        &item.delivery_id,
+                        TelegramDeliveryStatus::AwaitingApproval,
+                        TelegramDeliveryStatus::Queued,
+                        None,
+                        None,
+                        now_ms,
+                    )? {
+                        return Err(Error::Conflict("telegram delivery changed".into()));
+                    }
+                    repo.approve_ml_product(product_id, now_ms)?;
+                    repo.ml_telegram_delivery(&item.delivery_id)?
+                        .ok_or(Error::NotFound)
+                }
+            }
+        })
+    }
+
+    /// Acknowledge a Telegram delivery transition requested by a publisher.
+    ///
+    /// Publishers must claim (`queued -> sending`) before any external send and may then only
+    /// finish (`sending -> published|failed`). A claim on a superseded or stale offer closes the
+    /// delivery as skipped and returns it, so the caller must send only when the returned status
+    /// is `sending`. Repeating a terminal acknowledgement returns the stored delivery unchanged.
     pub fn ack_mercadolivre_telegram_delivery(
         &self,
         delivery_id: &str,
@@ -808,7 +870,37 @@ impl Engine {
         ack.validates().map_err(Error::Invalid)?;
 
         let item = self.store.transaction(|repo| {
-            repo.ack_ml_telegram_delivery(delivery_id, &ack, now_ms)?
+            let current = repo
+                .ml_telegram_delivery(delivery_id)?
+                .ok_or(Error::NotFound)?;
+            if current.status == ack.status && current.status.is_terminal() {
+                return Ok(current);
+            }
+            if !TelegramDeliveryStatus::ack_transition_allowed(current.status, ack.status) {
+                return Err(Error::Conflict(format!(
+                    "telegram delivery cannot move from {} to {}",
+                    current.status.as_str(),
+                    ack.status.as_str()
+                )));
+            }
+            let (to, error_code) = if ack.status == TelegramDeliveryStatus::Sending
+                && !repo.ml_telegram_delivery_offer_fresh(delivery_id, now_ms)?
+            {
+                (TelegramDeliveryStatus::Skipped, Some("offer_stale"))
+            } else {
+                (ack.status, ack.error_code.as_deref())
+            };
+            if !repo.set_ml_telegram_delivery_status(
+                delivery_id,
+                current.status,
+                to,
+                ack.external_message_id.as_deref(),
+                error_code,
+                now_ms,
+            )? {
+                return Err(Error::Conflict("telegram delivery changed".into()));
+            }
+            repo.ml_telegram_delivery(delivery_id)?
                 .ok_or(Error::NotFound)
         })?;
         self.commerce_cache.invalidate();
@@ -1081,15 +1173,15 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let engine = Engine::open(dir.path().join("hub.db"), Limits::default()).unwrap();
 
+        let mut candidate_product =
+            sample_product("MLB39410080", "ssd-kingston-nv3-500gb-mlb39410080");
+        candidate_product.state = MercadoLivreProductState::Candidate;
         let req = MercadoLivreIngestBatchRequest {
             worker_id: "worker-ml".into(),
             search_query: "ssd nvme".into(),
             channel_id: "@procurali".into(),
             captured_at_ms: 1_763_231_280_000,
-            products: vec![sample_product(
-                "MLB39410080",
-                "ssd-kingston-nv3-500gb-mlb39410080",
-            )],
+            products: vec![candidate_product],
         };
         let sha_a = "c".repeat(64);
         let sha_b = "d".repeat(64);
@@ -1098,7 +1190,8 @@ mod tests {
             .ingest_mercadolivre_batch(req.clone(), "batch-idem-1", &sha_a, 1_763_231_290_000)
             .unwrap();
         assert_eq!(first.product_count, 1);
-        assert_eq!(first.telegram_queued_count, 1);
+        assert_eq!(first.telegram_queued_count, 0);
+        assert_eq!(first.telegram_awaiting_approval_count, 1);
 
         let replay = engine
             .ingest_mercadolivre_batch(req.clone(), "batch-idem-1", &sha_a, 1_763_231_295_000)
@@ -1129,28 +1222,104 @@ mod tests {
             "https://meli.la/1iWQZbJ"
         );
 
-        let queue = engine
+        let now = 1_763_231_350_000;
+        let queued = |engine: &Engine| {
+            engine
+                .mercadolivre_telegram_queue(
+                    Some("@procurali"),
+                    Some(TelegramDeliveryStatus::Queued),
+                    20,
+                    now,
+                )
+                .unwrap()
+        };
+        assert!(
+            queued(&engine).is_empty(),
+            "ingest must not approve publication"
+        );
+
+        let ack = |status| TelegramDeliveryAck {
+            status,
+            external_message_id: None,
+            error_code: None,
+        };
+        let awaiting = engine
             .mercadolivre_telegram_queue(
                 Some("@procurali"),
-                Some(TelegramDeliveryStatus::Queued),
+                Some(TelegramDeliveryStatus::AwaitingApproval),
                 20,
+                now,
             )
             .unwrap();
-        assert_eq!(queue.len(), 1);
+        assert_eq!(awaiting.len(), 1);
+        let id = awaiting[0].delivery_id.clone();
+        for status in [
+            TelegramDeliveryStatus::Queued,
+            TelegramDeliveryStatus::Sending,
+        ] {
+            assert!(matches!(
+                engine.ack_mercadolivre_telegram_delivery(&id, ack(status), now),
+                Err(Error::Conflict(_))
+            ));
+        }
+
+        let approved = engine
+            .approve_mercadolivre_telegram_delivery("MLB39410080", "@procurali", now)
+            .unwrap();
+        assert_eq!(approved.status, TelegramDeliveryStatus::Queued);
+        assert_eq!(queued(&engine).len(), 1);
+        assert_eq!(
+            engine
+                .approve_mercadolivre_telegram_delivery("MLB39410080", "@procurali", now)
+                .unwrap(),
+            approved
+        );
+
+        assert!(matches!(
+            engine.ack_mercadolivre_telegram_delivery(
+                &id,
+                ack(TelegramDeliveryStatus::Published),
+                now
+            ),
+            Err(Error::Conflict(_))
+        ));
+        let claimed = engine
+            .ack_mercadolivre_telegram_delivery(&id, ack(TelegramDeliveryStatus::Sending), now)
+            .unwrap();
+        assert_eq!(claimed.status, TelegramDeliveryStatus::Sending);
+        assert!(queued(&engine).is_empty());
+        assert!(matches!(
+            engine.ack_mercadolivre_telegram_delivery(
+                &id,
+                ack(TelegramDeliveryStatus::Sending),
+                now
+            ),
+            Err(Error::Conflict(_))
+        ));
 
         let acked = engine
             .ack_mercadolivre_telegram_delivery(
-                &queue[0].delivery_id,
+                &id,
                 TelegramDeliveryAck {
                     status: TelegramDeliveryStatus::Published,
                     external_message_id: Some("msg-42".into()),
                     error_code: None,
                 },
-                1_763_231_350_000,
+                now,
             )
             .unwrap();
         assert_eq!(acked.status, TelegramDeliveryStatus::Published);
         assert_eq!(acked.external_message_id.as_deref(), Some("msg-42"));
+        assert_eq!(
+            engine
+                .ack_mercadolivre_telegram_delivery(
+                    &id,
+                    ack(TelegramDeliveryStatus::Published),
+                    now + 1
+                )
+                .unwrap(),
+            acked
+        );
 
         // Cloobe-inspired search, taxonomy, PDP, redirect click tracking, exposure & price alerts:
         let cached = engine
@@ -1248,5 +1417,70 @@ mod tests {
         assert_eq!(item.price_delta_cents, -10_000);
         assert!(item.short_summary.contains("Queda"));
         assert_eq!(item.telegram_last_status.as_deref(), Some("queued"));
+    }
+
+    #[test]
+    fn stale_or_superseded_offers_are_never_approved_or_claimed() {
+        let dir = tempfile::tempdir().unwrap();
+        let engine = Engine::open(dir.path().join("hub.db"), Limits::default()).unwrap();
+        let request = |captured| {
+            let mut p = sample_product("MLB39410080", "ssd-kingston-nv3-500gb-mlb39410080");
+            p.state = MercadoLivreProductState::Candidate;
+            MercadoLivreIngestBatchRequest {
+                worker_id: "worker-ml".into(),
+                search_query: "ssd nvme".into(),
+                channel_id: "@procurali".into(),
+                captured_at_ms: captured,
+                products: vec![p],
+            }
+        };
+        let observed = 1_763_231_280_000_i64;
+        let expired = observed + 30 * 60_000 + 1;
+        engine
+            .ingest_mercadolivre_batch(request(observed), "a", &"c".repeat(64), observed + 1)
+            .unwrap();
+        assert!(matches!(
+            engine.approve_mercadolivre_telegram_delivery("MLB39410080", "@procurali", expired),
+            Err(Error::Conflict(_))
+        ));
+
+        let approved = engine
+            .approve_mercadolivre_telegram_delivery("MLB39410080", "@procurali", observed + 2)
+            .unwrap();
+        let claim = TelegramDeliveryAck {
+            status: TelegramDeliveryStatus::Sending,
+            external_message_id: None,
+            error_code: None,
+        };
+        let stale = engine
+            .ack_mercadolivre_telegram_delivery(&approved.delivery_id, claim.clone(), expired)
+            .unwrap();
+        assert_eq!(stale.status, TelegramDeliveryStatus::Skipped);
+
+        // A newer observation supersedes an approved but unsent delivery.
+        engine
+            .ingest_mercadolivre_batch(request(observed), "b", &"d".repeat(64), observed + 3)
+            .unwrap();
+        let second = engine
+            .approve_mercadolivre_telegram_delivery("MLB39410080", "@procurali", observed + 4)
+            .unwrap();
+        assert_ne!(second.delivery_id, approved.delivery_id);
+        engine
+            .ingest_mercadolivre_batch(request(observed), "c", &"e".repeat(64), observed + 5)
+            .unwrap();
+        let superseded =
+            engine.ack_mercadolivre_telegram_delivery(&second.delivery_id, claim, observed + 6);
+        assert!(matches!(superseded, Err(Error::Conflict(_))));
+        assert!(
+            engine
+                .mercadolivre_telegram_queue(
+                    Some("@procurali"),
+                    Some(TelegramDeliveryStatus::Queued),
+                    20,
+                    observed + 6,
+                )
+                .unwrap()
+                .is_empty()
+        );
     }
 }

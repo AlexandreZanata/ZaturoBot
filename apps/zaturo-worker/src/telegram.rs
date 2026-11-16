@@ -333,6 +333,10 @@ pub struct TelegramPublishReport {
     pub failed_count: usize,
     pub items: Vec<TelegramPublishItemOutcome>,
     pub whatsapp_package: WhatsappAssistedPackage,
+    /// Set when the run stopped because the Hub could not record a claim or result. A
+    /// delivery whose result was not recorded stays `sending` and is never sent again.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hub_error: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -659,6 +663,7 @@ impl TelegramBotClient {
                 failed_count: 0,
                 items,
                 whatsapp_package,
+                hub_error: None,
             });
         }
 
@@ -670,6 +675,14 @@ impl TelegramBotClient {
         let mut outcomes = Vec::with_capacity(queued.len());
         let mut published_count = 0usize;
         let mut failed_count = 0usize;
+        let mut hub_error = None;
+        let method_for = |item: &TelegramOfferQueueItem| {
+            if item.image_public_url.is_some() {
+                "sendPhoto".to_owned()
+            } else {
+                "sendMessage".to_owned()
+            }
+        };
 
         for (idx, item) in queued.iter().enumerate() {
             if idx > 0 {
@@ -687,6 +700,43 @@ impl TelegramBotClient {
                 format_telegram_html_caption_pt_br(item, self.config.site_base_url.as_deref());
             let keyboard =
                 build_telegram_offer_keyboard(item, self.config.site_base_url.as_deref());
+
+            // Claim the delivery before the external send. Without a recorded claim nothing
+            // is sent; a claim that the Hub resolved differently (stale, superseded, or taken
+            // by another publisher) is skipped.
+            let claim = self
+                .ack_hub_delivery(
+                    hub_url,
+                    hub_token,
+                    &item.delivery_id,
+                    &TelegramDeliveryAck {
+                        status: TelegramDeliveryStatus::Sending,
+                        external_message_id: None,
+                        error_code: None,
+                    },
+                )
+                .await;
+            let claimed_status = match claim {
+                Ok(claimed) => claimed.status,
+                Err(_) => {
+                    hub_error = Some("hub_claim_failed".to_owned());
+                    break;
+                }
+            };
+            if claimed_status != TelegramDeliveryStatus::Sending {
+                outcomes.push(TelegramPublishItemOutcome {
+                    delivery_id: item.delivery_id.clone(),
+                    product_id: item.product_id.clone(),
+                    channel_id: target_channel.clone(),
+                    method: method_for(item),
+                    status: claimed_status,
+                    external_message_id: None,
+                    error_code: Some("not_claimable".to_owned()),
+                    caption_html_preview: caption,
+                    reply_markup: keyboard,
+                });
+                continue;
+            }
 
             let outcome = self
                 .deliver_single_item(&target_channel, item, &caption, &keyboard)
@@ -710,11 +760,7 @@ impl TelegramBotClient {
                         TelegramDeliveryStatus::Failed,
                         None,
                         Some(error_code),
-                        if item.image_public_url.is_some() {
-                            "sendPhoto".to_owned()
-                        } else {
-                            "sendMessage".to_owned()
-                        },
+                        method_for(item),
                     )
                 }
                 SendAttemptOutcome::UncertainTransportFailure => {
@@ -724,26 +770,23 @@ impl TelegramBotClient {
                         TelegramDeliveryStatus::Failed,
                         None,
                         Some("telegram_uncertain_network".to_owned()),
-                        if item.image_public_url.is_some() {
-                            "sendPhoto".to_owned()
-                        } else {
-                            "sendMessage".to_owned()
-                        },
+                        method_for(item),
                     )
                 }
             };
 
-            self.ack_hub_delivery(
-                hub_url,
-                hub_token,
-                &item.delivery_id,
-                &TelegramDeliveryAck {
-                    status: ack_status,
-                    external_message_id: ext_id.clone(),
-                    error_code: err_code.clone(),
-                },
-            )
-            .await?;
+            let recorded = self
+                .ack_hub_delivery(
+                    hub_url,
+                    hub_token,
+                    &item.delivery_id,
+                    &TelegramDeliveryAck {
+                        status: ack_status,
+                        external_message_id: ext_id.clone(),
+                        error_code: err_code.clone(),
+                    },
+                )
+                .await;
 
             outcomes.push(TelegramPublishItemOutcome {
                 delivery_id: item.delivery_id.clone(),
@@ -756,6 +799,12 @@ impl TelegramBotClient {
                 caption_html_preview: caption,
                 reply_markup: keyboard,
             });
+            if recorded.is_err() {
+                // The send already happened; the delivery stays `sending` in the Hub and is
+                // never sent again. Stop instead of sending more while results cannot be kept.
+                hub_error = Some("hub_ack_failed_delivery_left_sending".to_owned());
+                break;
+            }
         }
 
         Ok(TelegramPublishReport {
@@ -766,6 +815,7 @@ impl TelegramBotClient {
             failed_count,
             items: outcomes,
             whatsapp_package,
+            hub_error,
         })
     }
 
@@ -1055,7 +1105,7 @@ impl TelegramBotClient {
                     hub_url,
                     hub_token,
                     Some(&self.config.default_channel_id),
-                    None,
+                    Some(TelegramDeliveryStatus::Published),
                     20,
                 )
                 .await?;
@@ -1538,7 +1588,7 @@ mod tests {
             payment_conditions: "À vista no Pix ou cartão".into(),
             short_condition: "10x sem juros".into(),
             freight_status: "Frete grátis".into(),
-            observed_at_ms: 1_763_252_000_000,
+            observed_at_ms: crate::now_ms(),
             freshness_ttl_minutes: 30,
             state: MercadoLivreProductState::Approved,
             one_line_reason: "SSD NVMe PCIe 4.0.".into(),
@@ -1709,19 +1759,38 @@ mod tests {
         }));
 
         // Ingest 2 validated products into Hub queue.
+        let mut c1 = sample_validated_product("MLB39410080", "SSD Kingston NV3 1TB NVMe", 44_990);
+        c1.state = MercadoLivreProductState::Candidate;
+        let mut c2 =
+            sample_validated_product("MLB53222888", "Teclado Mecanico Redragon K500", 13_879);
+        c2.state = MercadoLivreProductState::Candidate;
         let batch = MercadoLivreIngestBatchRequest {
             worker_id: "worker-ml".into(),
             search_query: "hardware".into(),
             channel_id: "@procurali".into(),
             captured_at_ms: 1_763_252_000_000,
-            products: vec![
-                sample_validated_product("MLB39410080", "SSD Kingston NV3 1TB NVMe", 44_990),
-                sample_validated_product("MLB53222888", "Teclado Mecanico Redragon K500", 13_879),
-            ],
+            products: vec![c1, c2],
         };
         crate::mercadolivre::ingest_to_hub(&hub_url, DEVICE, &batch, "tg-e2e-batch-1")
             .await
             .unwrap();
+        let empty = TelegramBotClient::from_config(test_tg_config(
+            "http://127.0.0.1:9".into(),
+            write_token(dir.path(), "unused.token"),
+            0,
+            true,
+        ))
+        .unwrap()
+        .publish_queued_from_hub(&hub_url, DEVICE, None, 10, false, crate::now_ms())
+        .await
+        .unwrap();
+        assert_eq!(
+            empty.fetched_count, 0,
+            "ingest must not approve publication"
+        );
+        for product in ["MLB39410080", "MLB53222888"] {
+            owner_approve(&hub_url, product).await;
+        }
 
         // Start mock Telegram Bot API server.
         let tg_state = MockTelegramState::default();
@@ -1763,7 +1832,7 @@ mod tests {
 
         // 1) Dry run produces previews & WhatsApp Web drafts without sending or acking.
         let preview = tg
-            .publish_queued_from_hub(&hub_url, DEVICE, None, 10, true, 1_763_252_100_000)
+            .publish_queued_from_hub(&hub_url, DEVICE, None, 10, true, crate::now_ms())
             .await
             .unwrap();
         assert!(preview.dry_run);
@@ -1778,7 +1847,7 @@ mod tests {
 
         // 2) Live publish exercises 429 retry and 400 -> sendMessage fallback, acking Hub.
         let report = tg
-            .publish_queued_from_hub(&hub_url, DEVICE, None, 10, false, 1_763_252_200_000)
+            .publish_queued_from_hub(&hub_url, DEVICE, None, 10, false, crate::now_ms())
             .await
             .unwrap();
         assert!(!report.dry_run);
@@ -1857,20 +1926,20 @@ mod tests {
         let dead_addr = dead_listener.local_addr().unwrap();
         drop(dead_listener);
 
+        let mut c3 =
+            sample_validated_product("MLB48468943", "Headset Gamer Redragon Zeus Lite", 19_990);
+        c3.state = MercadoLivreProductState::Candidate;
         let batch2 = MercadoLivreIngestBatchRequest {
             worker_id: "worker-ml".into(),
             search_query: "headset".into(),
             channel_id: "@procurali".into(),
             captured_at_ms: 1_763_252_300_000,
-            products: vec![sample_validated_product(
-                "MLB48468943",
-                "Headset Gamer Redragon Zeus Lite",
-                19_990,
-            )],
+            products: vec![c3],
         };
         crate::mercadolivre::ingest_to_hub(&hub_url, DEVICE, &batch2, "tg-e2e-batch-2")
             .await
             .unwrap();
+        owner_approve(&hub_url, "MLB48468943").await;
         let dead_token_file = dir.path().join("telegram-dead.token");
         fs::write(&dead_token_file, format!("{BOT_TOKEN}\n")).unwrap();
         fs::set_permissions(&dead_token_file, fs::Permissions::from_mode(0o600)).unwrap();
@@ -1882,7 +1951,7 @@ mod tests {
         ))
         .unwrap();
         let dead_report = dead_tg
-            .publish_queued_from_hub(&hub_url, DEVICE, None, 10, false, 1_763_252_350_000)
+            .publish_queued_from_hub(&hub_url, DEVICE, None, 10, false, crate::now_ms())
             .await
             .unwrap();
         assert_eq!(dead_report.fetched_count, 1);
@@ -2044,5 +2113,202 @@ mod tests {
                 .windows(png_bytes.len())
                 .any(|w| w == png_bytes.as_slice())
         );
+    }
+
+    fn write_token(dir: &std::path::Path, name: &str) -> PathBuf {
+        let path = dir.join(name);
+        fs::write(&path, format!("{BOT_TOKEN}\n")).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+        path
+    }
+
+    async fn owner_approve(hub_url: &str, product_id: &str) {
+        let approved: TelegramOfferQueueItem = reqwest::Client::builder()
+            .no_proxy()
+            .build()
+            .unwrap()
+            .post(format!(
+                "{hub_url}/v1/commerce/mercadolivre/telegram-queue/approve"
+            ))
+            .bearer_auth(OWNER)
+            .json(&json!({"product_id": product_id, "channel_id": "@procurali"}))
+            .send()
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(approved.status, TelegramDeliveryStatus::Queued);
+    }
+
+    #[derive(Clone, Default)]
+    struct FakeHub {
+        deliveries: Arc<Mutex<Vec<TelegramOfferQueueItem>>>,
+        acks: Arc<Mutex<Vec<(String, TelegramDeliveryStatus)>>>,
+        fail_claims: Arc<std::sync::atomic::AtomicBool>,
+        fail_results: Arc<std::sync::atomic::AtomicBool>,
+    }
+
+    async fn fake_queue(State(hub): State<FakeHub>) -> Json<Vec<TelegramOfferQueueItem>> {
+        Json(
+            hub.deliveries
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|item| item.status == TelegramDeliveryStatus::Queued)
+                .cloned()
+                .collect(),
+        )
+    }
+
+    async fn fake_ack(
+        State(hub): State<FakeHub>,
+        AxumPath(id): AxumPath<String>,
+        Json(ack): Json<TelegramDeliveryAck>,
+    ) -> Result<Json<TelegramOfferQueueItem>, StatusCode> {
+        use std::sync::atomic::Ordering;
+        hub.acks.lock().unwrap().push((id.clone(), ack.status));
+        let failing = if ack.status == TelegramDeliveryStatus::Sending {
+            &hub.fail_claims
+        } else {
+            &hub.fail_results
+        };
+        if failing.load(Ordering::SeqCst) {
+            return Err(StatusCode::SERVICE_UNAVAILABLE);
+        }
+        let mut deliveries = hub.deliveries.lock().unwrap();
+        let item = deliveries
+            .iter_mut()
+            .find(|item| item.delivery_id == id)
+            .ok_or(StatusCode::NOT_FOUND)?;
+        item.status = ack.status;
+        Ok(Json(item.clone()))
+    }
+
+    fn queued_item(id: &str) -> TelegramOfferQueueItem {
+        TelegramOfferQueueItem {
+            delivery_id: id.into(),
+            product_id: "MLB39410080".into(),
+            offer_id: format!("obs-{id}"),
+            channel_id: "@procurali".into(),
+            title: "SSD Kingston NV3 1TB".into(),
+            brand: "Kingston".into(),
+            model: None,
+            price_brl_cents: 44_990,
+            reference_price_cents: None,
+            discount_label: None,
+            share_link: "https://meli.la/1iWQZbJ".into(),
+            share_id: "1PBCGF-SMN5".into(),
+            image_public_url: Some(
+                "https://media.procurali.com.br/procurali-media/ml/MLB39410080/hero.jpg".into(),
+            ),
+            image_object_key: Some("ml/MLB39410080/hero.jpg".into()),
+            message_text: "SSD".into(),
+            status: TelegramDeliveryStatus::Queued,
+            external_message_id: None,
+            created_at_ms: 1,
+            updated_at_ms: 1,
+            published_at_ms: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn publisher_claims_before_sending_and_never_resends_after_a_lost_ack() {
+        use std::sync::atomic::Ordering;
+        let dir = tempfile::tempdir().unwrap();
+        let hub = FakeHub::default();
+        hub.deliveries
+            .lock()
+            .unwrap()
+            .extend([queued_item("tg-one"), queued_item("tg-two")]);
+        let hub_router = Router::new()
+            .route(
+                "/v1/commerce/mercadolivre/telegram-queue",
+                axum::routing::get(fake_queue),
+            )
+            .route(
+                "/v1/commerce/mercadolivre/telegram-queue/{id}/ack",
+                post(fake_ack),
+            )
+            .with_state(hub.clone());
+        let hub_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let hub_url = format!("http://{}", hub_listener.local_addr().unwrap());
+        let _hub = AbortOnDrop(tokio::spawn(async move {
+            axum::serve(hub_listener, hub_router).await.unwrap();
+        }));
+
+        let tg_state = MockTelegramState::default();
+        let tg_router = Router::new()
+            .route("/{bot_token}/{method}", post(mock_tg_method))
+            .with_state(tg_state.clone());
+        let tg_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let tg_addr = tg_listener.local_addr().unwrap();
+        let _tg = AbortOnDrop(tokio::spawn(async move {
+            axum::serve(tg_listener, tg_router).await.unwrap();
+        }));
+        let tg = TelegramBotClient::from_config(test_tg_config(
+            format!("http://{tg_addr}"),
+            write_token(dir.path(), "telegram.token"),
+            0,
+            true,
+        ))
+        .unwrap();
+        let sends = || tg_state.send_photo_calls.lock().unwrap().len();
+        let status_of = |id: &str| {
+            hub.deliveries
+                .lock()
+                .unwrap()
+                .iter()
+                .find(|item| item.delivery_id == id)
+                .unwrap()
+                .status
+        };
+
+        // The send succeeds but the Hub loses the result: the run stops and the delivery
+        // stays claimed (`sending`) instead of returning to the queue.
+        hub.fail_results.store(true, Ordering::SeqCst);
+        let lost = tg
+            .publish_queued_from_hub(&hub_url, DEVICE, None, 10, false, crate::now_ms())
+            .await
+            .unwrap();
+        assert_eq!(sends(), 1);
+        assert_eq!(lost.published_count, 1);
+        assert_eq!(lost.items.len(), 1);
+        assert_eq!(
+            lost.hub_error.as_deref(),
+            Some("hub_ack_failed_delivery_left_sending")
+        );
+        assert_eq!(status_of("tg-one"), TelegramDeliveryStatus::Sending);
+        assert_eq!(status_of("tg-two"), TelegramDeliveryStatus::Queued);
+        assert_eq!(
+            hub.acks.lock().unwrap()[0],
+            ("tg-one".into(), TelegramDeliveryStatus::Sending),
+            "the claim must precede the external send"
+        );
+
+        // A later run never sends the claimed delivery again.
+        hub.fail_results.store(false, Ordering::SeqCst);
+        let next = tg
+            .publish_queued_from_hub(&hub_url, DEVICE, None, 10, false, crate::now_ms())
+            .await
+            .unwrap();
+        assert_eq!(sends(), 2);
+        assert_eq!(next.hub_error, None);
+        assert_eq!(next.items[0].delivery_id, "tg-two");
+        assert_eq!(status_of("tg-one"), TelegramDeliveryStatus::Sending);
+        assert_eq!(status_of("tg-two"), TelegramDeliveryStatus::Published);
+
+        // Without a recorded claim nothing is sent.
+        hub.deliveries.lock().unwrap().push(queued_item("tg-three"));
+        hub.fail_claims.store(true, Ordering::SeqCst);
+        let unclaimed = tg
+            .publish_queued_from_hub(&hub_url, DEVICE, None, 10, false, crate::now_ms())
+            .await
+            .unwrap();
+        assert_eq!(sends(), 2);
+        assert_eq!(unclaimed.hub_error.as_deref(), Some("hub_claim_failed"));
+        assert!(unclaimed.items.is_empty());
     }
 }

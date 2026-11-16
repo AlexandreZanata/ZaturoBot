@@ -46,7 +46,12 @@ impl MercadoLivreProductState {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TelegramDeliveryStatus {
+    /// Ingested offer waiting for the owner's per-offer publication approval.
+    AwaitingApproval,
+    /// Owner-approved offer that a publisher may claim.
     Queued,
+    /// Claimed by a publisher before the external send; never re-queued automatically.
+    Sending,
     Published,
     Skipped,
     Failed,
@@ -55,7 +60,9 @@ pub enum TelegramDeliveryStatus {
 impl TelegramDeliveryStatus {
     pub fn as_str(self) -> &'static str {
         match self {
+            Self::AwaitingApproval => "awaiting_approval",
             Self::Queued => "queued",
+            Self::Sending => "sending",
             Self::Published => "published",
             Self::Skipped => "skipped",
             Self::Failed => "failed",
@@ -64,12 +71,33 @@ impl TelegramDeliveryStatus {
 
     pub fn parse(value: &str) -> Option<Self> {
         Some(match value {
+            "awaiting_approval" => Self::AwaitingApproval,
             "queued" => Self::Queued,
+            "sending" => Self::Sending,
             "published" => Self::Published,
             "skipped" => Self::Skipped,
             "failed" => Self::Failed,
             _ => return None,
         })
+    }
+
+    /// Terminal states never change again.
+    pub fn is_terminal(self) -> bool {
+        matches!(self, Self::Published | Self::Skipped | Self::Failed)
+    }
+
+    /// Transitions a publisher acknowledgement may request. Approval (`AwaitingApproval ->
+    /// Queued`) is an owner-only operation and is deliberately not an acknowledgement. A
+    /// `Sending` delivery may only finish, so an uncertain send is never repeated.
+    pub fn ack_transition_allowed(from: Self, to: Self) -> bool {
+        matches!(
+            (from, to),
+            (Self::AwaitingApproval, Self::Skipped)
+                | (Self::Queued, Self::Sending)
+                | (Self::Queued, Self::Skipped)
+                | (Self::Sending, Self::Published)
+                | (Self::Sending, Self::Failed)
+        )
     }
 }
 
@@ -572,6 +600,9 @@ pub struct MercadoLivreIngestReport {
     pub product_count: usize,
     pub image_count: usize,
     pub telegram_queued_count: usize,
+    /// Deliveries created by this batch that still need per-offer owner approval.
+    #[serde(default)]
+    pub telegram_awaiting_approval_count: usize,
     pub product_ids: Vec<String>,
     pub payload_sha256: String,
     #[serde(default)]
@@ -2179,22 +2210,12 @@ pub fn format_telegram_bot_command_reply_pt_br(
     items: &[TelegramOfferQueueItem],
     site_base_url: Option<&str>,
 ) -> (String, Option<TelegramInlineKeyboardMarkup>) {
-    let active_items: Vec<&TelegramOfferQueueItem> = {
-        let filtered: Vec<&TelegramOfferQueueItem> = items
-            .iter()
-            .filter(|i| {
-                matches!(
-                    i.status,
-                    TelegramDeliveryStatus::Published | TelegramDeliveryStatus::Queued
-                )
-            })
-            .collect();
-        if filtered.is_empty() {
-            items.iter().collect()
-        } else {
-            filtered
-        }
-    };
+    // Public bot replies only repeat offers that were already published; queued, unapproved,
+    // claimed, or failed deliveries are never disclosed to arbitrary Telegram users.
+    let active_items: Vec<&TelegramOfferQueueItem> = items
+        .iter()
+        .filter(|i| i.status == TelegramDeliveryStatus::Published)
+        .collect();
 
     let catalog_button_row = || -> Option<Vec<TelegramInlineButton>> {
         let base = site_base_url?.trim().trim_end_matches('/');
@@ -3333,9 +3354,23 @@ mod tests {
             Some(TelegramBotCommand::WhatsappDigest)
         );
 
-        let (reply, markup) = format_telegram_bot_command_reply_pt_br(
+        let (hidden, _) = format_telegram_bot_command_reply_pt_br(
             &TelegramBotCommand::Search("kingston".into()),
             std::slice::from_ref(&item),
+            Some("https://procurali.com.br"),
+        );
+        assert!(
+            !hidden.contains("https://meli.la/1iWQZbJ"),
+            "unpublished deliveries must not reach public bot replies"
+        );
+
+        let published = TelegramOfferQueueItem {
+            status: TelegramDeliveryStatus::Published,
+            ..item.clone()
+        };
+        let (reply, markup) = format_telegram_bot_command_reply_pt_br(
+            &TelegramBotCommand::Search("kingston".into()),
+            std::slice::from_ref(&published),
             Some("https://procurali.com.br"),
         );
         assert!(reply.contains("https://meli.la/1iWQZbJ"));
@@ -3495,5 +3530,51 @@ mod tests {
             timestamp_ms: 1_763_252_000_000,
         };
         assert!(bad_beacon.validates().is_err());
+    }
+
+    #[test]
+    fn telegram_delivery_acks_follow_the_publication_state_machine() {
+        use TelegramDeliveryStatus::*;
+        let all = [
+            AwaitingApproval,
+            Queued,
+            Sending,
+            Published,
+            Skipped,
+            Failed,
+        ];
+        for status in all {
+            assert_eq!(TelegramDeliveryStatus::parse(status.as_str()), Some(status));
+        }
+        let allowed = [
+            (AwaitingApproval, Skipped),
+            (Queued, Sending),
+            (Queued, Skipped),
+            (Sending, Published),
+            (Sending, Failed),
+        ];
+        for from in all {
+            for to in all {
+                assert_eq!(
+                    TelegramDeliveryStatus::ack_transition_allowed(from, to),
+                    allowed.contains(&(from, to)),
+                    "{from:?} -> {to:?}"
+                );
+            }
+        }
+        // Acks can never approve, re-queue, or resend an uncertain claim.
+        assert!(!TelegramDeliveryStatus::ack_transition_allowed(
+            AwaitingApproval,
+            Queued
+        ));
+        assert!(!TelegramDeliveryStatus::ack_transition_allowed(
+            Sending, Queued
+        ));
+        assert!(!TelegramDeliveryStatus::ack_transition_allowed(
+            Published, Queued
+        ));
+        assert!(!TelegramDeliveryStatus::ack_transition_allowed(
+            Sending, Sending
+        ));
     }
 }

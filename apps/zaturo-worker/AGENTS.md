@@ -39,13 +39,17 @@ are observations, not new permissions. Keep media generation separate from publi
 `mercadolivre.rs` composes `commerce ingest-ml`, `commerce watch-ml`, `commerce sync-reference`,
 and `commerce query-reference`: reads bot JSON batches locally (skipping unchanged SHA-256
 digests in watch mode), filters 9:16 vertical reel thumbnails and strips `.local/` filesystem paths,
-uploads verified static images to MinIO, posts validated Hub ingest batches with `Idempotency-Key`,
+uploads verified static images to MinIO, posts validated Hub ingest batches with `Idempotency-Key`
+(`approved` for owner-authorized `@procurali` pipeline batches per ADR-0025; `candidate` requires
+per-offer owner approval via ADR-0024),
 and maintains an ETag-cached local VPS reference database (`If-None-Match` -> `304`) for sub-ms queries.
 
 `telegram.rs` composes official Telegram Bot API publishing (`commerce telegram-publish` and
 optional `ingest-ml --publish-telegram/--dry-run-telegram`), interactive `getUpdates`
 command replies (`commerce telegram-poll`), and human-assisted WhatsApp Web draft exports
-(`commerce whatsapp-drafts`) without Meta API or unofficial browser automation.
+(`commerce whatsapp-drafts`) without Meta API or unofficial browser automation. The publisher
+claims each delivery (`sending`) before the external send and stops when the Hub cannot record
+a claim or result; it never re-sends a claimed delivery. Bot replies use published offers only.
 
 
 The owner authorized0.8 remote private URL and SMS images plus source publication.

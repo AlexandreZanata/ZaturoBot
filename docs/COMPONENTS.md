@@ -61,9 +61,10 @@ The [Procurali content/site proposal](planning/commerce-refined/PROCURALI-BUSINE
 and its creative/Fable handoffs remain planning artifacts without automatic group auto-publishing
 or model-driven recommendations. Separately, the owner-authorized Mercado Livre affiliate
 ingestor spans `crates/core/src/mercadolivre.rs`, `crates/db/src/mercadolivre.rs` (Hub
-schema 10), `crates/transfer/src/minio.rs`, `crates/services/src/mercadolivre.rs`,
-`apps/zaturo-hub/src/mercadolivre.rs`, `apps/zaturo-worker/src/mercadolivre.rs`, and
-`apps/zaturo-worker/src/telegram.rs`,
+schema 11), `crates/transfer/src/minio.rs`, `crates/services/src/mercadolivre.rs`,
+`apps/zaturo-hub/src/mercadolivre.rs`, `apps/zaturo-worker/src/mercadolivre.rs`,
+`apps/zaturo-worker/src/telegram.rs`, and the zero-downtime pull deployment helpers in
+[Procurali deploy](../deploy/procurali/README.md),
 serving validated snapshots to the Procurali static site builder, the official Telegram Bot
 API queue/command responder, and human-assisted WhatsApp Web draft packages without Meta API.
 

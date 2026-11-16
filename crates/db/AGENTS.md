@@ -35,4 +35,7 @@ The new migrations are 0007_hub_shared and 0008_worker_assistant. No screen byte
 
 Hub schema9 adds computer_steps in0009_hub_computer.sql. Preserve exact action, parent/child identity and approval state; no screen bytes or provider credentials. Worker schema remains8.
 
-Hub schema10 adds `mercadolivre.rs` and `migrations/0010_hub_mercadolivre_commerce.sql`: normalized batches (`ml_ingest_batches`), products, offers, specs, variants, MinIO media metadata (`ml_product_media` — no local paths), 30-day UTC-day deduplicated effective-price history comparisons, smart Telegram delivery queue (`ml_telegram_deliveries` — avoiding duplicates on unchanged price and re-queueing price drops), and per-SKU Telegram publish stats (`ml_telegram_product_stats`), transactionally upgrading Hub versions `1/4/5/7/9` to `10`. Worker schema remains `8`.
+Hub schema10 adds `mercadolivre.rs` and `migrations/0010_hub_mercadolivre_commerce.sql`: normalized batches (`ml_ingest_batches`), products, offers, specs, variants, MinIO media metadata (`ml_product_images` — no local paths), 30-day UTC-day deduplicated effective-price history comparisons, smart Telegram delivery queue (`ml_telegram_deliveries` — avoiding duplicates on unchanged price and re-queueing price drops), and per-SKU Telegram publish stats (`ml_telegram_product_stats`), transactionally upgrading Hub versions `1/4/5/7/9` to `10`. Worker schema remains `8`.
+Hub schema 11 (`0011_hub_telegram_approval.sql`) adds `awaiting_approval`/`sending` delivery
+states; `mercadolivre.rs` exposes compare-and-set status updates and freshness checks, while
+transition rules and owner-authorized `@procurali` auto-queueing follow `ADR-0024`/`ADR-0025`.

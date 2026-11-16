@@ -29,16 +29,18 @@ only their public age key enters app_viewers SQL. Owner-confirmed captures remai
 Prepared USB capture is a native-confirmed fixed15-second one-shot under the original viewer and <=60-second expiry. Only opaque preparation metadata survives focus changes; no app background frame fetch. Never use an assistant/MCP request as native consent.
 
 `mercadolivre.rs` exposes authenticated ingest routes (`POST /v1/device/commerce/mercadolivre/ingest`
-for enrolled devices and `POST /v1/commerce/mercadolivre/ingest` for owner/apps) with an
+for enrolled devices and owner-only `POST /v1/commerce/mercadolivre/ingest`) with an
 explicit 4 MiB route body limit, plus `GET /v1/device/commerce/mercadolivre/reference-catalog`
-(compact ETag-cached catalog/price-trend reference for enrolled local workers) and warm-cached
-Cloobe-inspired endpoints under the dedicated `4096`-permit commerce concurrency pool: `GET /v1/commerce/mercadolivre/site-catalog` (`ETag`),
+(compact ETag-cached catalog/price-trend reference for enrolled local workers), warm-cached
+Cloobe-inspired endpoints under the dedicated `4096`-permit commerce concurrency pool (`GET /v1/commerce/mercadolivre/site-catalog` (`ETag`),
 `GET /v1/commerce/mercadolivre/taxonomy`, `GET /v1/commerce/mercadolivre/catalog-search`
 (faceted JSON and HTML fragment pagination), `GET /v1/commerce/mercadolivre/products/{id_or_slug}`
 (PDP with 30d price intelligence, SVG sparkline, FAQ, and similar offers),
 `GET /v1/commerce/mercadolivre/redirect/{id}`, `POST /v1/commerce/mercadolivre/telemetry`,
-`GET`/`POST /v1/commerce/mercadolivre/price-alerts`,
+`GET`/`POST /v1/commerce/mercadolivre/price-alerts`),
 `GET /v1/commerce/mercadolivre/telegram-queue`, `POST /v1/commerce/mercadolivre/telegram-queue/{id}/ack`,
+the owner-only per-offer `POST /v1/commerce/mercadolivre/telegram-queue/approve` (CLI
+`commerce approve --product-id`),
 and `commerce` CLI export commands.
 
 
