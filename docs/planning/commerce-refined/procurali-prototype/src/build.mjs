@@ -3,6 +3,7 @@
  * Outputs clean static HTML, CSS, JS, SVG, PNG, sitemap.xml, and robots.txt into ./site/
  */
 
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -99,6 +100,7 @@ function renderShell({
   jsonLd = [],
   includeCatalogJson = false,
   ogImage = null,
+  assetVersions = null,
   catalogData = { offers: OFFERS, categories: CATEGORIES, mediaRights: MEDIA_RIGHTS },
 }) {
   const root = rootPrefixForRoute(routePath);
@@ -144,8 +146,8 @@ function renderShell({
   <link rel="icon" type="image/png" sizes="32x32" href="${esc(root)}brand/png/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="${esc(root)}brand/png/apple-touch-icon-180.png">
   <meta name="theme-color" content="#143D2B">
-  <link rel="stylesheet" href="${esc(root)}assets/tokens.css">
-  <link rel="stylesheet" href="${esc(root)}assets/styles.css">
+  <link rel="stylesheet" href="${esc(root)}assets/tokens.css${assetVersions?.tokens ? `?v=${assetVersions.tokens}` : ""}">
+  <link rel="stylesheet" href="${esc(root)}assets/styles.css${assetVersions?.styles ? `?v=${assetVersions.styles}` : ""}">
   ${buildJsonLd(routePath, jsonLd)}
 </head>
 <body class="page-${esc(activeNav || "geral")}">
@@ -303,7 +305,7 @@ function renderShell({
   </div>
 
   ${catalogScript}
-  <script defer src="${esc(root)}assets/app.js"></script>
+  <script defer src="${esc(root)}assets/app.js${assetVersions?.app ? `?v=${assetVersions.app}` : ""}"></script>
 </body>
 </html>
 `;
@@ -455,17 +457,26 @@ export async function buildSite(options = {}) {
   setActiveCatalog(catalog);
 
   try {
-    const write = (routePath, pageOpts) =>
-      writePage(siteDir, routePath, { ...pageOpts, catalogData: catalog });
-
     ensureCleanDir(siteDir);
 
     // Copy static assets, brand pack, and machine-readable catalog snapshot
     fs.mkdirSync(path.join(siteDir, "assets"), { recursive: true });
     fs.mkdirSync(path.join(siteDir, "api"), { recursive: true });
-    fs.copyFileSync(path.join(PROTOTYPE_ROOT, "brand", "tokens.css"), path.join(siteDir, "assets", "tokens.css"));
-    fs.copyFileSync(path.join(SRC_DIR, "assets", "styles.css"), path.join(siteDir, "assets", "styles.css"));
-    fs.writeFileSync(path.join(siteDir, "assets", "app.js"), buildBrowserBundle(), "utf8");
+    const tokensCssBytes = fs.readFileSync(path.join(PROTOTYPE_ROOT, "brand", "tokens.css"));
+    const stylesCssBytes = fs.readFileSync(path.join(SRC_DIR, "assets", "styles.css"));
+    const appJsBundle = buildBrowserBundle();
+    const shortHash = (buf) => crypto.createHash("sha256").update(buf).digest("hex").slice(0, 10);
+    const assetVersions = {
+      tokens: shortHash(tokensCssBytes),
+      styles: shortHash(stylesCssBytes),
+      app: shortHash(appJsBundle),
+    };
+    const write = (routePath, pageOpts) =>
+      writePage(siteDir, routePath, { ...pageOpts, assetVersions, catalogData: catalog });
+
+    fs.writeFileSync(path.join(siteDir, "assets", "tokens.css"), tokensCssBytes);
+    fs.writeFileSync(path.join(siteDir, "assets", "styles.css"), stylesCssBytes);
+    fs.writeFileSync(path.join(siteDir, "assets", "app.js"), appJsBundle, "utf8");
     fs.writeFileSync(
       path.join(siteDir, "api", "catalog.json"),
       JSON.stringify(

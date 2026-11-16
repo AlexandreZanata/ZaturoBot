@@ -2737,10 +2737,13 @@ tr:last-child td {
   width: 100%;
 }
 
+.card,
+.long-desc-card,
 .grid-2 > *,
 .grid-3 > *,
 .share-snippet-box > .grid-2 > div {
   min-width: 0;
+  max-width: 100%;
 }
 
 pre.code-block,
