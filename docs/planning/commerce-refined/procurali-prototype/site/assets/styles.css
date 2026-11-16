@@ -2766,6 +2766,99 @@ pre.code-block,
   overflow-x: auto;
 }
 
+/* Cloobe-inspired Price Intelligence Panel & Dynamic Product FAQ */
+.price-intel-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.price-intel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.price-intel-verified {
+  font-size: 13px;
+}
+
+.price-intel-stats {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+}
+
+@media (min-width: 640px) {
+  .price-intel-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.price-stat-box {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.price-stat-label {
+  font-size: 12.5px;
+  color: var(--color-muted);
+  font-weight: 600;
+}
+
+.price-stat-value {
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.price-sparkline-wrap {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: #ffffff;
+}
+
+.price-sparkline-wrap svg {
+  display: block;
+  width: 100%;
+  max-width: 560px;
+  height: auto;
+}
+
+.faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.faq-item {
+  padding: 14px 16px;
+}
+
+.faq-question {
+  font-weight: 700;
+  font-size: 15.5px;
+  color: var(--color-ink);
+  cursor: pointer;
+  min-height: 28px;
+}
+
+.faq-answer {
+  margin: 10px 0 0;
+  color: #374151;
+  line-height: 1.55;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

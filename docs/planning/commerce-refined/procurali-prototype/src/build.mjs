@@ -539,6 +539,27 @@ export async function buildSite(options = {}) {
     for (const offer of catalog.offers) {
       const route = `/ofertas/${offer.slug}/`;
       const isLiveTest = !offer.isDemoFixture && offer.state === "approved";
+      const offerJsonLd = [
+        breadcrumbLd([
+          { name: "Início", path: "/" },
+          { name: "Ofertas", path: "/ofertas/" },
+          { name: offer.title, path: route },
+        ]),
+      ];
+      if (Array.isArray(offer.dynamicFaq) && offer.dynamicFaq.length > 0) {
+        offerJsonLd.push({
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: offer.dynamicFaq.map((item) => ({
+            "@type": "Question",
+            name: item.question,
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: item.answer,
+            },
+          })),
+        });
+      }
       publicRoutes.push(
         write(route, {
           activeNav: "ofertas",
@@ -550,13 +571,7 @@ export async function buildSite(options = {}) {
             : `${offer.oneLineReason} Dados demonstrativos fictícios com horário de observação e limitações.`,
           bodyHtml: renderOfferDetailPage("../../", offer),
           ogImage: offer.imagePath,
-          jsonLd: [
-            breadcrumbLd([
-              { name: "Início", path: "/" },
-              { name: "Ofertas", path: "/ofertas/" },
-              { name: offer.title, path: route },
-            ]),
-          ],
+          jsonLd: offerJsonLd,
         })
       );
     }

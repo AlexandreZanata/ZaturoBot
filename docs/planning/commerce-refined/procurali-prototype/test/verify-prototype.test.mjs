@@ -469,6 +469,29 @@ test("9. Hub API catalog snapshot ingestion preserves MinIO HTTPS URLs, specs, v
           },
         ],
         longDescription: "Unidade M.2 2280 PCIe 4.0 indicada para notebooks e desktops compatíveis.",
+        priceIntelligence: {
+          windowDays: 30,
+          currentPriceCents: 44990,
+          lowestPrice30dCents: 44990,
+          averagePrice30dCents: 51900,
+          highestPrice30dCents: 57900,
+          referencePriceCents: 57900,
+          discountPct: 22,
+          savingsVsReferenceCents: 12910,
+          savingsVsAverageCents: 6910,
+          priceLevel: "lowest_price",
+          priceLevelLabel: "Menor preço dos últimos 30 dias",
+          isPriceDrop: true,
+          verifiedAtDisplay: "Preços verificados em 15/11/2026, 14:00",
+          svgSparkline:
+            '<svg viewBox="0 0 300 80" width="300" height="80" role="img" aria-label="Histórico de preço 30 dias"><polyline fill="none" stroke="#16a34a" stroke-width="2.5" points="10,20 150,45 290,68"/></svg>',
+        },
+        dynamicFaq: [
+          {
+            question: "Este SSD Kingston NV3 1TB está no menor preço recente?",
+            answer: "Sim: R$ 449,90 corresponde ao menor valor registrado na janela recente de 30 dias.",
+          },
+        ],
       },
     ],
     evidenceSources: [
@@ -527,6 +550,10 @@ test("9. Hub API catalog snapshot ingestion preserves MinIO HTTPS URLs, specs, v
     assert.ok(detailHtml.includes("SNV3S/500G"), "Detail HTML must render variant SKU options");
     assert.ok(detailHtml.includes('id="tg-bot-draft-ssd-kingston-nv3-1tb-nvme-m2"'), "Detail HTML must include Telegram bot HTML draft");
     assert.ok(detailHtml.includes('id="wa-web-draft-ssd-kingston-nv3-1tb-nvme-m2"'), "Detail HTML must include WhatsApp Web assisted draft");
+    assert.ok(detailHtml.includes("Histórico e Inteligência de Preço (30 dias)"), "Detail HTML must render 30-day price intelligence panel");
+    assert.ok(detailHtml.includes('viewBox="0 0 300 80"'), "Detail HTML must render zero-JS SVG sparkline");
+    assert.ok(detailHtml.includes('"@type": "FAQPage"'), "Detail HTML must emit Schema.org FAQPage JSON-LD");
+    assert.ok(detailHtml.includes("Perguntas frequentes sobre esta oferta"), "Detail HTML must render dynamic FAQ section");
     assert.equal(detailHtml.includes(".local/"), false, "Detail HTML must never leak .local paths");
 
     const waDraftsPath = nodePath.join(outDir, "api", "whatsapp-assisted-drafts.json");

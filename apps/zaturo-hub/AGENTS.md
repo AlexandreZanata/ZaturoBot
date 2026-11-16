@@ -30,7 +30,13 @@ Prepared USB capture is a native-confirmed fixed15-second one-shot under the ori
 
 `mercadolivre.rs` exposes authenticated ingest routes (`POST /v1/device/commerce/mercadolivre/ingest`
 for enrolled devices and `POST /v1/commerce/mercadolivre/ingest` for owner/apps) with an
-explicit 4 MiB route body limit, plus `GET /v1/commerce/mercadolivre/site-catalog`,
+explicit 4 MiB route body limit, plus warm-cached Cloobe-inspired endpoints under the dedicated
+`4096`-permit commerce concurrency pool: `GET /v1/commerce/mercadolivre/site-catalog` (`ETag`),
+`GET /v1/commerce/mercadolivre/taxonomy`, `GET /v1/commerce/mercadolivre/catalog-search`
+(faceted JSON and HTML fragment pagination), `GET /v1/commerce/mercadolivre/products/{id_or_slug}`
+(PDP with 30d price intelligence, SVG sparkline, FAQ, and similar offers),
+`GET /v1/commerce/mercadolivre/redirect/{id}`, `POST /v1/commerce/mercadolivre/telemetry`,
+`GET`/`POST /v1/commerce/mercadolivre/price-alerts`,
 `GET /v1/commerce/mercadolivre/telegram-queue`, `POST /v1/commerce/mercadolivre/telegram-queue/{id}/ack`,
 and `commerce` CLI export commands.
 

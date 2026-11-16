@@ -3,14 +3,14 @@
 
 use crate::{Error, Repository};
 use rusqlite::{OptionalExtension, params};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use zaturo_core::{
     MercadoLivreIngestBatchRequest, MercadoLivreIngestReport, MercadoLivreProductState,
     MercadoLivreSpec, MercadoLivreVariant, MinioProductImage, SiteCatalogCategory,
     SiteCatalogEvidenceSource, SiteCatalogGalleryItem, SiteCatalogMediaRight, SiteCatalogOffer,
     SiteCatalogPriceObservation, SiteCatalogSnapshot, TelegramDeliveryAck, TelegramDeliveryStatus,
-    TelegramOfferQueueItem, ValidatedMercadoLivreProduct, format_cuiaba_display,
-    format_cuiaba_short, format_telegram_caption_pt_br, format_utc_iso_ms,
+    TelegramOfferQueueItem, ValidatedMercadoLivreProduct, enrich_site_catalog_offer,
+    format_cuiaba_display, format_cuiaba_short, format_telegram_caption_pt_br, format_utc_iso_ms,
 };
 
 impl Repository<'_> {
@@ -389,6 +389,12 @@ impl Repository<'_> {
             ))
         })?;
 
+        // Preload related child collections in 4 constant-count batch queries (eliminating N+1 loops).
+        let mut images_by_product = self.ml_all_product_images()?;
+        let mut specs_by_product = self.ml_all_product_specs()?;
+        let mut variants_by_product = self.ml_all_product_variants()?;
+        let mut obs_by_product = self.ml_all_recent_price_observations()?;
+
         for row in rows {
             let (
                 product_id,
@@ -437,13 +443,13 @@ impl Repository<'_> {
 
             category_slugs.insert(category_slug.clone());
 
-            let images = self.ml_product_images(&product_id)?;
+            let images = images_by_product.remove(&product_id).unwrap_or_default();
             if images.is_empty() {
                 continue;
             }
-            let specs = self.ml_product_specs(&product_id)?;
-            let variants = self.ml_product_variants(&product_id)?;
-            let price_observations = self.ml_price_observations(&product_id, &seller_name)?;
+            let specs = specs_by_product.remove(&product_id).unwrap_or_default();
+            let variants = variants_by_product.remove(&product_id).unwrap_or_default();
+            let price_observations = obs_by_product.remove(&product_id).unwrap_or_default();
             let evidence_id = format!("ev-ml-{product_id}");
             let media_rights_id = format!("mr-ml-{product_id}");
 
@@ -459,7 +465,10 @@ impl Repository<'_> {
                 })
                 .collect();
 
-            let lead = &images[0];
+            let lead = images
+                .iter()
+                .find(|img| matches!(img.content_type.as_str(), "image/jpeg" | "image/png"))
+                .unwrap_or(&images[0]);
             let return_days = return_days_raw.and_then(|v| u16::try_from(v).ok());
             let freshness_ttl_minutes = u32::try_from(freshness_ttl_minutes_raw).unwrap_or(30);
             let supported_benefits: Vec<String> = serde_json::from_str(&benefits_json)?;
@@ -506,7 +515,7 @@ impl Repository<'_> {
                 short_description
             };
 
-            offers.push(SiteCatalogOffer {
+            let mut offer = SiteCatalogOffer {
                 id: format!("offer-ml-{product_id}"),
                 slug,
                 is_demo_fixture: false,
@@ -516,6 +525,8 @@ impl Repository<'_> {
                 title,
                 exact_variant,
                 category_slug,
+                subcategory_slug: String::new(),
+                subcategory_name: String::new(),
                 merchant: format!("Mercado Livre · {seller_name}"),
                 marketplace_label: "Mercado Livre".into(),
                 seller_name: seller_name.clone(),
@@ -528,9 +539,13 @@ impl Repository<'_> {
                 sponsored: sponsored_int != 0,
                 commission_rate: commission_label,
                 marketplace_rating,
+                rating_milli: None,
                 marketplace_sales_label,
+                sales_volume_estimate: 0,
                 card_badge,
                 discount_percent_label: discount_label,
+                discount_pct: 0,
+                trust_badges: Vec::new(),
                 installment_summary,
                 return_days,
                 availability,
@@ -581,7 +596,46 @@ impl Repository<'_> {
                 specs,
                 variants,
                 long_description,
-            });
+                price_intelligence: None,
+                dynamic_faq: Vec::new(),
+                similar_offer_ids: Vec::new(),
+            };
+            enrich_site_catalog_offer(&mut offer, observed_at_ms);
+            offers.push(offer);
+        }
+
+        // Compute cross-product Cloobe "Produtos similares comparados" IDs per subcategory/category.
+        let summary_meta: Vec<(String, String, String)> = offers
+            .iter()
+            .map(|o| {
+                (
+                    o.product_id.clone(),
+                    o.subcategory_slug.clone(),
+                    o.category_slug.clone(),
+                )
+            })
+            .collect();
+        for offer in &mut offers {
+            let mut same_sub: Vec<String> = summary_meta
+                .iter()
+                .filter(|(pid, sub, _)| *pid != offer.product_id && *sub == offer.subcategory_slug)
+                .map(|(pid, _, _)| pid.clone())
+                .take(4)
+                .collect();
+            if same_sub.len() < 4 {
+                for (pid, _, cat) in &summary_meta {
+                    if same_sub.len() >= 4 {
+                        break;
+                    }
+                    if *pid != offer.product_id
+                        && *cat == offer.category_slug
+                        && !same_sub.contains(pid)
+                    {
+                        same_sub.push(pid.clone());
+                    }
+                }
+            }
+            offer.similar_offer_ids = same_sub;
         }
 
         let categories = category_slugs
@@ -598,44 +652,54 @@ impl Repository<'_> {
         })
     }
 
-    fn ml_product_specs(&self, product_id: &str) -> Result<Vec<MercadoLivreSpec>, Error> {
+    fn ml_all_product_specs(&self) -> Result<HashMap<String, Vec<MercadoLivreSpec>>, Error> {
         let mut stmt = self.connection.prepare(
-            "SELECT spec_name, spec_value FROM ml_product_specs WHERE product_id = ?1 ORDER BY position ASC",
+            "SELECT product_id, spec_name, spec_value FROM ml_product_specs ORDER BY product_id ASC, position ASC",
         )?;
-        let rows = stmt.query_map([product_id], |r| {
-            Ok(MercadoLivreSpec {
-                name: r.get(0)?,
-                value: r.get(1)?,
-            })
+        let rows = stmt.query_map([], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                MercadoLivreSpec {
+                    name: r.get(1)?,
+                    value: r.get(2)?,
+                },
+            ))
         })?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(Error::from)
+        let mut map: HashMap<String, Vec<MercadoLivreSpec>> = HashMap::new();
+        for row in rows {
+            let (pid, spec) = row?;
+            map.entry(pid).or_default().push(spec);
+        }
+        Ok(map)
     }
 
-    fn ml_product_variants(&self, product_id: &str) -> Result<Vec<MercadoLivreVariant>, Error> {
+    fn ml_all_product_variants(&self) -> Result<HashMap<String, Vec<MercadoLivreVariant>>, Error> {
         let mut stmt = self.connection.prepare(
-            "SELECT variant_product_id, sku, name, color, voltage, price_brl_cents, currency,
+            "SELECT product_id, variant_product_id, sku, name, color, voltage, price_brl_cents, currency,
                     availability, return_days, return_fees, canonical_url, highlights_json
-             FROM ml_product_variants WHERE product_id = ?1 ORDER BY position ASC",
+             FROM ml_product_variants ORDER BY product_id ASC, position ASC",
         )?;
-        let rows = stmt.query_map([product_id], |r| {
+        let rows = stmt.query_map([], |r| {
             Ok((
                 r.get::<_, String>(0)?,
                 r.get::<_, String>(1)?,
                 r.get::<_, String>(2)?,
-                r.get::<_, Option<String>>(3)?,
+                r.get::<_, String>(3)?,
                 r.get::<_, Option<String>>(4)?,
-                r.get::<_, i64>(5)?,
-                r.get::<_, String>(6)?,
+                r.get::<_, Option<String>>(5)?,
+                r.get::<_, i64>(6)?,
                 r.get::<_, String>(7)?,
-                r.get::<_, Option<i64>>(8)?,
-                r.get::<_, Option<String>>(9)?,
+                r.get::<_, String>(8)?,
+                r.get::<_, Option<i64>>(9)?,
                 r.get::<_, Option<String>>(10)?,
-                r.get::<_, String>(11)?,
+                r.get::<_, Option<String>>(11)?,
+                r.get::<_, String>(12)?,
             ))
         })?;
-        let mut out = Vec::new();
+        let mut map: HashMap<String, Vec<MercadoLivreVariant>> = HashMap::new();
         for row in rows {
             let (
+                product_id,
                 variant_product_id,
                 sku,
                 name,
@@ -649,82 +713,105 @@ impl Repository<'_> {
                 canonical_url,
                 highlights_json,
             ) = row?;
-            out.push(MercadoLivreVariant {
-                variant_product_id,
-                sku,
-                name,
-                color,
-                voltage,
-                price_brl_cents,
-                currency,
-                availability,
-                return_days: return_days.and_then(|d| u16::try_from(d).ok()),
-                return_fees,
-                canonical_url,
-                highlights: serde_json::from_str(&highlights_json)?,
-            });
+            map.entry(product_id)
+                .or_default()
+                .push(MercadoLivreVariant {
+                    variant_product_id,
+                    sku,
+                    name,
+                    color,
+                    voltage,
+                    price_brl_cents,
+                    currency,
+                    availability,
+                    return_days: return_days.and_then(|d| u16::try_from(d).ok()),
+                    return_fees,
+                    canonical_url,
+                    highlights: serde_json::from_str(&highlights_json)?,
+                });
         }
-        Ok(out)
+        Ok(map)
     }
 
-    fn ml_product_images(&self, product_id: &str) -> Result<Vec<MinioProductImage>, Error> {
+    fn ml_all_product_images(&self) -> Result<HashMap<String, Vec<MinioProductImage>>, Error> {
         let mut stmt = self.connection.prepare(
-            "SELECT position, minio_bucket, minio_object_key, public_url, source_origin_url,
+            "SELECT product_id, position, minio_bucket, minio_object_key, public_url, source_origin_url,
                     content_type, sha256_hex, size_bytes, alt_text
-             FROM ml_product_images WHERE product_id = ?1 ORDER BY position ASC",
+             FROM ml_product_images ORDER BY product_id ASC, position ASC",
         )?;
-        let rows = stmt.query_map([product_id], |r| {
-            Ok(MinioProductImage {
-                position: u16::try_from(r.get::<_, i64>(0)?).unwrap_or(0),
-                bucket: r.get(1)?,
-                object_key: r.get(2)?,
-                public_url: r.get(3)?,
-                source_origin_url: r.get(4)?,
-                content_type: r.get(5)?,
-                sha256_hex: r.get(6)?,
-                size_bytes: u64::try_from(r.get::<_, i64>(7)?).unwrap_or(0),
-                alt_text: r.get(8)?,
-            })
+        let rows = stmt.query_map([], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                MinioProductImage {
+                    position: u16::try_from(r.get::<_, i64>(1)?).unwrap_or(0),
+                    bucket: r.get(2)?,
+                    object_key: r.get(3)?,
+                    public_url: r.get(4)?,
+                    source_origin_url: r.get(5)?,
+                    content_type: r.get(6)?,
+                    sha256_hex: r.get(7)?,
+                    size_bytes: u64::try_from(r.get::<_, i64>(8)?).unwrap_or(0),
+                    alt_text: r.get(9)?,
+                },
+            ))
         })?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(Error::from)
+        let mut map: HashMap<String, Vec<MinioProductImage>> = HashMap::new();
+        for row in rows {
+            let (pid, img) = row?;
+            map.entry(pid).or_default().push(img);
+        }
+        Ok(map)
     }
 
-    fn ml_price_observations(
+    fn ml_all_recent_price_observations(
         &self,
-        product_id: &str,
-        seller_name: &str,
-    ) -> Result<Vec<SiteCatalogPriceObservation>, Error> {
+    ) -> Result<HashMap<String, Vec<SiteCatalogPriceObservation>>, Error> {
         let mut stmt = self.connection.prepare(
-            "SELECT id, payment_conditions, short_condition, price_brl_cents, observed_at_ms
-             FROM ml_offers WHERE product_id = ?1 ORDER BY observed_at_ms DESC, id DESC LIMIT 30",
+            "SELECT o.product_id, p.seller_name, o.id, o.payment_conditions, o.short_condition,
+                    o.price_brl_cents, o.observed_at_ms
+             FROM ml_offers o
+             JOIN ml_products p ON p.product_id = o.product_id
+             ORDER BY o.product_id ASC, o.observed_at_ms DESC, o.id DESC",
         )?;
-        let offer_id = format!("offer-ml-{product_id}");
-        let evidence_id = format!("ev-ml-{product_id}");
-        let rows = stmt.query_map([product_id], |r| {
+        let rows = stmt.query_map([], |r| {
             Ok((
                 r.get::<_, String>(0)?,
                 r.get::<_, String>(1)?,
                 r.get::<_, String>(2)?,
-                r.get::<_, i64>(3)?,
-                r.get::<_, i64>(4)?,
+                r.get::<_, String>(3)?,
+                r.get::<_, String>(4)?,
+                r.get::<_, i64>(5)?,
+                r.get::<_, i64>(6)?,
             ))
         })?;
-        let mut obs = Vec::new();
+        let mut map: HashMap<String, Vec<SiteCatalogPriceObservation>> = HashMap::new();
         for row in rows {
-            let (id, payment_basis, freight_note, price_brl_cents, observed_at_ms) = row?;
-            obs.push(SiteCatalogPriceObservation {
+            let (
+                product_id,
+                seller_name,
                 id,
-                offer_id: offer_id.clone(),
-                variant_id: product_id.to_owned(),
-                seller_name: seller_name.to_owned(),
+                payment_basis,
+                freight_note,
+                price_brl_cents,
+                observed_at_ms,
+            ) = row?;
+            let list = map.entry(product_id.clone()).or_default();
+            if list.len() >= 30 {
+                continue;
+            }
+            list.push(SiteCatalogPriceObservation {
+                id,
+                offer_id: format!("offer-ml-{product_id}"),
+                variant_id: product_id.clone(),
+                seller_name,
                 payment_basis,
                 freight_note,
                 price_brl_cents,
                 observed_at: format_utc_iso_ms(observed_at_ms),
-                evidence_id: evidence_id.clone(),
+                evidence_id: format!("ev-ml-{product_id}"),
             });
         }
-        Ok(obs)
+        Ok(map)
     }
 
     pub fn ml_telegram_queue(
