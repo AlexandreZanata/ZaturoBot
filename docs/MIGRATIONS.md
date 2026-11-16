@@ -103,3 +103,13 @@ preserving all existing task, feed, transfer, shared-task, and computer-step dat
 Worker schema remains `8`. Back up SQLite consistently before starting the upgraded Hub;
 tests verify `1/4/5/7/9 -> 10` upgrades, data preservation, idempotency replay/conflict, and
 rollback on schema errors.
+
+## Hub 10 to 11: per-offer Telegram approval and pre-send claim
+
+`crates/db/migrations/0011_hub_telegram_approval.sql` rebuilds `ml_telegram_deliveries` with
+the statuses `awaiting_approval`, `queued`, `sending`, `published`, `skipped`, and `failed`
+(see ADR-0024). Version 10 queued every ingested offer without owner review, so its `queued`
+rows become `awaiting_approval` when their offer is still current and `skipped` with
+`error_code = 'superseded'` otherwise; published, skipped, and failed rows are preserved.
+`HubStore` upgrades `1 | 4 | 5 | 7 | 9 | 10` databases to `11` in one transaction. Tests cover
+the `10 -> 11` queue conversion and the earlier upgrade chains.

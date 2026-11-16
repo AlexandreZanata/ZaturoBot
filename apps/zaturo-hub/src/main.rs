@@ -46,6 +46,13 @@ enum CommerceCommand {
         #[arg(long)]
         limit: Option<u32>,
     },
+    /// Approve publishing one product's current offer on one Telegram channel.
+    Approve {
+        #[arg(long)]
+        product_id: String,
+        #[arg(long, default_value = "@procurali")]
+        channel: String,
+    },
     WhatsappDrafts {
         #[arg(long, default_value = "@procurali")]
         channel: String,
@@ -157,6 +164,18 @@ async fn main() -> Result<()> {
                 }
                 get("/v1/commerce/mercadolivre/telegram-queue".into())
                     .query(&params)
+                    .send()
+                    .await?
+            }
+            CommerceCommand::Approve {
+                product_id,
+                channel,
+            } => {
+                post("/v1/commerce/mercadolivre/telegram-queue/approve".into())
+                    .json(&serde_json::json!({
+                        "product_id": product_id,
+                        "channel_id": channel,
+                    }))
                     .send()
                     .await?
             }

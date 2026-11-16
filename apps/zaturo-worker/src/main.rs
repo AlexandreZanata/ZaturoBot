@@ -212,6 +212,9 @@ async fn main() -> Result<()> {
                             "telegram": tg,
                         }))?
                     );
+                    if let Some(error) = &tg.hub_error {
+                        anyhow::bail!("Telegram publishing stopped: {error}");
+                    }
                 } else {
                     println!("{}", serde_json::to_string_pretty(&report)?);
                 }
@@ -241,6 +244,9 @@ async fn main() -> Result<()> {
                     write_json_output(out_path, &report.whatsapp_package)?;
                 }
                 println!("{}", serde_json::to_string_pretty(&report)?);
+                if let Some(error) = &report.hub_error {
+                    anyhow::bail!("Telegram publishing stopped: {error}");
+                }
             }
             Commerce::TelegramPoll {
                 offset,

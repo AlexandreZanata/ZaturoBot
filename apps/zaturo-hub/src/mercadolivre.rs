@@ -34,6 +34,13 @@ enum CallerPrincipal {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+struct ApproveRequest {
+    product_id: String,
+    channel_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct QueueQuery {
     channel_id: Option<String>,
     status: Option<TelegramDeliveryStatus>,
@@ -63,6 +70,10 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route(
             "/v1/commerce/mercadolivre/ingest",
             post(owner_ingest).layer(DefaultBodyLimit::max(MAX_INGEST_BODY_BYTES)),
+        )
+        .route(
+            "/v1/commerce/mercadolivre/telegram-queue/approve",
+            post(telegram_approve),
         )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
@@ -205,10 +216,23 @@ async fn telegram_queue(
 ) -> Result<Json<Vec<TelegramOfferQueueItem>>, ApiFailure> {
     let limit = query.limit.unwrap_or(20.min(state.config.max_page_size));
     let items = database(&state, move |e| {
-        e.mercadolivre_telegram_queue(query.channel_id.as_deref(), query.status, limit)
+        e.mercadolivre_telegram_queue(query.channel_id.as_deref(), query.status, limit, now_ms())
     })
     .await?;
     Ok(Json(items))
+}
+
+/// Owner-only per-offer publication approval; devices and apps can never approve.
+async fn telegram_approve(
+    State(state): State<AppState>,
+    Json(request): Json<ApproveRequest>,
+) -> Result<Json<TelegramOfferQueueItem>, ApiFailure> {
+    let item = database(&state, move |e| {
+        e.approve_mercadolivre_telegram_delivery(&request.product_id, &request.channel_id, now_ms())
+    })
+    .await?;
+    state.changes.notify_waiters();
+    Ok(Json(item))
 }
 
 async fn telegram_ack(
@@ -399,7 +423,7 @@ mod tests {
                 size_bytes: 2048,
                 alt_text: "SSD Kingston NV3 500GB".into(),
             }],
-            observed_at_ms: 1_763_231_280_000,
+            observed_at_ms: crate::now_ms(),
             freshness_ttl_minutes: 30,
             evidence_sha256: "b".repeat(64),
             state: MercadoLivreProductState::Approved,
@@ -467,7 +491,8 @@ mod tests {
         assert_eq!(ok.status(), StatusCode::OK);
         let report: MercadoLivreIngestReport = ok.json().await.unwrap();
         assert_eq!(report.product_count, 3);
-        assert_eq!(report.telegram_queued_count, 3);
+        assert_eq!(report.telegram_queued_count, 0);
+        assert_eq!(report.telegram_awaiting_approval_count, 3);
 
         // Idempotent replay with identical bytes returns same report; conflicting payload returns 409.
         let replay = client
@@ -537,31 +562,92 @@ mod tests {
             .unwrap();
         assert_eq!(read_queue.status(), StatusCode::UNAUTHORIZED);
 
-        let queue_resp = client
-            .get(format!(
-                "{}/v1/commerce/mercadolivre/telegram-queue?channel_id=%40procurali&status=queued&limit=10",
-                hub.base
-            ))
-            .bearer_auth(DEVICE)
-            .send()
-            .await
-            .unwrap();
-        assert_eq!(queue_resp.status(), StatusCode::OK);
-        let items: Vec<TelegramOfferQueueItem> = queue_resp.json().await.unwrap();
-        assert_eq!(items.len(), 3);
+        let queued = || async {
+            let response = client
+                .get(format!(
+                    "{}/v1/commerce/mercadolivre/telegram-queue?channel_id=%40procurali&status=queued&limit=10",
+                    hub.base
+                ))
+                .bearer_auth(DEVICE)
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            response
+                .json::<Vec<TelegramOfferQueueItem>>()
+                .await
+                .unwrap()
+        };
+        assert!(
+            queued().await.is_empty(),
+            "ingest must not approve publication"
+        );
 
-        let ack_resp = client
-            .post(format!(
-                "{}/v1/commerce/mercadolivre/telegram-queue/{}/ack",
-                hub.base, items[0].delivery_id
-            ))
-            .bearer_auth(DEVICE)
-            .json(&TelegramDeliveryAck {
-                status: TelegramDeliveryStatus::Published,
-                external_message_id: Some("tg-1001".into()),
-                error_code: None,
-            })
-            .send()
+        // Only the owner can approve one product's current offer.
+        let approve = |token: &'static str, product: &'static str| {
+            client
+                .post(format!(
+                    "{}/v1/commerce/mercadolivre/telegram-queue/approve",
+                    hub.base
+                ))
+                .bearer_auth(token)
+                .json(&serde_json::json!({"product_id": product, "channel_id": "@procurali"}))
+                .send()
+        };
+        assert_eq!(
+            approve(DEVICE, "MLB39410080").await.unwrap().status(),
+            StatusCode::UNAUTHORIZED
+        );
+        let approved = approve(OWNER, "MLB39410080").await.unwrap();
+        assert_eq!(approved.status(), StatusCode::OK);
+        let approved: TelegramOfferQueueItem = approved.json().await.unwrap();
+        assert_eq!(approved.status, TelegramDeliveryStatus::Queued);
+        let items = queued().await;
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].product_id, "MLB39410080");
+
+        let ack = |status, external: Option<&str>| {
+            client
+                .post(format!(
+                    "{}/v1/commerce/mercadolivre/telegram-queue/{}/ack",
+                    hub.base, items[0].delivery_id
+                ))
+                .bearer_auth(DEVICE)
+                .json(&TelegramDeliveryAck {
+                    status,
+                    external_message_id: external.map(str::to_owned),
+                    error_code: None,
+                })
+                .send()
+        };
+        // Publishing without a claim is refused; the claim is single-use.
+        assert_eq!(
+            ack(TelegramDeliveryStatus::Published, Some("tg-1001"))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::CONFLICT
+        );
+        let claimed = ack(TelegramDeliveryStatus::Sending, None).await.unwrap();
+        assert_eq!(claimed.status(), StatusCode::OK);
+        assert_eq!(
+            claimed
+                .json::<TelegramOfferQueueItem>()
+                .await
+                .unwrap()
+                .status,
+            TelegramDeliveryStatus::Sending
+        );
+        assert_eq!(
+            ack(TelegramDeliveryStatus::Sending, None)
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::CONFLICT
+        );
+        assert!(queued().await.is_empty());
+
+        let ack_resp = ack(TelegramDeliveryStatus::Published, Some("tg-1001"))
             .await
             .unwrap();
         assert_eq!(ack_resp.status(), StatusCode::OK);
