@@ -23,6 +23,13 @@ jobs:
           node-version: '24'
       - name: Validate the repository
         run: cargo xtask check --locked
+      - name: Build and verify the Procurali storefront (Next.js static export)
+        working-directory: docs/planning/commerce-refined/procurali-prototype
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+        run: |
+          npm ci --no-audit --no-fund
+          npm test
 
   android:
     runs-on: ubuntu-latest
@@ -56,8 +63,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends pkg-config libfontconfig1-dev
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
       - name: Build release Hub and Worker binaries
         run: cargo build --locked --release -p zaturo-hub -p zaturo-worker
+      - name: Install pinned storefront dependencies
+        working-directory: docs/planning/commerce-refined/procurali-prototype
+        run: npm ci --no-audit --no-fund
       - name: Assemble verifiable Procurali release bundle
         id: bundle
         run: |
@@ -68,10 +81,22 @@ jobs:
           mkdir -p "${STAGE}/bundle/bin" "${STAGE}/bundle/site-builder" "${STAGE}/bundle/deploy" "${STAGE}/dist"
           install -m 0755 target/release/zaturo-hub "${STAGE}/bundle/bin/zaturo-hub"
           install -m 0755 target/release/zaturo-worker "${STAGE}/bundle/bin/zaturo-worker"
-          for sub in src data brand contracts; do
-            cp -R "docs/planning/commerce-refined/procurali-prototype/${sub}" "${STAGE}/bundle/site-builder/${sub}"
-          done
+          rmdir "${STAGE}/bundle/site-builder"
+          python3 deploy/procurali/package_site_builder.py \
+            --source docs/planning/commerce-refined/procurali-prototype \
+            --dest "${STAGE}/bundle/site-builder" \
+            --node "$(command -v node)"
+          # Smoke-test the packaged builder exactly as the VPS site sync invokes it.
+          SMOKE="$(mktemp -d)"
+          cp -R "${STAGE}/bundle/site-builder" "${SMOKE}/site-builder"
+          NEXT_TELEMETRY_DISABLED=1 "${SMOKE}/site-builder/runtime/node" \
+            "${SMOKE}/site-builder/src/build.mjs" --out-dir "${SMOKE}/site"
+          test -s "${SMOKE}/site/index.html"
+          test -s "${SMOKE}/site/api/catalog.json"
+          test -d "${SMOKE}/site/_next/static"
+          rm -rf "${SMOKE}"
           cp -R deploy/procurali "${STAGE}/bundle/deploy/procurali"
+          find "${STAGE}/bundle/deploy" -name __pycache__ -type d -prune -exec rm -rf {} +
           tar -C "${STAGE}/bundle" -czf "${STAGE}/dist/procurali-bundle-linux-amd64.tar.gz" .
           BUNDLE_SHA="$(sha256sum "${STAGE}/dist/procurali-bundle-linux-amd64.tar.gz" | awk '{print $1}')"
           HUB_SHA="$(sha256sum "${STAGE}/bundle/bin/zaturo-hub" | awk '{print $1}')"

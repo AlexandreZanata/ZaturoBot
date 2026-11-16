@@ -65,7 +65,8 @@ schema 11), `crates/transfer/src/minio.rs`, `crates/services/src/mercadolivre/`,
 `apps/zaturo-hub/src/mercadolivre/`, `apps/zaturo-worker/src/mercadolivre/`,
 `apps/zaturo-worker/src/telegram/`, and the zero-downtime pull deployment helpers in
 [Procurali deploy](../deploy/procurali/README.md),
-serving validated snapshots to the Procurali static site builder, the official Telegram Bot
+serving validated snapshots to the Procurali Next.js static-export site builder
+(`docs/planning/commerce-refined/procurali-prototype/src/build.mjs`), the official Telegram Bot
 API queue/command responder, and human-assisted WhatsApp Web draft packages without Meta API.
 
 `diagnostic` is the direct task kind. Phase 2 adds `assisted_diagnostic` with capability

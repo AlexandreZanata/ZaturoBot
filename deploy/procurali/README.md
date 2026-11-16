@@ -9,7 +9,10 @@ commerce hub, worker, Telegram daemon, and static site builder on the Linux VPS.
    `android` jobs on every push and pull request.
 2. Only after **both** `check` and `android` succeed on a `push` to `main`, the
    `release-bundle` job compiles Linux release binaries (`zaturo-hub`, `zaturo-worker`),
-   packages the pure-Node static site builder, writes `manifest.json` + SHA-256 digests,
+   packages the Next.js storefront as a self-contained site builder
+   ([package_site_builder.py](package_site_builder.py): sources, pinned `node_modules`
+   without symlinks or musl/wasm/sharp extras, and `runtime/node` from CI's Node 24),
+   smoke-tests it exactly as the VPS calls it, writes `manifest.json` + SHA-256 digests,
    and publishes an immutable GitHub Release (`procurali-<shortsha>`).
    No VPS IP addresses, hostnames, or SSH keys are stored on GitHub.
 3. On the VPS, `procurali-deploy-agent.timer` runs `procurali_deploy_agent.py` periodically:
@@ -23,6 +26,23 @@ commerce hub, worker, Telegram daemon, and static site builder on the Linux VPS.
      dropped HTTP connections, drains the previous slot, and rolls back automatically on failure.
    - `procurali_site_sync.py` publishes static frontend builds into versioned release directories
      and performs an atomic POSIX symlink swap (`mv -Tf`) for `/srv/procurali/site`.
+
+## Site builder contract
+
+`procurali_site_sync.py` runs, for every new catalog ETag or changed builder sources:
+
+```text
+<site-builder>/runtime/node <site-builder>/src/build.mjs --api-snapshot <catalog.json> --out-dir <release>
+```
+
+`src/build.mjs` runs `scripts/prepare.mjs` and `next build` into a temporary distDir, then copies
+the static export into `<release>`; the release goes live only after `index.html`,
+`ofertas/index.html`, `api/*.json`, `sitemap.xml` and `_next/static/` are verified. A failed build
+keeps the current site live and retries with exponential backoff (up to 15 minutes).
+Environment overrides: `PROCURALI_SITE_NODE` (Node executable), `PROCURALI_SITE_BUILD_TIMEOUT_SECS`
+(default 900) and `PROCURALI_SITE_WORK_DIR` (writable copy used when the release is read-only).
+The builder digest covers the builder sources but not generated output, so each release that
+changes the storefront forces one rebuild. The deploy agent keeps the three newest releases.
 
 See [deployment documentation](../../docs/DEPLOYMENT.md) and
 [repository tests](../../xtask/src/main.rs).
