@@ -175,6 +175,9 @@ impl MinioProductImage {
 /// Raw batch schema emitted by `tools/ytbot/commercial/mercadolivre/products.py`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MercadoLivreBotBatch {
+    #[serde(default)]
+    pub schema: Option<u32>,
+    #[serde(default)]
     pub network: String,
     #[serde(default)]
     pub query: String,
@@ -189,6 +192,8 @@ pub struct MercadoLivreBotBatch {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MercadoLivreBotProduct {
     #[serde(default)]
+    pub position: Option<u32>,
+    #[serde(default)]
     pub product_id: Option<String>,
     pub title: String,
     #[serde(default)]
@@ -199,6 +204,8 @@ pub struct MercadoLivreBotProduct {
     pub product_url: Option<String>,
     #[serde(default)]
     pub canonical_url: Option<String>,
+    #[serde(default)]
+    pub image: Option<String>,
     #[serde(default)]
     pub image_url: Option<String>,
     #[serde(default)]

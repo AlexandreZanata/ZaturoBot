@@ -64,9 +64,11 @@ pub async fn prepare_and_upload_batch(
 
     let batch: MercadoLivreBotBatch =
         serde_json::from_slice(raw_json_bytes).context("invalid Mercado Livre bot batch JSON")?;
-    let network_lower = batch.network.to_ascii_lowercase();
+    let network_lower = batch.network.trim().to_ascii_lowercase();
     ensure!(
-        network_lower.contains("mercadolivre") || network_lower.contains("mercado livre"),
+        network_lower.contains("mercadolivre")
+            || network_lower.contains("mercado livre")
+            || (network_lower.is_empty() && batch.schema == Some(1)),
         "unsupported commercial batch network: {}",
         batch.network
     );
@@ -442,6 +444,7 @@ async fn upload_filtered_product_images(
             .gallery
             .get(idx)
             .or(raw.image_url.as_ref())
+            .or(raw.image.as_ref())
             .map(|u| u.trim().to_owned())
             .filter(|u| validate_asset_public_url(u) && !u.contains("matt_tool="));
 
@@ -498,13 +501,22 @@ async fn upload_filtered_product_images(
 
 fn resolve_photo_path(raw_path: &str, source_base_dir: Option<&Path>) -> PathBuf {
     let p = Path::new(raw_path.trim());
-    if p.is_absolute() || p.exists() {
+    if p.exists() {
         return p.to_path_buf();
     }
     if let Some(base) = source_base_dir {
-        let joined = base.join(p);
-        if joined.exists() {
-            return joined;
+        if !p.is_absolute() {
+            let joined = base.join(p);
+            if joined.exists() {
+                return joined;
+            }
+        }
+        if let Some(name) = p.file_name() {
+            for candidate in [base.join(name), base.join("images").join(name)] {
+                if candidate.exists() {
+                    return candidate;
+                }
+            }
         }
     }
     p.to_path_buf()
@@ -1322,6 +1334,16 @@ mod tests {
                 .await
                 .unwrap();
         }));
+
+        let parsed_schema1: MercadoLivreBotBatch = serde_json::from_value(json!({
+            "schema": 1,
+            "query": "monitor",
+            "captured_at": "2026-11-15T18:30:32",
+            "products": [prod_nv3.clone()]
+        }))
+        .unwrap();
+        assert_eq!(parsed_schema1.schema, Some(1));
+        assert!(parsed_schema1.network.is_empty());
 
         let raw_bytes = serde_json::to_vec(&bot_batch).unwrap();
         let req = prepare_and_upload_batch(
