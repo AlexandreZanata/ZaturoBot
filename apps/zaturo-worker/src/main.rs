@@ -133,10 +133,28 @@ enum Commerce {
         source_base_dir: Option<PathBuf>,
         #[arg(long)]
         whatsapp_drafts_out: Option<PathBuf>,
+        #[arg(long)]
+        reference_out: Option<PathBuf>,
         #[arg(long, default_value_t = 5)]
         poll_seconds: u64,
         #[arg(long)]
         once: bool,
+    },
+    SyncReference {
+        #[arg(long)]
+        output: PathBuf,
+    },
+    QueryReference {
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        query: Option<String>,
+        #[arg(long)]
+        product_id: Option<String>,
+        #[arg(long)]
+        category: Option<String>,
+        #[arg(long, default_value_t = 20)]
+        limit: usize,
     },
 }
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
@@ -153,6 +171,27 @@ async fn main() -> Result<()> {
             zaturo_transfer::blob::private_directory(parent)?;
         }
         println!("{}", zaturo_transfer::crypto::generate_identity(output)?);
+        return Ok(());
+    }
+    if let Command::Commerce {
+        command:
+            Commerce::QueryReference {
+                file,
+                query,
+                product_id,
+                category,
+                limit,
+            },
+    } = &cli.command
+    {
+        let matches = zaturo_worker::mercadolivre::load_and_query_reference_catalog(
+            file,
+            query.as_deref(),
+            product_id.as_deref(),
+            category.as_deref(),
+            *limit,
+        )?;
+        println!("{}", serde_json::to_string_pretty(&matches)?);
         return Ok(());
     }
     let config = WorkerConfig::load(&cli.config)?;
@@ -338,6 +377,7 @@ async fn main() -> Result<()> {
                 channel,
                 source_base_dir,
                 whatsapp_drafts_out,
+                reference_out,
                 poll_seconds,
                 once,
             } => {
@@ -380,11 +420,23 @@ async fn main() -> Result<()> {
                                     .await?;
                                     write_json_output(out_path, &pkg)?;
                                 }
+                                let mut ref_summary = None;
+                                if let Some(ref_path) = &reference_out {
+                                    ref_summary = Some(
+                                        zaturo_worker::mercadolivre::sync_reference_catalog(
+                                            &config.hub_url,
+                                            &token,
+                                            ref_path,
+                                        )
+                                        .await?,
+                                    );
+                                }
                                 println!(
                                     "{}",
                                     serde_json::to_string_pretty(&serde_json::json!({
                                         "status": "ingested",
                                         "report": report,
+                                        "reference_sync": ref_summary,
                                     }))?
                                 );
                             }
@@ -403,12 +455,26 @@ async fn main() -> Result<()> {
                                     .await?;
                                     write_json_output(out_path, &pkg)?;
                                 }
+                                let mut ref_summary = None;
+                                if let Some(ref_path) = &reference_out
+                                    && (once || !ref_path.exists())
+                                {
+                                    ref_summary = Some(
+                                        zaturo_worker::mercadolivre::sync_reference_catalog(
+                                            &config.hub_url,
+                                            &token,
+                                            ref_path,
+                                        )
+                                        .await?,
+                                    );
+                                }
                                 if once {
                                     println!(
                                         "{}",
                                         serde_json::to_string_pretty(&serde_json::json!({
                                             "status": "unchanged",
                                             "input": input.display().to_string(),
+                                            "reference_sync": ref_summary,
                                         }))?
                                     );
                                 }
@@ -430,6 +496,16 @@ async fn main() -> Result<()> {
                     }
                 }
             }
+            Commerce::SyncReference { output } => {
+                let summary = zaturo_worker::mercadolivre::sync_reference_catalog(
+                    &config.hub_url,
+                    &token,
+                    &output,
+                )
+                .await?;
+                println!("{}", serde_json::to_string_pretty(&summary)?);
+            }
+            Commerce::QueryReference { .. } => unreachable!(),
         },
         Command::Android { command } => {
             let android = config

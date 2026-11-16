@@ -39,4 +39,6 @@ actions. Explicit general computer tasks retain their separate bounded native gr
 
 `mercadolivre.rs` owns `Engine::ingest_mercadolivre_batch` (idempotency-key + SHA-256
 conflict detection and non-sensitive activity notice emission), `mercadolivre_site_catalog`,
-`mercadolivre_telegram_queue`, and `ack_mercadolivre_telegram_delivery`.
+`mercadolivre_reference_catalog` (precompiled ETag-cached `CommerceReferenceCatalog` with
+30d price trends and Telegram stats), `mercadolivre_telegram_queue`, and
+`ack_mercadolivre_telegram_delivery` (invalidating warm cache on delivery ack).

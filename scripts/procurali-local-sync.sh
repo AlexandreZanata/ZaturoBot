@@ -13,13 +13,17 @@ CATEGORY="hardware-e-perifericos"
 CHANNEL="@procurali"
 POLL_SECONDS=5
 MODE="once"
+QUERY_REF=""
+PRODUCT_ID=""
+REFRESH_REF=0
 
 usage() {
   cat <<'EOF'
-Uso: scripts/procurali-local-sync.sh [--once | --watch] [--input <products.json>] [--category <slug>] [--channel <@canal>] [--poll-seconds <n>]
+Uso: scripts/procurali-local-sync.sh [--once | --watch | --sync-reference | --query-ref <texto>] [--product-id <MLB...>] [--refresh] [--input <products.json>] [--category <slug>] [--channel <@canal>] [--poll-seconds <n>]
 
 Abre o túnel SSH restrito por chave física para a VPS e envia ofertas do bot local
 para o banco/Hub, disparando atualização do site, fila do Telegram e rascunhos do WhatsApp.
+Tambem sincroniza/consulta a base local rapida (`vps-reference.json`) com historico e resumo de precos.
 EOF
 }
 
@@ -31,6 +35,24 @@ while [ "$#" -gt 0 ]; do
       ;;
     --watch)
       MODE="watch"
+      shift
+      ;;
+    --sync-reference)
+      MODE="sync-ref"
+      shift
+      ;;
+    --query-ref)
+      MODE="query-ref"
+      QUERY_REF="${2:-}"
+      shift 2
+      ;;
+    --product-id)
+      MODE="query-ref"
+      PRODUCT_ID="${2:?missing --product-id value}"
+      shift 2
+      ;;
+    --refresh)
+      REFRESH_REF=1
       shift
       ;;
     --input)
@@ -67,6 +89,7 @@ TOKEN_FILE="$SECRETS_DIR/procurali-bot.token"
 CONFIG_FILE="$SECRETS_DIR/worker-local.toml"
 STATE_FILE="$SECRETS_DIR/last-products.sha256"
 WA_DRAFTS_FILE="$SECRETS_DIR/whatsapp-assisted-drafts.json"
+REF_FILE="$SECRETS_DIR/vps-reference.json"
 
 for required in "$KEY_FILE" "$KNOWN_HOSTS" "$TOKEN_FILE" "$CONFIG_FILE"; do
   if [ ! -f "$required" ]; then
@@ -82,6 +105,23 @@ elif [ -x "$REPO_ROOT/target/debug/zaturo-worker" ]; then
 else
   echo "Binário zaturo-worker não encontrado; compile com: cargo build --release -p zaturo-worker" >&2
   exit 1
+fi
+
+run_query_ref() {
+  local args=(--config "$CONFIG_FILE" commerce query-reference --file "$REF_FILE" --limit 20)
+  if [ -n "$QUERY_REF" ]; then
+    args+=(--query "$QUERY_REF")
+  fi
+  if [ -n "$PRODUCT_ID" ]; then
+    args+=(--product-id "$PRODUCT_ID")
+  fi
+  "$WORKER_BIN" "${args[@]}"
+}
+
+# Consulta puramente local em milissegundos quando a base em cache já existe (sem abrir SSH).
+if [ "$MODE" = "query-ref" ] && [ "$REFRESH_REF" -eq 0 ] && [ -f "$REF_FILE" ]; then
+  run_query_ref
+  exit 0
 fi
 
 LOCAL_HUB_PORT="${PROCURALI_LOCAL_HUB_PORT:-27878}"
@@ -130,6 +170,18 @@ fi
 
 export ZATURO_WORKER_TOKEN
 ZATURO_WORKER_TOKEN="$(tr -d '\r\n' < "$TOKEN_FILE")"
+
+if [ "$MODE" = "sync-ref" ]; then
+  "$WORKER_BIN" --config "$CONFIG_FILE" commerce sync-reference --output "$REF_FILE"
+  exit 0
+fi
+
+if [ "$MODE" = "query-ref" ]; then
+  "$WORKER_BIN" --config "$CONFIG_FILE" commerce sync-reference --output "$REF_FILE" >/dev/null
+  run_query_ref
+  exit 0
+fi
+
 SOURCE_BASE_DIR="$(dirname "$INPUT_FILE")"
 
 CMD=(
@@ -142,6 +194,7 @@ CMD=(
   --channel "$CHANNEL"
   --source-base-dir "$SOURCE_BASE_DIR"
   --whatsapp-drafts-out "$WA_DRAFTS_FILE"
+  --reference-out "$REF_FILE"
   --poll-seconds "$POLL_SECONDS"
 )
 if [ "$MODE" = "once" ]; then

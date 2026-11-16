@@ -5,13 +5,17 @@ use crate::{Error, Repository};
 use rusqlite::{OptionalExtension, params};
 use std::collections::{BTreeSet, HashMap};
 use zaturo_core::{
-    MercadoLivreIngestBatchRequest, MercadoLivreIngestReport, MercadoLivreProductState,
-    MercadoLivreSpec, MercadoLivreVariant, MinioProductImage, SiteCatalogCategory,
-    SiteCatalogEvidenceSource, SiteCatalogGalleryItem, SiteCatalogMediaRight, SiteCatalogOffer,
-    SiteCatalogPriceObservation, SiteCatalogSnapshot, TelegramDeliveryAck, TelegramDeliveryStatus,
-    TelegramOfferQueueItem, ValidatedMercadoLivreProduct, enrich_site_catalog_offer,
-    format_cuiaba_display, format_cuiaba_short, format_telegram_caption_pt_br, format_utc_iso_ms,
+    MercadoLivreIngestBatchRequest, MercadoLivreIngestReport, MercadoLivrePriceComparison,
+    MercadoLivreProductState, MercadoLivreSpec, MercadoLivreVariant, MinioProductImage,
+    PriceTrendKind, SiteCatalogCategory, SiteCatalogEvidenceSource, SiteCatalogGalleryItem,
+    SiteCatalogMediaRight, SiteCatalogOffer, SiteCatalogPriceObservation, SiteCatalogSnapshot,
+    TelegramDeliveryAck, TelegramDeliveryStatus, TelegramOfferQueueItem,
+    ValidatedMercadoLivreProduct, classify_product_subcategory, enrich_site_catalog_offer,
+    format_cuiaba_display, format_cuiaba_short, format_price_comparison_summary,
+    format_telegram_caption_with_price_history_pt_br, format_utc_iso_ms,
 };
+
+const THIRTY_DAYS_MS: i64 = 30 * 86_400_000;
 
 impl Repository<'_> {
     pub fn ml_batch_by_idempotency_key(
@@ -44,30 +48,13 @@ impl Repository<'_> {
             .iter()
             .map(|p| p.product_id.clone())
             .collect();
-        let telegram_queued_count = request
-            .products
-            .iter()
-            .filter(|p| p.state == MercadoLivreProductState::Approved)
-            .count();
-
-        let report = MercadoLivreIngestReport {
-            batch_id: batch_id.to_owned(),
-            worker_id: request.worker_id.clone(),
-            ingested_at_ms: now_ms,
-            product_count: request.products.len(),
-            image_count,
-            telegram_queued_count,
-            product_ids,
-            payload_sha256: payload_sha256.to_owned(),
-        };
-        let report_json = serde_json::to_string(&report)?;
 
         self.connection.execute(
             "INSERT INTO ml_ingest_batches(
                 batch_id, idempotency_key, worker_id, search_query, channel_id,
                 captured_at_ms, ingested_at_ms, product_count, image_count,
                 payload_sha256, report_json
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, '{}')",
             params![
                 batch_id,
                 idempotency_key,
@@ -78,14 +65,62 @@ impl Repository<'_> {
                 now_ms,
                 i64::try_from(request.products.len()).unwrap_or(i64::MAX),
                 i64::try_from(image_count).unwrap_or(i64::MAX),
-                payload_sha256,
-                report_json
+                payload_sha256
             ],
         )?;
 
+        let mut comparisons = Vec::with_capacity(request.products.len());
+        let mut telegram_queued_count = 0usize;
+        let mut new_product_count = 0usize;
+        let mut updated_product_count = 0usize;
+        let mut price_drop_count = 0usize;
+        let mut price_increase_count = 0usize;
+        let mut unchanged_price_count = 0usize;
+
         for product in &request.products {
-            self.upsert_ml_product(batch_id, &request.channel_id, product, now_ms)?;
+            let cmp = self.upsert_ml_product(batch_id, &request.channel_id, product, now_ms)?;
+            if cmp.telegram_enqueued {
+                telegram_queued_count += 1;
+            }
+            match cmp.trend {
+                PriceTrendKind::New => new_product_count += 1,
+                PriceTrendKind::Down => {
+                    updated_product_count += 1;
+                    price_drop_count += 1;
+                }
+                PriceTrendKind::Up => {
+                    updated_product_count += 1;
+                    price_increase_count += 1;
+                }
+                PriceTrendKind::Stable => {
+                    updated_product_count += 1;
+                    unchanged_price_count += 1;
+                }
+            }
+            comparisons.push(cmp);
         }
+
+        let report = MercadoLivreIngestReport {
+            batch_id: batch_id.to_owned(),
+            worker_id: request.worker_id.clone(),
+            ingested_at_ms: now_ms,
+            product_count: request.products.len(),
+            image_count,
+            telegram_queued_count,
+            product_ids,
+            payload_sha256: payload_sha256.to_owned(),
+            new_product_count,
+            updated_product_count,
+            price_drop_count,
+            price_increase_count,
+            unchanged_price_count,
+            comparisons,
+        };
+        let report_json = serde_json::to_string(&report)?;
+        self.connection.execute(
+            "UPDATE ml_ingest_batches SET report_json = ?2 WHERE batch_id = ?1",
+            params![batch_id, report_json],
+        )?;
 
         Ok(report)
     }
@@ -96,7 +131,17 @@ impl Repository<'_> {
         channel_id: &str,
         product: &ValidatedMercadoLivreProduct,
         now_ms: i64,
-    ) -> Result<(), Error> {
+    ) -> Result<MercadoLivrePriceComparison, Error> {
+        let previous_eff_cents: Option<i64> = self
+            .connection
+            .query_row(
+                "SELECT MIN(pix_price_cents, price_brl_cents)
+                 FROM ml_offers
+                 WHERE product_id = ?1 AND is_current = 1",
+                [&product.product_id],
+                |r| r.get(0),
+            )
+            .optional()?;
         self.connection.execute(
             "INSERT INTO ml_products(
                 product_id, slug, title, brand, model, exact_variant, category_slug,
@@ -287,34 +332,149 @@ impl Repository<'_> {
             )?;
         }
 
+        let cur_eff = product.pix_price_cents.min(product.price_brl_cents);
+        let (subcategory_slug, _) =
+            classify_product_subcategory(&product.title, &product.category_slug, &product.specs);
+        let (lowest_30d_raw, average_price_30d_cents, highest_30d_raw, observation_count) =
+            self.ml_product_30d_stats(&product.product_id, cur_eff)?;
+        let lowest_price_30d_cents = lowest_30d_raw.min(cur_eff);
+        let highest_price_30d_cents = product
+            .reference_price_cents
+            .filter(|r| *r > 0)
+            .map_or(highest_30d_raw.max(cur_eff), |r| {
+                highest_30d_raw.max(cur_eff).max(r)
+            });
+        let (trend, price_delta_cents, price_delta_pct) =
+            PriceTrendKind::from_prices(cur_eff, previous_eff_cents);
+        let summary = format_price_comparison_summary(
+            cur_eff,
+            previous_eff_cents,
+            lowest_price_30d_cents,
+            average_price_30d_cents,
+            observation_count,
+            trend,
+            price_delta_pct,
+        );
+
+        let mut comparison = MercadoLivrePriceComparison {
+            product_id: product.product_id.clone(),
+            title: product.title.clone(),
+            category_slug: product.category_slug.clone(),
+            subcategory_slug,
+            current_price_cents: cur_eff,
+            pix_price_cents: product.pix_price_cents,
+            previous_price_cents: previous_eff_cents,
+            price_delta_cents,
+            price_delta_pct,
+            lowest_price_30d_cents,
+            average_price_30d_cents,
+            highest_price_30d_cents,
+            observation_count,
+            trend,
+            telegram_enqueued: false,
+            summary,
+        };
+
         if product.state == MercadoLivreProductState::Approved {
             let lead = product
                 .images
                 .iter()
                 .find(|img| matches!(img.content_type.as_str(), "image/jpeg" | "image/png"))
                 .unwrap_or(&product.images[0]);
-            let delivery_id = format!("tg-{}-{}", product.product_id, batch_id);
-            let message_text = format_telegram_caption_pt_br(product);
-            self.connection.execute(
-                "INSERT INTO ml_telegram_deliveries(
-                    delivery_id, product_id, offer_id, channel_id, message_text,
-                    image_public_url, image_object_key, status, external_message_id,
-                    error_code, created_at_ms, updated_at_ms, published_at_ms
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'queued', NULL, NULL, ?8, ?8, NULL)",
-                params![
-                    delivery_id,
-                    product.product_id,
-                    offer_id,
-                    channel_id,
-                    message_text,
-                    lead.public_url,
-                    lead.object_key,
-                    now_ms
-                ],
-            )?;
+            let message_text =
+                format_telegram_caption_with_price_history_pt_br(product, Some(&comparison));
+
+            let existing_queued: Option<(String, i64)> = self
+                .connection
+                .query_row(
+                    "SELECT d.delivery_id, MIN(o.pix_price_cents, o.price_brl_cents)
+                     FROM ml_telegram_deliveries d
+                     JOIN ml_offers o ON o.id = d.offer_id
+                     WHERE d.product_id = ?1 AND d.channel_id = ?2 AND d.status = 'queued'
+                     ORDER BY d.updated_at_ms DESC, d.created_at_ms DESC
+                     LIMIT 1",
+                    params![product.product_id, channel_id],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .optional()?;
+
+            if let Some((queued_id, queued_eff)) = existing_queued {
+                if cur_eff == queued_eff {
+                    self.connection.execute(
+                        "UPDATE ml_telegram_deliveries
+                         SET offer_id = ?2,
+                             image_public_url = ?3,
+                             image_object_key = ?4,
+                             updated_at_ms = ?5
+                         WHERE delivery_id = ?1",
+                        params![
+                            queued_id,
+                            offer_id,
+                            lead.public_url,
+                            lead.object_key,
+                            now_ms
+                        ],
+                    )?;
+                } else {
+                    self.connection.execute(
+                        "UPDATE ml_telegram_deliveries
+                         SET offer_id = ?2,
+                             message_text = ?3,
+                             image_public_url = ?4,
+                             image_object_key = ?5,
+                             updated_at_ms = ?6
+                         WHERE delivery_id = ?1",
+                        params![
+                            queued_id,
+                            offer_id,
+                            message_text,
+                            lead.public_url,
+                            lead.object_key,
+                            now_ms
+                        ],
+                    )?;
+                }
+                comparison.telegram_enqueued = cur_eff < queued_eff;
+            } else {
+                let last_published_eff: Option<i64> = self
+                    .connection
+                    .query_row(
+                        "SELECT MIN(o.pix_price_cents, o.price_brl_cents)
+                         FROM ml_telegram_deliveries d
+                         JOIN ml_offers o ON o.id = d.offer_id
+                         WHERE d.product_id = ?1 AND d.channel_id = ?2 AND d.status = 'published'
+                         ORDER BY COALESCE(d.published_at_ms, d.updated_at_ms) DESC, d.created_at_ms DESC
+                         LIMIT 1",
+                        params![product.product_id, channel_id],
+                        |r| r.get(0),
+                    )
+                    .optional()?;
+
+                if last_published_eff.is_none_or(|prev_pub| cur_eff < prev_pub) {
+                    let delivery_id = format!("tg-{}-{}", product.product_id, batch_id);
+                    self.connection.execute(
+                        "INSERT INTO ml_telegram_deliveries(
+                            delivery_id, product_id, offer_id, channel_id, message_text,
+                            image_public_url, image_object_key, status, external_message_id,
+                            error_code, created_at_ms, updated_at_ms, published_at_ms
+                        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'queued', NULL, NULL, ?8, ?8, NULL)",
+                        params![
+                            delivery_id,
+                            product.product_id,
+                            offer_id,
+                            channel_id,
+                            message_text,
+                            lead.public_url,
+                            lead.object_key,
+                            now_ms
+                        ],
+                    )?;
+                    comparison.telegram_enqueued = true;
+                }
+            }
         }
 
-        Ok(())
+        Ok(comparison)
     }
 
     pub fn ml_site_catalog(&self, now_ms: i64) -> Result<SiteCatalogSnapshot, Error> {
@@ -763,15 +923,57 @@ impl Repository<'_> {
         Ok(map)
     }
 
+    fn ml_product_30d_stats(
+        &self,
+        product_id: &str,
+        fallback_price_cents: i64,
+    ) -> Result<(i64, i64, i64, usize), Error> {
+        let mut stmt = self.connection.prepare(
+            "SELECT MIN(pix_price_cents, price_brl_cents), observed_at_ms
+             FROM ml_offers
+             WHERE product_id = ?1
+             ORDER BY observed_at_ms DESC, created_at_ms DESC, id DESC",
+        )?;
+        let rows = stmt.query_map([product_id], |r| {
+            Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?))
+        })?;
+        let mut dedup = ThirtyDayDedupState::default();
+        let mut min_cents = i64::MAX;
+        let mut max_cents = i64::MIN;
+        let mut sum: i128 = 0;
+        let mut count = 0usize;
+        for row in rows {
+            let (eff_cents, observed_at_ms) = row?;
+            if eff_cents <= 0 || !dedup.accept(eff_cents, observed_at_ms) {
+                continue;
+            }
+            min_cents = min_cents.min(eff_cents);
+            max_cents = max_cents.max(eff_cents);
+            sum += i128::from(eff_cents);
+            count += 1;
+        }
+        if count == 0 {
+            return Ok((
+                fallback_price_cents,
+                fallback_price_cents,
+                fallback_price_cents,
+                1,
+            ));
+        }
+        let avg_cents =
+            i64::try_from(sum / i128::try_from(count).unwrap_or(1)).unwrap_or(fallback_price_cents);
+        Ok((min_cents, avg_cents, max_cents, count))
+    }
+
     fn ml_all_recent_price_observations(
         &self,
     ) -> Result<HashMap<String, Vec<SiteCatalogPriceObservation>>, Error> {
         let mut stmt = self.connection.prepare(
             "SELECT o.product_id, p.seller_name, o.id, o.payment_conditions, o.short_condition,
-                    o.price_brl_cents, o.observed_at_ms
+                    MIN(o.pix_price_cents, o.price_brl_cents), o.observed_at_ms
              FROM ml_offers o
              JOIN ml_products p ON p.product_id = o.product_id
-             ORDER BY o.product_id ASC, o.observed_at_ms DESC, o.id DESC",
+             ORDER BY o.product_id ASC, o.observed_at_ms DESC, o.created_at_ms DESC, o.id DESC",
         )?;
         let rows = stmt.query_map([], |r| {
             Ok((
@@ -785,6 +987,7 @@ impl Repository<'_> {
             ))
         })?;
         let mut map: HashMap<String, Vec<SiteCatalogPriceObservation>> = HashMap::new();
+        let mut dedup_by_product: HashMap<String, ThirtyDayDedupState> = HashMap::new();
         for row in rows {
             let (
                 product_id,
@@ -792,13 +995,14 @@ impl Repository<'_> {
                 id,
                 payment_basis,
                 freight_note,
-                price_brl_cents,
+                eff_price_cents,
                 observed_at_ms,
             ) = row?;
-            let list = map.entry(product_id.clone()).or_default();
-            if list.len() >= 30 {
+            let state = dedup_by_product.entry(product_id.clone()).or_default();
+            if !state.accept(eff_price_cents, observed_at_ms) {
                 continue;
             }
+            let list = map.entry(product_id.clone()).or_default();
             list.push(SiteCatalogPriceObservation {
                 id,
                 offer_id: format!("offer-ml-{product_id}"),
@@ -806,7 +1010,7 @@ impl Repository<'_> {
                 seller_name,
                 payment_basis,
                 freight_note,
-                price_brl_cents,
+                price_brl_cents: eff_price_cents,
                 observed_at: format_utc_iso_ms(observed_at_ms),
                 evidence_id: format!("ev-ml-{product_id}"),
             });
@@ -947,6 +1151,57 @@ impl Repository<'_> {
         Ok(items
             .into_iter()
             .find(|item| item.delivery_id == delivery_id))
+    }
+
+    pub fn ml_telegram_product_stats(
+        &self,
+    ) -> Result<HashMap<String, (u32, Option<String>)>, Error> {
+        let mut stmt = self.connection.prepare(
+            "SELECT product_id, status
+             FROM ml_telegram_deliveries
+             ORDER BY product_id ASC, updated_at_ms DESC, created_at_ms DESC, delivery_id DESC",
+        )?;
+        let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+        let mut stats: HashMap<String, (u32, Option<String>)> = HashMap::new();
+        for row in rows {
+            let (pid, status) = row?;
+            let entry = stats.entry(pid).or_insert((0, None));
+            if entry.1.is_none() {
+                entry.1 = Some(status.clone());
+            }
+            if status == "published" {
+                entry.0 = entry.0.saturating_add(1);
+            }
+        }
+        Ok(stats)
+    }
+}
+
+#[derive(Default)]
+struct ThirtyDayDedupState {
+    cutoff_ms: Option<i64>,
+    last_kept: Option<(i64, i64)>,
+    kept_count: usize,
+}
+
+impl ThirtyDayDedupState {
+    fn accept(&mut self, price_cents: i64, observed_at_ms: i64) -> bool {
+        if self.kept_count >= 30 {
+            return false;
+        }
+        let cutoff = *self
+            .cutoff_ms
+            .get_or_insert_with(|| observed_at_ms.saturating_sub(THIRTY_DAYS_MS));
+        if observed_at_ms < cutoff {
+            return false;
+        }
+        let day_utc = observed_at_ms.div_euclid(86_400_000);
+        if self.last_kept == Some((price_cents, day_utc)) {
+            return false;
+        }
+        self.last_kept = Some((price_cents, day_utc));
+        self.kept_count += 1;
+        true
     }
 }
 
@@ -1173,5 +1428,172 @@ mod tests {
             .unwrap();
         assert_eq!(updated.status, TelegramDeliveryStatus::Published);
         assert_eq!(updated.external_message_id.as_deref(), Some("98765"));
+    }
+
+    #[test]
+    fn tracks_price_history_comparisons_30d_dedup_and_smart_telegram_alerts() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = HubStore::open(dir.path().join("hub.db")).unwrap();
+        let day1 = 1_763_200_000_000i64;
+
+        let make_req = |price_cents: i64, ts: i64| -> MercadoLivreIngestBatchRequest {
+            let mut p = sample_product("MLB63816534", "delux-m900pro-mlb63816534", price_cents);
+            p.observed_at_ms = ts;
+            let req = MercadoLivreIngestBatchRequest {
+                worker_id: "worker-ml".into(),
+                search_query: "mouse gamer".into(),
+                channel_id: "@procurali".into(),
+                captured_at_ms: ts,
+                products: vec![p],
+            };
+            req.validates().unwrap();
+            req
+        };
+
+        // 1. Initial capture -> New + queued to Telegram
+        let r1 = store
+            .transaction(|repo| {
+                repo.save_ml_ingest_batch(
+                    "b1",
+                    "i1",
+                    &"1".repeat(64),
+                    &make_req(29_900, day1),
+                    day1,
+                )
+            })
+            .unwrap();
+        assert_eq!(r1.new_product_count, 1);
+        assert_eq!(r1.telegram_queued_count, 1);
+        assert_eq!(r1.comparisons[0].trend, PriceTrendKind::New);
+        assert!(r1.comparisons[0].telegram_enqueued);
+
+        let q1 = store
+            .read(|repo| {
+                repo.ml_telegram_queue(Some("@procurali"), Some(TelegramDeliveryStatus::Queued), 10)
+            })
+            .unwrap();
+        assert_eq!(q1.len(), 1);
+        store
+            .transaction(|repo| {
+                repo.ack_ml_telegram_delivery(
+                    &q1[0].delivery_id,
+                    &TelegramDeliveryAck {
+                        status: TelegramDeliveryStatus::Published,
+                        external_message_id: Some("101".into()),
+                        error_code: None,
+                    },
+                    day1 + 60_000,
+                )
+            })
+            .unwrap()
+            .unwrap();
+
+        // 2. Same-day identical price -> Stable, NOT re-queued, collapsed in 30d series
+        let same_day = day1 + 3_600_000;
+        let r2 = store
+            .transaction(|repo| {
+                repo.save_ml_ingest_batch(
+                    "b2",
+                    "i2",
+                    &"2".repeat(64),
+                    &make_req(29_900, same_day),
+                    same_day,
+                )
+            })
+            .unwrap();
+        assert_eq!(r2.unchanged_price_count, 1);
+        assert_eq!(r2.telegram_queued_count, 0);
+        assert_eq!(r2.comparisons[0].trend, PriceTrendKind::Stable);
+        assert!(!r2.comparisons[0].telegram_enqueued);
+        assert_eq!(r2.comparisons[0].observation_count, 1);
+
+        let cat2 = store.read(|repo| repo.ml_site_catalog(same_day)).unwrap();
+        assert_eq!(cat2.offers[0].price_observations.len(), 1);
+
+        // 3. Next-day price drop -> Down, enqueues Telegram price-drop alert, updates 30d min/avg
+        let day2 = day1 + 86_400_000;
+        let r3 = store
+            .transaction(|repo| {
+                repo.save_ml_ingest_batch(
+                    "b3",
+                    "i3",
+                    &"3".repeat(64),
+                    &make_req(24_900, day2),
+                    day2,
+                )
+            })
+            .unwrap();
+        assert_eq!(r3.price_drop_count, 1);
+        assert_eq!(r3.telegram_queued_count, 1);
+        assert_eq!(r3.comparisons[0].trend, PriceTrendKind::Down);
+        assert_eq!(r3.comparisons[0].previous_price_cents, Some(29_900));
+        assert_eq!(r3.comparisons[0].price_delta_cents, -5_000);
+        assert_eq!(r3.comparisons[0].lowest_price_30d_cents, 24_900);
+        assert_eq!(r3.comparisons[0].average_price_30d_cents, 27_400);
+        assert_eq!(r3.comparisons[0].observation_count, 2);
+
+        // Repeating same dropped price while still queued must update in-place without stacking duplicates
+        let day2b = day2 + 600_000;
+        let r3b = store
+            .transaction(|repo| {
+                repo.save_ml_ingest_batch(
+                    "b3b",
+                    "i3b",
+                    &"4".repeat(64),
+                    &make_req(24_900, day2b),
+                    day2b,
+                )
+            })
+            .unwrap();
+        assert_eq!(r3b.telegram_queued_count, 0);
+        let q_drop = store
+            .read(|repo| {
+                repo.ml_telegram_queue(Some("@procurali"), Some(TelegramDeliveryStatus::Queued), 10)
+            })
+            .unwrap();
+        assert_eq!(q_drop.len(), 1);
+        assert!(q_drop[0].message_text.contains("📉 BAIXOU DE PREÇO"));
+
+        store
+            .transaction(|repo| {
+                repo.ack_ml_telegram_delivery(
+                    &q_drop[0].delivery_id,
+                    &TelegramDeliveryAck {
+                        status: TelegramDeliveryStatus::Published,
+                        external_message_id: Some("102".into()),
+                        error_code: None,
+                    },
+                    day2b + 60_000,
+                )
+            })
+            .unwrap()
+            .unwrap();
+
+        // 4. Later price increase -> Up, recorded in history, NOT re-queued
+        let day3 = day1 + 2 * 86_400_000;
+        let r4 = store
+            .transaction(|repo| {
+                repo.save_ml_ingest_batch(
+                    "b4",
+                    "i4",
+                    &"5".repeat(64),
+                    &make_req(27_900, day3),
+                    day3,
+                )
+            })
+            .unwrap();
+        assert_eq!(r4.price_increase_count, 1);
+        assert_eq!(r4.telegram_queued_count, 0);
+        assert_eq!(r4.comparisons[0].trend, PriceTrendKind::Up);
+        assert_eq!(r4.comparisons[0].price_delta_cents, 3_000);
+        assert_eq!(r4.comparisons[0].observation_count, 3);
+
+        let cat4 = store.read(|repo| repo.ml_site_catalog(day3)).unwrap();
+        assert_eq!(cat4.offers[0].price_observations.len(), 3);
+        let stats = store.read(|repo| repo.ml_telegram_product_stats()).unwrap();
+        assert_eq!(
+            stats.get("MLB63816534"),
+            Some(&(2u32, Some("published".to_string())))
+        );
     }
 }

@@ -10,15 +10,16 @@ use std::{
     time::Duration,
 };
 use zaturo_core::{
-    DEFAULT_ML_FRESHNESS_TTL_MINUTES, MAX_ML_BATCH_PRODUCTS, MAX_ML_IMAGES_PER_PRODUCT,
-    MAX_ML_SPECS_PER_PRODUCT, MAX_ML_VARIANTS_PER_PRODUCT, MercadoLivreBotBatch,
-    MercadoLivreBotProduct, MercadoLivreIngestBatchRequest, MercadoLivreIngestReport,
-    MercadoLivreProductState, MercadoLivreSpec, MercadoLivreVariant, MinioProductImage,
-    ValidatedMercadoLivreProduct, extract_product_id_from_url, format_brl_cents,
-    no_local_path_leak, parse_brl_amount_cents, parse_card_text, parse_commission_bp,
-    parse_iso_to_ms, parse_jsonld_variant, parse_price_value_cents, slugify_pt_br, valid_slug,
-    valid_telegram_channel, validate_asset_public_url, validate_meli_share_link,
-    validate_ml_canonical_url, validate_ml_product_id, validate_ml_share_id,
+    CommerceReferenceCatalog, CommerceReferenceItem, DEFAULT_ML_FRESHNESS_TTL_MINUTES,
+    MAX_ML_BATCH_PRODUCTS, MAX_ML_IMAGES_PER_PRODUCT, MAX_ML_SPECS_PER_PRODUCT,
+    MAX_ML_VARIANTS_PER_PRODUCT, MercadoLivreBotBatch, MercadoLivreBotProduct,
+    MercadoLivreIngestBatchRequest, MercadoLivreIngestReport, MercadoLivreProductState,
+    MercadoLivreSpec, MercadoLivreVariant, MinioProductImage, ValidatedMercadoLivreProduct,
+    extract_product_id_from_url, format_brl_cents, no_local_path_leak, parse_brl_amount_cents,
+    parse_card_text, parse_commission_bp, parse_iso_to_ms, parse_jsonld_variant,
+    parse_price_value_cents, slugify_pt_br, valid_slug, valid_telegram_channel,
+    validate_asset_public_url, validate_meli_share_link, validate_ml_canonical_url,
+    validate_ml_product_id, validate_ml_share_id,
 };
 use zaturo_transfer::minio::{
     InspectedImage, MinioClient, inspect_image_bytes, read_image_file, sha256_hex,
@@ -241,6 +242,192 @@ pub async fn ingest_file_if_changed(
     std::fs::write(&tmp_path, format!("{digest}\n"))?;
     std::fs::rename(&tmp_path, state_file)?;
     Ok(Some(report))
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+pub struct ReferenceSyncSummary {
+    pub status: String,
+    pub etag: Option<String>,
+    pub cache_generation: u64,
+    pub total_products: usize,
+    pub output_path: String,
+}
+
+fn write_atomic_private(path: &Path, bytes: &[u8]) -> Result<()> {
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+    let tmp = path.with_extension("tmp");
+    std::fs::write(&tmp, bytes)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600))?;
+    }
+    std::fs::rename(&tmp, path)?;
+    Ok(())
+}
+
+/// Fetches the compact VPS product/price-trend reference catalog using ETag conditional GET
+/// (`If-None-Match` -> `304 Not Modified`) and writes `output_path` atomically for fast local lookup.
+pub async fn sync_reference_catalog(
+    hub_url: &str,
+    worker_token: &str,
+    output_path: &Path,
+) -> Result<ReferenceSyncSummary> {
+    zaturo_security::validate_endpoint(hub_url)?;
+    zaturo_security::Credential::new(worker_token)?;
+
+    let etag_path = output_path.with_extension("etag");
+    let cached_etag = if output_path.exists() {
+        std::fs::read_to_string(&etag_path)
+            .ok()
+            .map(|s| s.trim().to_owned())
+            .filter(|s| !s.is_empty())
+    } else {
+        None
+    };
+
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(30))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?;
+    let url = format!(
+        "{}/v1/device/commerce/mercadolivre/reference-catalog",
+        hub_url.trim_end_matches('/')
+    );
+    let mut req = client.get(&url).bearer_auth(worker_token);
+    if let Some(ref etag) = cached_etag {
+        req = req.header(reqwest::header::IF_NONE_MATCH, etag);
+    }
+
+    let response = req
+        .send()
+        .await
+        .context("failed connecting to Hub reference-catalog endpoint")?;
+    let status = response.status();
+    if status == reqwest::StatusCode::NOT_MODIFIED {
+        let existing_bytes = std::fs::read(output_path)
+            .with_context(|| format!("missing cached reference file {}", output_path.display()))?;
+        let existing: CommerceReferenceCatalog = serde_json::from_slice(&existing_bytes)
+            .context("cached local reference JSON is invalid")?;
+        return Ok(ReferenceSyncSummary {
+            status: "not_modified".into(),
+            etag: cached_etag,
+            cache_generation: existing.cache_generation,
+            total_products: existing.total_products,
+            output_path: output_path.display().to_string(),
+        });
+    }
+    if !status.is_success() {
+        let snippet = response.text().await.unwrap_or_default();
+        bail!(
+            "Hub rejected reference-catalog sync with HTTP {} ({})",
+            status.as_u16(),
+            truncate_utf8(&snippet, 200)
+        );
+    }
+
+    let new_etag = response
+        .headers()
+        .get(reqwest::header::ETAG)
+        .and_then(|v| v.to_str().ok())
+        .map(ToOwned::to_owned);
+    let body = response
+        .bytes()
+        .await
+        .context("failed reading Hub reference-catalog response body")?;
+    let catalog: CommerceReferenceCatalog = serde_json::from_slice(&body)
+        .context("invalid CommerceReferenceCatalog JSON returned by Hub")?;
+
+    write_atomic_private(output_path, &body)?;
+    if let Some(ref etag) = new_etag {
+        write_atomic_private(&etag_path, format!("{etag}\n").as_bytes())?;
+    }
+
+    Ok(ReferenceSyncSummary {
+        status: "updated".into(),
+        etag: new_etag,
+        cache_generation: catalog.cache_generation,
+        total_products: catalog.total_products,
+        output_path: output_path.display().to_string(),
+    })
+}
+
+/// Queries the locally cached `vps-reference.json` file in milliseconds with zero network round-trips.
+pub fn load_and_query_reference_catalog(
+    reference_path: &Path,
+    query: Option<&str>,
+    product_id: Option<&str>,
+    category: Option<&str>,
+    limit: usize,
+) -> Result<Vec<CommerceReferenceItem>> {
+    let raw = std::fs::read(reference_path).with_context(|| {
+        format!(
+            "failed reading local reference file {}",
+            reference_path.display()
+        )
+    })?;
+    let catalog: CommerceReferenceCatalog = serde_json::from_slice(&raw).with_context(|| {
+        format!(
+            "invalid reference catalog JSON in {}",
+            reference_path.display()
+        )
+    })?;
+
+    let target_pid = product_id
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_ascii_uppercase);
+    let target_cat = category
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_ascii_lowercase);
+    let tokens: Vec<String> = query
+        .unwrap_or_default()
+        .split_whitespace()
+        .map(str::to_ascii_lowercase)
+        .filter(|t| !t.is_empty())
+        .collect();
+
+    let cap = limit.max(1);
+    let mut matches = Vec::new();
+    for item in catalog.items {
+        if let Some(ref pid) = target_pid
+            && item.product_id.to_ascii_uppercase() != *pid
+        {
+            continue;
+        }
+        if let Some(ref cat) = target_cat
+            && item.category_slug.to_ascii_lowercase() != *cat
+            && item.subcategory_slug.to_ascii_lowercase() != *cat
+        {
+            continue;
+        }
+        if !tokens.is_empty() {
+            let haystack = format!(
+                "{} {} {} {} {} {}",
+                item.product_id,
+                item.title,
+                item.brand,
+                item.category_slug,
+                item.subcategory_slug,
+                item.short_summary
+            )
+            .to_ascii_lowercase();
+            if !tokens.iter().all(|tok| haystack.contains(tok)) {
+                continue;
+            }
+        }
+        matches.push(item);
+        if matches.len() >= cap {
+            break;
+        }
+    }
+    Ok(matches)
 }
 
 async fn normalize_and_upload_product(
@@ -1673,5 +1860,82 @@ mod tests {
         .unwrap()
         .expect("modified batch must ingest again");
         assert_eq!(third.product_count, 1);
+    }
+
+    #[tokio::test]
+    async fn sync_reference_catalog_supports_304_cache_and_fast_local_queries() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let photos_dir = root.join("photos");
+        fs::create_dir_all(&photos_dir).unwrap();
+        fs::write(photos_dir.join("item.png"), valid_png_bytes(800, 800)).unwrap();
+
+        let (worker_cfg, _minio_srv, _hub_srv) = spawn_watch_test_backends(root).await;
+        let input_path = root.join("products.json");
+        let ref_path = root.join("state/vps-reference.json");
+
+        let batch = json!({
+            "network": "mercadolivre_afiliados",
+            "query": "mouse gamer",
+            "captured_at": "2026-11-16T12:00:00Z",
+            "products": [{
+                "product_id": "MLB63816534",
+                "title": "Delux M900pro Mouse Gamer Sem Fio 8000Hz",
+                "canonical_url": "https://www.mercadolivre.com.br/delux-m900pro/p/MLB63816534",
+                "share_link": "https://meli.la/31tuNW3",
+                "price": 299.86,
+                "currency": "BRL",
+                "brand": "Delux",
+                "seller": "Delux Official",
+                "photos": ["photos/item.png"]
+            }]
+        });
+        fs::write(&input_path, serde_json::to_vec(&batch).unwrap()).unwrap();
+        let opts = BatchIngestOptions {
+            worker_id: "worker-ml".into(),
+            default_category_slug: "hardware-e-perifericos".into(),
+            channel_id: "@procurali".into(),
+            now_ms: 1_763_300_000_000,
+        };
+        ingest_file_to_hub(
+            &worker_cfg,
+            DEVICE,
+            &input_path,
+            &opts,
+            Some("ref-sync-1"),
+            Some(root),
+        )
+        .await
+        .unwrap();
+
+        let sync1 = sync_reference_catalog(&worker_cfg.hub_url, DEVICE, &ref_path)
+            .await
+            .unwrap();
+        assert_eq!(sync1.status, "updated");
+        assert_eq!(sync1.total_products, 1);
+        assert!(sync1.etag.is_some());
+
+        let sync2 = sync_reference_catalog(&worker_cfg.hub_url, DEVICE, &ref_path)
+            .await
+            .unwrap();
+        assert_eq!(sync2.status, "not_modified");
+        assert_eq!(sync2.total_products, 1);
+
+        let hits = load_and_query_reference_catalog(
+            &ref_path,
+            Some("delux m900pro"),
+            None,
+            Some("hardware-e-perifericos"),
+            10,
+        )
+        .unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].product_id, "MLB63816534");
+        assert_eq!(hits[0].current_price_cents, 29_986);
+
+        let by_id =
+            load_and_query_reference_catalog(&ref_path, None, Some("mlb63816534"), None, 10)
+                .unwrap();
+        assert_eq!(by_id.len(), 1);
     }
 }

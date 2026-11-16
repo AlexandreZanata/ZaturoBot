@@ -61,6 +61,10 @@ pub fn router(state: AppState) -> Router<AppState> {
             post(device_ingest).layer(DefaultBodyLimit::max(MAX_INGEST_BODY_BYTES)),
         )
         .route(
+            "/v1/device/commerce/mercadolivre/reference-catalog",
+            get(device_reference_catalog),
+        )
+        .route(
             "/v1/commerce/mercadolivre/telegram-queue",
             get(telegram_queue),
         )
@@ -307,6 +311,21 @@ async fn site_catalog(
         &index.etag,
         index.generation,
         index.snapshot_json.clone(),
+        started,
+    ))
+}
+
+async fn device_reference_catalog(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Response, ApiFailure> {
+    let started = Instant::now();
+    let index = warm_or_load_index(&state).await?;
+    Ok(cached_json_response(
+        &headers,
+        &index.reference_etag,
+        index.generation,
+        index.reference_catalog_json.clone(),
         started,
     ))
 }
@@ -1060,5 +1079,125 @@ mod tests {
             rps > min_rps,
             "expected > {min_rps:.0} req/s warm throughput, got {rps:.1}"
         );
+    }
+
+    #[tokio::test]
+    async fn device_reference_catalog_supports_etag_304_and_tracks_price_drops() {
+        let hub = spawn_test_hub().await;
+        let client = reqwest::Client::new();
+        let ref_url = format!(
+            "{}/v1/device/commerce/mercadolivre/reference-catalog",
+            hub.base
+        );
+
+        // Unauthenticated or READ_APP token must be rejected on device route.
+        let unauth = client.get(&ref_url).send().await.unwrap();
+        assert_eq!(unauth.status(), StatusCode::UNAUTHORIZED);
+        let wrong_token = client
+            .get(&ref_url)
+            .bearer_auth(READ_APP)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(wrong_token.status(), StatusCode::UNAUTHORIZED);
+
+        // Day 1 ingest with DEVICE token
+        let day1_ms = 1_763_200_000_000i64;
+        let mut p1 = large_product("MLB39410200", "ssd-nv3-ref-test-mlb39410200");
+        p1.price_brl_cents = 69_990;
+        p1.pix_price_cents = 69_990;
+        p1.observed_at_ms = day1_ms;
+        let ingest1 = client
+            .post(format!(
+                "{}/v1/device/commerce/mercadolivre/ingest",
+                hub.base
+            ))
+            .bearer_auth(DEVICE)
+            .header("Idempotency-Key", "ref-batch-1")
+            .json(&zaturo_core::MercadoLivreIngestBatchRequest {
+                worker_id: "worker-ml".into(),
+                search_query: "ssd".into(),
+                channel_id: "@procurali".into(),
+                captured_at_ms: day1_ms,
+                products: vec![p1],
+            })
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(ingest1.status(), StatusCode::OK);
+        let report1: zaturo_core::MercadoLivreIngestReport = ingest1.json().await.unwrap();
+        assert_eq!(report1.new_product_count, 1);
+
+        // Device fetches reference catalog and gets ETag + item summary
+        let resp1 = client
+            .get(&ref_url)
+            .bearer_auth(DEVICE)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp1.status(), StatusCode::OK);
+        let etag1 = resp1
+            .headers()
+            .get(ETAG)
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_owned();
+        let ref1: zaturo_core::CommerceReferenceCatalog = resp1.json().await.unwrap();
+        assert_eq!(ref1.total_products, 1);
+        assert_eq!(ref1.items[0].product_id, "MLB39410200");
+        assert_eq!(ref1.items[0].price_trend, zaturo_core::PriceTrendKind::New);
+
+        // Conditional If-None-Match returns 304 Not Modified without body
+        let not_modified = client
+            .get(&ref_url)
+            .bearer_auth(DEVICE)
+            .header(IF_NONE_MATCH, &etag1)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(not_modified.status(), StatusCode::NOT_MODIFIED);
+
+        // Day 2 ingest with lower price
+        let day2_ms = day1_ms + 86_400_000;
+        let mut p2 = large_product("MLB39410200", "ssd-nv3-ref-test-mlb39410200");
+        p2.price_brl_cents = 54_990;
+        p2.pix_price_cents = 54_990;
+        p2.observed_at_ms = day2_ms;
+        let ingest2 = client
+            .post(format!(
+                "{}/v1/device/commerce/mercadolivre/ingest",
+                hub.base
+            ))
+            .bearer_auth(DEVICE)
+            .header("Idempotency-Key", "ref-batch-2")
+            .json(&zaturo_core::MercadoLivreIngestBatchRequest {
+                worker_id: "worker-ml".into(),
+                search_query: "ssd".into(),
+                channel_id: "@procurali".into(),
+                captured_at_ms: day2_ms,
+                products: vec![p2],
+            })
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(ingest2.status(), StatusCode::OK);
+        let report2: zaturo_core::MercadoLivreIngestReport = ingest2.json().await.unwrap();
+        assert_eq!(report2.price_drop_count, 1);
+        assert_eq!(report2.comparisons[0].previous_price_cents, Some(69_990));
+        assert_eq!(report2.comparisons[0].price_delta_cents, -15_000);
+
+        let resp2 = client
+            .get(&ref_url)
+            .bearer_auth(DEVICE)
+            .header(IF_NONE_MATCH, &etag1)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp2.status(), StatusCode::OK);
+        let ref2: zaturo_core::CommerceReferenceCatalog = resp2.json().await.unwrap();
+        assert_eq!(ref2.items[0].price_trend, zaturo_core::PriceTrendKind::Down);
+        assert_eq!(ref2.items[0].previous_price_cents, Some(69_990));
+        assert!(ref2.items[0].short_summary.contains("Queda"));
     }
 }

@@ -504,6 +504,65 @@ impl MercadoLivreIngestBatchRequest {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum PriceTrendKind {
+    #[default]
+    New,
+    Down,
+    Up,
+    Stable,
+}
+
+impl PriceTrendKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::New => "new",
+            Self::Down => "down",
+            Self::Up => "up",
+            Self::Stable => "stable",
+        }
+    }
+
+    pub fn from_prices(current_cents: i64, previous_cents: Option<i64>) -> (Self, i64, i16) {
+        let Some(prev) = previous_cents.filter(|p| *p > 0) else {
+            return (Self::New, 0, 0);
+        };
+        let delta = current_cents - prev;
+        let pct = ((delta as f64 / prev as f64) * 100.0).round() as i16;
+        let kind = if delta < 0 {
+            Self::Down
+        } else if delta > 0 {
+            Self::Up
+        } else {
+            Self::Stable
+        };
+        (kind, delta, pct)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MercadoLivrePriceComparison {
+    pub product_id: String,
+    pub title: String,
+    pub category_slug: String,
+    pub subcategory_slug: String,
+    pub current_price_cents: i64,
+    pub pix_price_cents: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous_price_cents: Option<i64>,
+    pub price_delta_cents: i64,
+    pub price_delta_pct: i16,
+    pub lowest_price_30d_cents: i64,
+    pub average_price_30d_cents: i64,
+    pub highest_price_30d_cents: i64,
+    pub observation_count: usize,
+    pub trend: PriceTrendKind,
+    pub telegram_enqueued: bool,
+    pub summary: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MercadoLivreIngestReport {
@@ -515,6 +574,18 @@ pub struct MercadoLivreIngestReport {
     pub telegram_queued_count: usize,
     pub product_ids: Vec<String>,
     pub payload_sha256: String,
+    #[serde(default)]
+    pub new_product_count: usize,
+    #[serde(default)]
+    pub updated_product_count: usize,
+    #[serde(default)]
+    pub price_drop_count: usize,
+    #[serde(default)]
+    pub price_increase_count: usize,
+    #[serde(default)]
+    pub unchanged_price_count: usize,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub comparisons: Vec<MercadoLivrePriceComparison>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -615,6 +686,18 @@ pub struct PriceIntelligence {
     pub highest_price_30d_cents: i64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reference_price_cents: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous_price_cents: Option<i64>,
+    #[serde(default)]
+    pub price_delta_cents: i64,
+    #[serde(default)]
+    pub price_delta_pct: i16,
+    #[serde(default)]
+    pub observation_count: usize,
+    #[serde(default)]
+    pub price_trend: PriceTrendKind,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub first_observed_at_display: String,
     pub discount_pct: u8,
     pub savings_vs_reference_cents: i64,
     pub savings_vs_average_cents: i64,
@@ -630,6 +713,55 @@ pub struct PriceIntelligence {
 pub struct ProductFaqItem {
     pub question: String,
     pub answer: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommerceReferenceItem {
+    pub product_id: String,
+    pub slug: String,
+    pub title: String,
+    pub brand: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    pub exact_variant: String,
+    pub category_slug: String,
+    pub subcategory_slug: String,
+    pub seller_name: String,
+    pub state: String,
+    pub current_price_cents: i64,
+    pub pix_price_cents: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reference_price_cents: Option<i64>,
+    pub discount_pct: u8,
+    pub lowest_price_30d_cents: i64,
+    pub average_price_30d_cents: i64,
+    pub highest_price_30d_cents: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous_price_cents: Option<i64>,
+    pub price_delta_cents: i64,
+    pub price_delta_pct: i16,
+    pub observation_count: usize,
+    pub price_trend: PriceTrendKind,
+    pub price_level: PriceLevelKind,
+    pub price_level_label: String,
+    pub observed_at: String,
+    pub observed_at_ms: i64,
+    pub official_affiliate_url: String,
+    pub short_summary: String,
+    #[serde(default)]
+    pub telegram_published_count: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub telegram_last_status: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommerceReferenceCatalog {
+    pub generated_at: String,
+    pub cache_generation: u64,
+    pub total_products: usize,
+    pub items: Vec<CommerceReferenceItem>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1826,7 +1958,10 @@ pub fn format_telegram_html_caption_pt_br(
         if include_extra {
             for extra in item.message_text.lines().filter(|line| {
                 let t = line.trim();
-                t.starts_with("💳") || t.starts_with("🏪") || t.starts_with("⚠️")
+                t.starts_with("📉")
+                    || t.starts_with("💳")
+                    || t.starts_with("🏪")
+                    || t.starts_with("⚠️")
             }) {
                 lines.push(escape_telegram_html(&truncate_chars(extra.trim(), 140)));
             }
@@ -1931,7 +2066,7 @@ pub fn build_whatsapp_assisted_draft(
 
     for extra in item.message_text.lines().filter(|line| {
         let t = line.trim();
-        t.starts_with("💳") || t.starts_with("🏪") || t.starts_with("⚠️")
+        t.starts_with("📉") || t.starts_with("💳") || t.starts_with("🏪") || t.starts_with("⚠️")
     }) {
         lines.push(sanitize_whatsapp_inline(extra));
     }
@@ -1983,8 +2118,10 @@ pub fn build_whatsapp_assisted_package(
     site_base_url: Option<&str>,
     now_ms: i64,
 ) -> WhatsappAssistedPackage {
+    let mut seen_products = std::collections::HashSet::with_capacity(items.len());
     let drafts: Vec<WhatsappAssistedDraft> = items
         .iter()
+        .filter(|item| seen_products.insert(item.product_id.as_str()))
         .map(|item| build_whatsapp_assisted_draft(item, site_base_url))
         .collect();
 
@@ -2335,6 +2472,32 @@ pub fn format_telegram_caption_pt_br(product: &ValidatedMercadoLivreProduct) -> 
     lines.push(format!("🔍 Código rápido no app ML: {}", product.share_id));
     lines.push(AFFILIATE_DISCLOSURE_PT_BR.to_owned());
     lines.join("\n")
+}
+
+/// Formats Telegram caption lines adding a historical price-drop banner when an offer dropped
+/// below its prior tracked capture in the Hub database.
+pub fn format_telegram_caption_with_price_history_pt_br(
+    product: &ValidatedMercadoLivreProduct,
+    comparison: Option<&MercadoLivrePriceComparison>,
+) -> String {
+    let base = format_telegram_caption_pt_br(product);
+    let Some(cmp) = comparison else {
+        return base;
+    };
+    if cmp.trend != PriceTrendKind::Down {
+        return base;
+    }
+    let Some(prev) = cmp.previous_price_cents else {
+        return base;
+    };
+    let drop_line = format!(
+        "📉 BAIXOU DE PREÇO! Antes: {} → Agora: {} ({}% vs captura anterior · Mín. 30d: {})",
+        format_brl_cents(prev),
+        format_brl_cents(cmp.current_price_cents),
+        cmp.price_delta_pct,
+        format_brl_cents(cmp.lowest_price_30d_cents),
+    );
+    format!("{drop_line}\n{base}")
 }
 
 impl ValidatedMercadoLivreProduct {
@@ -2750,10 +2913,18 @@ pub fn compute_price_intelligence(
     let savings_vs_average_cents = (avg_cents - current_price_cents).max(0);
 
     // Price drop occurs if the prior observed snapshot was higher or discount is meaningful.
-    let prev_higher = observations
+    let previous_price_cents = observations
         .get(1)
-        .is_some_and(|prev| prev.price_brl_cents > current_price_cents);
-    let is_price_drop = prev_higher || discount_pct >= 20;
+        .map(|prev| prev.price_brl_cents)
+        .filter(|c| *c > 0);
+    let (price_trend, price_delta_cents, price_delta_pct) =
+        PriceTrendKind::from_prices(current_price_cents, previous_price_cents);
+    let is_price_drop = price_trend == PriceTrendKind::Down || discount_pct >= 20;
+    let first_observed_at_display = observations
+        .last()
+        .map(|obs| obs.observed_at.clone())
+        .unwrap_or_else(|| format_utc_iso_ms(observed_at_ms));
+    let observation_count = chronological.len().max(1);
 
     let price_level = if chronological.len() >= 2 {
         if current_price_cents <= lowest_price_30d_cents && current_price_cents < avg_cents {
@@ -2793,6 +2964,12 @@ pub fn compute_price_intelligence(
         average_price_30d_cents: avg_cents,
         highest_price_30d_cents,
         reference_price_cents,
+        previous_price_cents,
+        price_delta_cents,
+        price_delta_pct,
+        observation_count,
+        price_trend,
+        first_observed_at_display,
         discount_pct,
         savings_vs_reference_cents,
         savings_vs_average_cents,
@@ -2919,6 +3096,96 @@ pub fn render_offer_cards_html_fragment(offers: &[SiteCatalogOffer], start_pos: 
         ));
     }
     html
+}
+
+/// Formats a concise Portuguese summary comparing an offer's current spot price against
+/// historical observations in the 30-day catalog window.
+pub fn format_price_comparison_summary(
+    current_price_cents: i64,
+    previous_price_cents: Option<i64>,
+    lowest_30d_cents: i64,
+    average_30d_cents: i64,
+    observation_count: usize,
+    trend: PriceTrendKind,
+    delta_pct: i16,
+) -> String {
+    let cur = format_brl_cents(current_price_cents);
+    let low = format_brl_cents(lowest_30d_cents);
+    let avg = format_brl_cents(average_30d_cents);
+    match (trend, previous_price_cents) {
+        (PriceTrendKind::Down, Some(prev)) => format!(
+            "Queda para {cur} ({delta_pct}% vs anterior {}; mín 30d {low}, méd {avg}, {observation_count} obs)",
+            format_brl_cents(prev)
+        ),
+        (PriceTrendKind::Up, Some(prev)) => format!(
+            "Alta para {cur} (+{delta_pct}% vs anterior {}; mín 30d {low}, méd {avg}, {observation_count} obs)",
+            format_brl_cents(prev)
+        ),
+        (PriceTrendKind::Stable, _) => {
+            format!("Estável em {cur} (mín 30d {low}, méd {avg}, {observation_count} obs)")
+        }
+        _ => format!("Primeira captura em {cur} (mín 30d {low}, méd {avg})"),
+    }
+}
+
+/// Projects a compact `CommerceReferenceItem` from an enriched `SiteCatalogOffer` and
+/// its aggregate Telegram delivery telemetry.
+pub fn build_commerce_reference_item(
+    offer: &SiteCatalogOffer,
+    telegram_published_count: u32,
+    telegram_last_status: Option<String>,
+) -> CommerceReferenceItem {
+    let current_eff = offer.pix_price_cents.min(offer.price_brl_cents);
+    let intel = offer.price_intelligence.clone().unwrap_or_else(|| {
+        compute_price_intelligence(
+            current_eff,
+            offer.reference_price_cents,
+            offer.discount_percent_label.as_deref(),
+            parse_iso_to_ms(&offer.observed_at).unwrap_or(1),
+            &offer.price_observations,
+        )
+    });
+    let short_summary = format_price_comparison_summary(
+        current_eff,
+        intel.previous_price_cents,
+        intel.lowest_price_30d_cents,
+        intel.average_price_30d_cents,
+        intel.observation_count,
+        intel.price_trend,
+        intel.price_delta_pct,
+    );
+    CommerceReferenceItem {
+        product_id: offer.product_id.clone(),
+        slug: offer.slug.clone(),
+        title: offer.title.clone(),
+        brand: offer.brand.clone(),
+        model: offer.model.clone(),
+        exact_variant: offer.exact_variant.clone(),
+        category_slug: offer.category_slug.clone(),
+        subcategory_slug: offer.subcategory_slug.clone(),
+        seller_name: offer.seller_name.clone(),
+        state: offer.state.clone(),
+        current_price_cents: offer.price_brl_cents,
+        pix_price_cents: offer.pix_price_cents,
+        reference_price_cents: offer.reference_price_cents,
+        discount_pct: intel.discount_pct,
+        lowest_price_30d_cents: intel.lowest_price_30d_cents,
+        average_price_30d_cents: intel.average_price_30d_cents,
+        highest_price_30d_cents: intel.highest_price_30d_cents,
+        previous_price_cents: intel.previous_price_cents,
+        price_delta_cents: intel.price_delta_cents,
+        price_delta_pct: intel.price_delta_pct,
+        observation_count: intel.observation_count,
+        price_trend: intel.price_trend,
+        price_level: intel.price_level,
+        price_level_label: intel.price_level_label,
+        observed_at: offer.observed_at.clone(),
+        observed_at_ms: parse_iso_to_ms(&offer.observed_at).unwrap_or(0),
+        official_affiliate_url: offer.official_affiliate_url.clone(),
+        short_summary,
+        telegram_published_count,
+        telegram_last_status,
+    }
 }
 
 #[cfg(test)]
@@ -3156,6 +3423,12 @@ mod tests {
         assert_eq!(intel.window_days, 30);
         assert_eq!(intel.lowest_price_30d_cents, 69_990);
         assert_eq!(intel.highest_price_30d_cents, 137_900);
+        assert_eq!(intel.previous_price_cents, Some(89_900));
+        assert_eq!(intel.price_delta_cents, -19_910);
+        assert_eq!(intel.price_delta_pct, -22);
+        assert_eq!(intel.observation_count, 3);
+        assert_eq!(intel.price_trend, PriceTrendKind::Down);
+        assert_eq!(intel.first_observed_at_display, "2026-11-01T12:00:00Z");
         assert_eq!(intel.price_level, PriceLevelKind::LowestPrice);
         assert_eq!(intel.price_level_label, "Menor preço");
         assert!(intel.is_price_drop);
@@ -3166,6 +3439,47 @@ mod tests {
         );
         assert!(intel.svg_sparkline.contains("<svg viewBox=\"0 0 300 80\""));
         assert!(intel.svg_sparkline.contains("<polyline"));
+
+        let summary = format_price_comparison_summary(
+            intel.current_price_cents,
+            intel.previous_price_cents,
+            intel.lowest_price_30d_cents,
+            intel.average_price_30d_cents,
+            intel.observation_count,
+            intel.price_trend,
+            intel.price_delta_pct,
+        );
+        assert!(summary.contains("Queda para"));
+        assert!(summary.contains("-22%"));
+
+        // Verify WhatsApp package deduplicates duplicate deliveries by product_id.
+        let dup_a = TelegramOfferQueueItem {
+            delivery_id: "tg-new".into(),
+            product_id: "MLB39410080".into(),
+            offer_id: "of2".into(),
+            channel_id: "@procurali".into(),
+            title: "SSD Kingston NV3".into(),
+            brand: "Kingston".into(),
+            model: None,
+            price_brl_cents: 69_990,
+            reference_price_cents: None,
+            discount_label: None,
+            share_link: "https://meli.la/1iWQZbJ".into(),
+            share_id: "1PBCGF-SMN5".into(),
+            image_public_url: None,
+            image_object_key: None,
+            message_text: String::new(),
+            status: TelegramDeliveryStatus::Queued,
+            external_message_id: None,
+            created_at_ms: 2_000,
+            updated_at_ms: 2_000,
+            published_at_ms: None,
+        };
+        let mut dup_b = dup_a.clone();
+        dup_b.delivery_id = "tg-old".into();
+        let pkg = build_whatsapp_assisted_package(&[dup_a, dup_b], "@procurali", None, 2_000);
+        assert_eq!(pkg.draft_count, 1);
+        assert_eq!(pkg.drafts[0].delivery_id, "tg-new");
 
         let ok_alert = PriceAlertActionRequest {
             action: "criar-alerta".into(),

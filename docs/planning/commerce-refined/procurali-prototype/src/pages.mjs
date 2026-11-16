@@ -1004,7 +1004,18 @@ export function renderOfferDetailPage(root, offer) {
                         ? "badge-petrol"
                         : "badge-neutral"
                     }">${esc(priceIntel.priceLevelLabel || "Preço observado")}</span>
-                    <h2 style="margin-top:0.4rem;">Histórico e Inteligência de Preço (${esc(priceIntel.windowDays || 30)} dias)</h2>
+                    ${
+                      priceIntel.priceTrend === "down"
+                        ? `<span class="badge badge-emerald" style="margin-left:0.35rem;">Em queda (${esc(priceIntel.priceDeltaPct || 0)}%)</span>`
+                        : priceIntel.priceTrend === "up"
+                        ? `<span class="badge badge-neutral" style="margin-left:0.35rem;">Acima da captura anterior (+${esc(priceIntel.priceDeltaPct || 0)}%)</span>`
+                        : ""
+                    }
+                    <h2 style="margin-top:0.4rem;">Histórico e Inteligência de Preço (${esc(priceIntel.windowDays || 30)} dias${
+                      Number.isFinite(priceIntel.observationCount) && priceIntel.observationCount > 0
+                        ? ` · ${esc(priceIntel.observationCount)} registros`
+                        : ""
+                    })</h2>
                   </div>
                   ${
                     priceIntel.verifiedAtDisplay

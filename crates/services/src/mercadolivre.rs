@@ -13,12 +13,14 @@ use std::{
 use uuid::Uuid;
 use zaturo_core::{
     BreadcrumbItem, CatalogFacetsSummary, CatalogSearchQuery, CatalogSearchResponse,
-    CatalogTaxonomyResponse, CategoryTaxonomyNode, ExposureBeaconRequest, ExposureBeaconResponse,
-    FacetBucketCount, FeedItem, FeedKind, KeywordClusterNode, MercadoLivreIngestBatchRequest,
-    MercadoLivreIngestReport, PriceAlertActionRequest, PriceAlertResponse, PriceAlertSubscription,
-    PriceLevelKind, ProductDetailResponse, SiteCatalogOffer, SiteCatalogSnapshot,
-    TelegramDeliveryAck, TelegramDeliveryStatus, TelegramOfferQueueItem, TriggeredPriceAlert,
-    render_offer_cards_html_fragment, valid_sha256, valid_telegram_channel,
+    CatalogTaxonomyResponse, CategoryTaxonomyNode, CommerceReferenceCatalog, CommerceReferenceItem,
+    ExposureBeaconRequest, ExposureBeaconResponse, FacetBucketCount, FeedItem, FeedKind,
+    KeywordClusterNode, MercadoLivreIngestBatchRequest, MercadoLivreIngestReport,
+    PriceAlertActionRequest, PriceAlertResponse, PriceAlertSubscription, PriceLevelKind,
+    ProductDetailResponse, SiteCatalogOffer, SiteCatalogSnapshot, TelegramDeliveryAck,
+    TelegramDeliveryStatus, TelegramOfferQueueItem, TriggeredPriceAlert,
+    build_commerce_reference_item, render_offer_cards_html_fragment, valid_sha256,
+    valid_telegram_channel,
 };
 
 const MAX_PRICE_ALERTS: usize = 4096;
@@ -33,10 +35,13 @@ pub(crate) struct ProductTelemetryStats {
 pub struct CompiledCommerceIndex {
     pub generation: u64,
     pub etag: String,
+    pub reference_etag: String,
     pub snapshot: Arc<SiteCatalogSnapshot>,
     pub snapshot_json: Arc<String>,
     pub taxonomy: Arc<CatalogTaxonomyResponse>,
     pub taxonomy_json: Arc<String>,
+    pub reference_catalog: Arc<CommerceReferenceCatalog>,
+    pub reference_catalog_json: Arc<String>,
     pub by_product_id: HashMap<String, usize>,
     pub by_slug: HashMap<String, usize>,
     pub search_texts: Vec<String>,
@@ -67,6 +72,7 @@ impl CommerceHotCache {
     pub fn build_and_store(
         &self,
         snapshot: SiteCatalogSnapshot,
+        telegram_stats: &HashMap<String, (u32, Option<String>)>,
     ) -> Result<Arc<CompiledCommerceIndex>> {
         let generation_num = self.generation.fetch_add(1, Ordering::Relaxed) + 1;
         let offers = &snapshot.offers;
@@ -213,18 +219,43 @@ impl CommerceHotCache {
             categories: category_nodes,
             keyword_clusters,
         });
+        let reference_items: Vec<CommerceReferenceItem> = offers
+            .iter()
+            .map(|offer| {
+                let (pub_count, last_status) = telegram_stats
+                    .get(&offer.product_id)
+                    .cloned()
+                    .unwrap_or((0, None));
+                build_commerce_reference_item(offer, pub_count, last_status)
+            })
+            .collect();
+        let reference_catalog = Arc::new(CommerceReferenceCatalog {
+            generated_at: snapshot.generated_at.clone(),
+            cache_generation: generation_num,
+            total_products: reference_items.len(),
+            items: reference_items,
+        });
         let snapshot_json =
             Arc::new(serde_json::to_string(&snapshot).map_err(zaturo_db::Error::Json)?);
         let taxonomy_json =
             Arc::new(serde_json::to_string(&*taxonomy).map_err(zaturo_db::Error::Json)?);
+        let reference_catalog_json =
+            Arc::new(serde_json::to_string(&*reference_catalog).map_err(zaturo_db::Error::Json)?);
         let etag = format!("\"ml-gen-{generation_num}-{}\"", snapshot_json.len());
+        let reference_etag = format!(
+            "\"ref-gen-{generation_num}-{}\"",
+            reference_catalog_json.len()
+        );
         let compiled = Arc::new(CompiledCommerceIndex {
             generation: generation_num,
             etag,
+            reference_etag,
             snapshot: Arc::new(snapshot),
             snapshot_json,
             taxonomy,
             taxonomy_json,
+            reference_catalog,
+            reference_catalog_json,
             by_product_id,
             by_slug,
             search_texts,
@@ -346,10 +377,19 @@ impl Engine {
         if let Some(cached) = self.mercadolivre_site_catalog_warm() {
             return Ok(cached);
         }
-        let fresh = self
-            .store
-            .read(|repo| -> Result<SiteCatalogSnapshot> { Ok(repo.ml_site_catalog(now_ms)?) })?;
-        self.commerce_cache.build_and_store(fresh)
+        let (fresh, telegram_stats) = self.store.read(|repo| -> Result<_> {
+            let catalog = repo.ml_site_catalog(now_ms)?;
+            let tg_stats = repo.ml_telegram_product_stats()?;
+            Ok((catalog, tg_stats))
+        })?;
+        self.commerce_cache.build_and_store(fresh, &telegram_stats)
+    }
+
+    pub fn mercadolivre_reference_catalog(
+        &self,
+        now_ms: i64,
+    ) -> Result<Arc<CompiledCommerceIndex>> {
+        self.mercadolivre_site_catalog_cached(now_ms)
     }
 
     /// Returns the Cloobe-style 2-level taxonomy tree and keyword clusters from the warm index.
@@ -767,10 +807,12 @@ impl Engine {
         }
         ack.validates().map_err(Error::Invalid)?;
 
-        self.store.transaction(|repo| {
+        let item = self.store.transaction(|repo| {
             repo.ack_ml_telegram_delivery(delivery_id, &ack, now_ms)?
                 .ok_or(Error::NotFound)
-        })
+        })?;
+        self.commerce_cache.invalidate();
+        Ok(item)
     }
 }
 
@@ -1114,7 +1156,7 @@ mod tests {
         let cached = engine
             .mercadolivre_site_catalog_cached(1_763_231_360_000)
             .unwrap();
-        assert_eq!(cached.generation, 1);
+        assert_eq!(cached.generation, 2);
 
         let search = engine
             .mercadolivre_search(
@@ -1161,5 +1203,50 @@ mod tests {
         assert_eq!(pdp.clicks, 1);
         assert_eq!(pdp.alert_count, 1);
         assert!(pdp.offer.price_intelligence.is_some());
+
+        // Reference catalog warm cache hit reflects Telegram ack, and invalidates + updates on price drop:
+        let ref_before = engine
+            .mercadolivre_reference_catalog(1_763_231_376_000)
+            .unwrap();
+        assert_eq!(ref_before.reference_catalog.total_products, 1);
+        assert_eq!(
+            ref_before.reference_catalog.items[0].telegram_published_count,
+            1
+        );
+        assert_eq!(
+            ref_before.reference_catalog.items[0]
+                .telegram_last_status
+                .as_deref(),
+            Some("published")
+        );
+
+        let day2_ms = 1_763_231_280_000 + 86_400_000;
+        let mut p_drop = sample_product("MLB39410080", "ssd-kingston-nv3-500gb-mlb39410080");
+        p_drop.price_brl_cents = 59_990;
+        p_drop.pix_price_cents = 59_990;
+        p_drop.observed_at_ms = day2_ms;
+        let drop_req = MercadoLivreIngestBatchRequest {
+            worker_id: "worker-ml".into(),
+            search_query: "ssd nvme".into(),
+            channel_id: "@procurali".into(),
+            captured_at_ms: day2_ms,
+            products: vec![p_drop],
+        };
+        let drop_report = engine
+            .ingest_mercadolivre_batch(drop_req, "batch-idem-drop", &"d".repeat(64), day2_ms)
+            .unwrap();
+        assert_eq!(drop_report.price_drop_count, 1);
+        assert_eq!(drop_report.telegram_queued_count, 1);
+
+        let ref_after = engine
+            .mercadolivre_reference_catalog(day2_ms + 1000)
+            .unwrap();
+        assert_ne!(ref_before.reference_etag, ref_after.reference_etag);
+        let item = &ref_after.reference_catalog.items[0];
+        assert_eq!(item.price_trend, zaturo_core::PriceTrendKind::Down);
+        assert_eq!(item.previous_price_cents, Some(69_990));
+        assert_eq!(item.price_delta_cents, -10_000);
+        assert!(item.short_summary.contains("Queda"));
+        assert_eq!(item.telegram_last_status.as_deref(), Some("queued"));
     }
 }
