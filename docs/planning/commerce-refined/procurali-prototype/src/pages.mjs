@@ -24,10 +24,96 @@ import {
 import {
   buildOfficialAffiliateAnchorProps,
   formatBrl,
+  formatTelegramHtmlOffer,
+  formatWhatsappWebAssistedText,
   isOfferFresh,
+  resolveMediaSrc,
   verifySevenDaySample,
 } from "./validate-contracts.mjs";
 import { CATEGORY_ICONS, icon } from "./icons.mjs";
+
+let activeOffers = OFFERS;
+let activeCategories = CATEGORIES;
+let activeMediaRights = MEDIA_RIGHTS;
+let activeEvidenceSources = EVIDENCE_SOURCES;
+let activeShowcaseCards = HOME_SHOWCASE_META.dailyCards || [];
+let activeSourceLabel = "static-demo";
+
+function buildShowcaseCardsFromCatalog(offers) {
+  return offers
+    .filter((o) => o.state === "approved" || o.state === "stale")
+    .slice(0, 8)
+    .map((o, idx) => {
+      const isStale = o.state === "stale";
+      return {
+        slug: o.slug,
+        offerId: o.id,
+        marketplaceLabel: o.marketplaceLabel || "Mercado Livre",
+        topBadge: o.cardBadge || (idx === 0 ? "Oferta em destaque" : "Achado do dia"),
+        badgeTone: isStale ? "warning" : idx === 0 ? "emerald" : "neutral",
+        isFeaturedCard: idx === 0 && !isStale,
+        isDemoFixture: Boolean(o.isDemoFixture),
+        isStale,
+        sponsored: Boolean(o.sponsored),
+        imagePath: o.imagePath,
+        imageAlt: o.imageAlt,
+        shortTitle: o.title,
+        brandModelLine: [o.brand, o.model].filter(Boolean).join(" · "),
+        ratingText: o.marketplaceRating || "",
+        salesLabel: o.marketplaceSalesLabel || "",
+        shortUse: o.oneLineReason || o.shortDescription || "",
+        priceCents: o.priceBrlCents,
+        oldPriceCents: o.referencePriceCents || null,
+        installmentSummary: o.installmentSummary || "",
+        shortCondition: o.shortCondition || o.paymentConditions || "",
+        mintText: o.discountPercentLabel || (o.supportedBenefits && o.supportedBenefits[0]) || "",
+        couponCode: o.couponCondition?.code || null,
+        deadlineText: o.priceValidUntil ? `Válido até ${o.priceValidUntil}` : null,
+        checkedLabel: o.observedAtShort || "Conferido hoje",
+        storeLabel: o.storeShort || o.merchant || "Mercado Livre",
+        officialAffiliateUrl: !o.isDemoFixture && !isStale ? o.officialAffiliateUrl : null,
+        ctaLabel: isStale
+          ? "Conferir status do item"
+          : o.marketplaceLabel === "Mercado Livre"
+          ? "Ver oferta no Mercado Livre"
+          : "Ver oferta na Shopee",
+      };
+    });
+}
+
+export function setActiveCatalog(override = null) {
+  if (!override) {
+    activeOffers = OFFERS;
+    activeCategories = CATEGORIES;
+    activeMediaRights = MEDIA_RIGHTS;
+    activeEvidenceSources = EVIDENCE_SOURCES;
+    activeShowcaseCards = HOME_SHOWCASE_META.dailyCards || [];
+    activeSourceLabel = "static-demo";
+    return getActiveCatalog();
+  }
+  activeOffers = Array.isArray(override.offers) ? override.offers : OFFERS;
+  activeCategories = Array.isArray(override.categories) ? override.categories : CATEGORIES;
+  activeMediaRights = Array.isArray(override.mediaRights) ? override.mediaRights : MEDIA_RIGHTS;
+  activeEvidenceSources = Array.isArray(override.evidenceSources)
+    ? override.evidenceSources
+    : EVIDENCE_SOURCES;
+  activeShowcaseCards = Array.isArray(override.dailyCards)
+    ? override.dailyCards
+    : buildShowcaseCardsFromCatalog(activeOffers);
+  activeSourceLabel = override.sourceLabel || "hub-api";
+  return getActiveCatalog();
+}
+
+export function getActiveCatalog() {
+  return {
+    offers: activeOffers,
+    categories: activeCategories,
+    mediaRights: activeMediaRights,
+    evidenceSources: activeEvidenceSources,
+    dailyCards: activeShowcaseCards,
+    sourceLabel: activeSourceLabel,
+  };
+}
 
 export function esc(value) {
   return String(value ?? "")
@@ -102,7 +188,7 @@ function offerRowHtml(root, offer, { compact = false, headingTag = "h3" } = {}) 
     (offer.couponCondition
       ? `Com condição de cupom · ${offer.paymentConditions}`
       : offer.paymentConditions);
-  const ctaProps = buildOfficialAffiliateAnchorProps(offer, MEDIA_RIGHTS);
+  const ctaProps = buildOfficialAffiliateAnchorProps(offer, activeMediaRights);
   const isActionable = offer.state === "approved";
   const destLabel =
     ctaProps.enabled
@@ -118,7 +204,7 @@ function offerRowHtml(root, offer, { compact = false, headingTag = "h3" } = {}) 
   return `
   <article class="offer-row${compact ? " offer-row--compact" : ""}">
     <a class="offer-thumb" href="${esc(detailHref)}" tabindex="-1" aria-hidden="true">
-      <img src="${esc(root + offer.imagePath.replace(/^\//, ""))}" alt="${esc(offer.imageAlt)}" width="640" height="480" loading="lazy">
+      <img src="${esc(resolveMediaSrc(root, offer.imagePath))}" alt="${esc(offer.imageAlt)}" width="640" height="480" loading="lazy">
     </a>
     <div class="offer-body">
       <div class="offer-meta-row">
@@ -221,7 +307,7 @@ function renderVerticalOfferCard(root, card) {
     </div>
 
     <a class="v-offer-media" href="${esc(detailHref)}" tabindex="-1" aria-hidden="true">
-      <img src="${esc(root + card.imagePath.replace(/^\//, ""))}" alt="${esc(card.imageAlt)}" width="560" height="340" loading="lazy">
+      <img src="${esc(resolveMediaSrc(root, card.imagePath))}" alt="${esc(card.imageAlt)}" width="560" height="340" loading="lazy">
     </a>
 
     <div class="v-offer-body">
@@ -286,7 +372,7 @@ function renderVerticalOfferCard(root, card) {
 }
 
 export function renderHomePage(root) {
-  const dailyCards = HOME_SHOWCASE_META.dailyCards || [];
+  const dailyCards = activeShowcaseCards;
 
   return `
   <section class="catalog-opening">
@@ -491,7 +577,7 @@ export function renderOffersListPage(root) {
                 <label for="f-cat">Categoria</label>
                 <select id="f-cat" name="categoria">
                   <option value="todas">Todas as categorias</option>
-                  ${CATEGORIES.map((c) => `<option value="${esc(c.slug)}">${esc(c.name)}</option>`).join("")}
+                  ${activeCategories.map((c) => `<option value="${esc(c.slug)}">${esc(c.name)}</option>`).join("")}
                 </select>
               </div>
               <div class="field">
@@ -540,7 +626,7 @@ export function renderOffersListPage(root) {
         <div class="catalog-results">
           <p id="offers-results-count" class="results-count" aria-live="polite">Exibindo catálogo estático inicial.</p>
           <div id="offers-results" class="offer-list">
-            ${OFFERS.filter((o) => o.state === "approved")
+            ${activeOffers.filter((o) => o.state === "approved")
               .map((offer) => offerRowHtml(root, offer, { headingTag: "h2" }))
               .join("")}
           </div>
@@ -551,13 +637,13 @@ export function renderOffersListPage(root) {
 }
 
 export function renderOfferDetailPage(root, offer) {
-  const category = CATEGORIES.find((c) => c.slug === offer.categorySlug);
-  const rights = MEDIA_RIGHTS.find((m) => m.id === offer.mediaRightsRef);
-  const evidence = EVIDENCE_SOURCES.filter((e) => offer.evidenceRefs.includes(e.id));
+  const category = activeCategories.find((c) => c.slug === offer.categorySlug);
+  const rights = activeMediaRights.find((m) => m.id === offer.mediaRightsRef);
+  const evidence = activeEvidenceSources.filter((e) => (offer.evidenceRefs || []).includes(e.id));
   const freshness = isOfferFresh(offer, SITE_META.prototypeReferenceTimeUtc);
   const sevenDay = verifySevenDaySample(offer);
-  const ctaProps = buildOfficialAffiliateAnchorProps(offer, MEDIA_RIGHTS);
-  const alternatives = OFFERS.filter((o) => (offer.alternativeOfferSlugs || []).includes(o.slug));
+  const ctaProps = buildOfficialAffiliateAnchorProps(offer, activeMediaRights);
+  const alternatives = activeOffers.filter((o) => (offer.alternativeOfferSlugs || []).includes(o.slug));
 
   let stateAlertHtml = "";
   if (offer.state === "stale") {
@@ -602,7 +688,7 @@ export function renderOfferDetailPage(root, offer) {
       <div class="detail-layout">
         <figure class="detail-figure">
           <div class="detail-main-photo-wrap">
-            <img id="detail-main-photo" data-gallery-main src="${esc(root + offer.imagePath.replace(/^\//, ""))}" alt="${esc(offer.imageAlt)}" width="640" height="480">
+            <img id="detail-main-photo" data-gallery-main src="${esc(resolveMediaSrc(root, offer.imagePath))}" alt="${esc(offer.imageAlt)}" width="640" height="480">
           </div>
           ${
             gallery.length > 1
@@ -614,11 +700,11 @@ export function renderOfferDetailPage(root, offer) {
                       type="button"
                       class="detail-thumb-btn${idx === 0 ? " is-active" : ""}"
                       data-gallery-btn
-                      data-gallery-src="${esc(root + img.path.replace(/^\//, ""))}"
+                      data-gallery-src="${esc(resolveMediaSrc(root, img.path))}"
                       data-gallery-alt="${esc(img.alt)}"
                       aria-label="Visualizar foto ${idx + 1} de ${gallery.length}"
                       aria-pressed="${idx === 0 ? "true" : "false"}">
-                      <img src="${esc(root + img.path.replace(/^\//, ""))}" alt="${esc(img.alt)}" width="96" height="96" loading="lazy">
+                      <img src="${esc(resolveMediaSrc(root, img.path))}" alt="${esc(img.alt)}" width="96" height="96" loading="lazy">
                     </button>`
                     )
                     .join("")}
@@ -822,6 +908,25 @@ export function renderOfferDetailPage(root, offer) {
                       </div>`
                     : ""
                 }
+                ${
+                  !offer.isDemoFixture && offer.state === "approved"
+                    ? `<div class="share-snippet-box" style="margin-top:var(--space-3);">
+                        <strong>Divulgação no Bot do Telegram (${esc(SITE_META.telegramHandle)}) e Auxiliar Humano no WhatsApp Web (sem API da Meta)</strong>
+                        <div class="grid-2" style="margin-top:var(--space-2);">
+                          <div>
+                            <p class="muted" style="margin-bottom:0.35rem;"><strong>Telegram Bot API (HTML · até 1.024 caracteres)</strong></p>
+                            <pre id="tg-bot-draft-${esc(offer.slug)}" class="code-block">${esc(formatTelegramHtmlOffer(offer, `https://${SITE_META.domain}`))}</pre>
+                            <button type="button" class="btn btn-secondary btn-sm" data-copy-target="tg-bot-draft-${esc(offer.slug)}">Copiar legenda HTML do Telegram</button>
+                          </div>
+                          <div>
+                            <p class="muted" style="margin-bottom:0.35rem;"><strong>WhatsApp Web assistido (revisão humana, sem Meta API)</strong></p>
+                            <pre id="wa-web-draft-${esc(offer.slug)}" class="code-block">${esc(formatWhatsappWebAssistedText(offer, `https://${SITE_META.domain}`))}</pre>
+                            <button type="button" class="btn btn-secondary btn-sm" data-copy-target="wa-web-draft-${esc(offer.slug)}">Copiar rascunho WhatsApp Web</button>
+                          </div>
+                        </div>
+                      </div>`
+                    : ""
+                }
               </article>
             </div>`
           : ""
@@ -927,8 +1032,8 @@ export function renderCategoriesIndexPage(root) {
       <h1>Categorias do piloto</h1>
       <p class="hero-lead">Estas categorias representam a hipótese inicial de nicho (casa, mesa e tecnologia prática entre R$ 30 e R$ 300) e podem ser editadas antes do lançamento.</p>
       <div class="grid-2">
-        ${CATEGORIES.map((cat) => {
-          const count = OFFERS.filter((o) => o.categorySlug === cat.slug).length;
+        ${activeCategories.map((cat) => {
+          const count = activeOffers.filter((o) => o.categorySlug === cat.slug).length;
           return `
           <article class="card">
             <h2><a href="${esc(root)}categorias/${esc(cat.slug)}/index.html">${esc(cat.name)}</a></h2>
@@ -945,7 +1050,7 @@ export function renderCategoriesIndexPage(root) {
 }
 
 export function renderCategoryPage(root, category) {
-  const catOffers = OFFERS.filter((o) => o.categorySlug === category.slug);
+  const catOffers = activeOffers.filter((o) => o.categorySlug === category.slug);
   const catGuides = GUIDES.filter((g) => g.categorySlug === category.slug);
   return `
   <section class="section-tight">
@@ -1023,7 +1128,7 @@ export function renderGuidesIndexPage(root) {
 }
 
 export function renderGuideDetailPage(root, guide) {
-  const relatedOffers = OFFERS.filter((o) => guide.relatedOfferSlugs.includes(o.slug));
+  const relatedOffers = activeOffers.filter((o) => guide.relatedOfferSlugs.includes(o.slug));
   return `
   <section class="section-tight">
     <div class="container">
@@ -1144,7 +1249,7 @@ export function renderGuideDetailPage(root, guide) {
 }
 
 export function renderWeeklySelectionPage(root) {
-  const expiredOffer = OFFERS.find((o) => o.slug === WEEKLY_SELECTION.expiredHistoricalReference.offerSlug);
+  const expiredOffer = activeOffers.find((o) => o.slug === WEEKLY_SELECTION.expiredHistoricalReference.offerSlug);
   return `
   <section class="section-tight">
     <div class="container">
@@ -1159,7 +1264,7 @@ export function renderWeeklySelectionPage(root) {
       <div class="grid-3">
         ${WEEKLY_SELECTION.picks
           .map((pick) => {
-            const offer = OFFERS.find((o) => o.slug === pick.offerSlug);
+            const offer = activeOffers.find((o) => o.slug === pick.offerSlug);
             if (!offer) return "";
             return `
             <article class="card">
@@ -1602,7 +1707,7 @@ export function renderCmsPreviewPage(root) {
               </tr>
             </thead>
             <tbody>
-              ${OFFERS.filter((o) => !o.isDemoFixture)
+              ${activeOffers.filter((o) => !o.isDemoFixture)
                 .map(
                   (o) => `
                   <tr>

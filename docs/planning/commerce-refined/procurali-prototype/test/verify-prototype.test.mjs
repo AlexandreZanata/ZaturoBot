@@ -13,6 +13,10 @@ import {
   OFFERS,
   SITE_META,
 } from "../data/demo-catalog.mjs";
+import * as nodeFs from "node:fs";
+import * as nodeOs from "node:os";
+import * as nodePath from "node:path";
+import { buildSite } from "../src/build.mjs";
 import {
   buildOfficialAffiliateAnchorProps,
   checkForbiddenClaims,
@@ -20,7 +24,10 @@ import {
   filterAndSortOffers,
   formatBrl,
   isOfferFresh,
+  isSafePublicAssetPath,
+  resolveMediaSrc,
   runDeterministicFinder,
+  validateCatalogSnapshot,
   verifySevenDaySample,
 } from "../src/validate-contracts.mjs";
 
@@ -335,4 +342,204 @@ test("8. Brand exports (SVG + valid PNGs) and CMS schema structures", () => {
   assert.equal(CATEGORIES.length, 5);
   assert.equal(COMMUNITIES.length, 4);
   assert.equal(MEDIA_RIGHTS.length, 10);
+});
+
+test("9. Hub API catalog snapshot ingestion preserves MinIO HTTPS URLs, specs, variants, meli.la links, and emits api/catalog.json", async () => {
+  assert.equal(isSafePublicAssetPath("https://media.procurali.com.br/procurali-media/ml/MLB39410080/hero.jpg"), true);
+  assert.equal(isSafePublicAssetPath("/brand/procurali-mark.svg"), true);
+  assert.equal(isSafePublicAssetPath(".local/ml/hero.jpg"), false);
+  assert.equal(isSafePublicAssetPath("/home/iiii/hero.jpg"), false);
+  assert.equal(isSafePublicAssetPath("file:///tmp/hero.jpg"), false);
+  assert.equal(isSafePublicAssetPath("javascript:alert(1)"), false);
+
+  assert.equal(
+    resolveMediaSrc("./", "https://media.procurali.com.br/procurali-media/ml/MLB39410080/hero.jpg"),
+    "https://media.procurali.com.br/procurali-media/ml/MLB39410080/hero.jpg",
+  );
+  assert.equal(resolveMediaSrc("../", "/brand/procurali-mark.svg"), "../brand/procurali-mark.svg");
+
+  const minioHero = "https://media.procurali.com.br/procurali-media/ml/MLB39410080/hero.jpg";
+  const minioAlt = "https://media.procurali.com.br/procurali-media/ml/MLB39410080/gallery-1.jpg";
+  const snapshotFixture = {
+    generatedAt: "2026-11-15T18:00:00Z",
+    categories: [
+      {
+        slug: "hardware-e-perifericos",
+        name: "Hardware e periféricos",
+        description: "SSDs, teclados, headsets e monitores verificados do Mercado Livre.",
+        editableByOwner: true,
+        intendedBudgetHint: "R$ 150 a R$ 1.800",
+      },
+    ],
+    offers: [
+      {
+        id: "offer-ml-MLB39410080",
+        slug: "ssd-kingston-nv3-1tb-nvme-m2",
+        isDemoFixture: false,
+        productId: "MLB39410080",
+        brand: "Kingston",
+        model: "SNV3S/1000G",
+        title: "SSD Kingston NV3 1TB M.2 2280 NVMe PCIe 4.0",
+        exactVariant: "SNV3S/1000G · 1 TB PCIe 4.0",
+        categorySlug: "hardware-e-perifericos",
+        merchant: "Mercado Livre · Loja oficial FAMILAR",
+        marketplaceLabel: "Mercado Livre",
+        sellerName: "Loja oficial FAMILAR",
+        storeShort: "Loja oficial FAMILAR",
+        program: "Mercado Livre Afiliados (ingestão validada via Hub)",
+        officialAffiliateUrl: "https://meli.la/1iWQZbJ",
+        canonicalUrl: "https://www.mercadolivre.com.br/p/MLB39410080",
+        shareId: "1PBCGF-SMN5",
+        shareText: "SSD Kingston NV3 1TB\nhttps://meli.la/1iWQZbJ",
+        sponsored: false,
+        commissionRate: "12%",
+        marketplaceRating: "4,9 / 5",
+        marketplaceSalesLabel: "+5 mil vendidos",
+        cardBadge: "Mais vendido",
+        discountPercentLabel: "22% OFF",
+        installmentSummary: "Até 10x R$ 44,99 sem juros",
+        returnDays: 30,
+        availability: "InStock",
+        priceValidUntil: "2026-11-15",
+        imagePath: minioHero,
+        imageAlt: "SSD Kingston NV3 1TB M.2 2280 NVMe",
+        galleryPaths: [
+          {
+            path: minioHero,
+            alt: "SSD Kingston NV3 1TB vista principal",
+            bucket: "procurali-media",
+            objectKey: "ml/MLB39410080/hero.jpg",
+            sha256: "a".repeat(64),
+          },
+          {
+            path: minioAlt,
+            alt: "SSD Kingston NV3 1TB embalagem",
+            bucket: "procurali-media",
+            objectKey: "ml/MLB39410080/gallery-1.jpg",
+            sha256: "b".repeat(64),
+          },
+        ],
+        priceBrlCents: 44990,
+        pixPriceCents: 44990,
+        referencePriceCents: 57900,
+        currency: "BRL",
+        paymentConditions: "R$ 449,90 à vista ou em até 10x sem juros no anúncio",
+        shortCondition: "10x s/ juros · devolução grátis 30d",
+        shortUseLine: "SSD M.2 2280 NVMe PCIe 4.0 x4 com leitura sequencial até 6.000 MB/s.",
+        shortCheckedAt: "15/11 às 14h00",
+        ctaDestLabel: "Ver oferta no Mercado Livre",
+        couponCondition: null,
+        freightStatus: "Frete grátis · Devolução grátis 30d",
+        observedAt: "2026-11-15T18:00:00Z",
+        observedAtDisplay: "15/11/2026 às 14:00 (horário de Cuiabá)",
+        validUntil: "2026-11-15T23:59:59-03:00",
+        validUntilDisplay: "Validade registrada até 2026-11-15",
+        freshnessTtlMinutes: 60,
+        evidenceRefs: ["ev-ml-MLB39410080"],
+        mediaRightsRef: "mr-ml-MLB39410080",
+        state: "approved",
+        approvalRevision: "ml-ingested-1234567890ab",
+        oneLineReason: "Menor preço observado na vitrine oficial com envio Full.",
+        forWhomItMakesSense: "Upgrades de notebook ou PC com slot M.2 2280 NVMe.",
+        supportedBenefits: ["Interface PCIe 4.0 x4 NVMe.", "Garantia oficial Kingston."],
+        limitations: ["Placa-mãe PCIe 3.0 limita a banda máxima."],
+        unknowns: [],
+        tags: ["ssd", "nvme", "hardware"],
+        hasVerifiedSevenDaySample: false,
+        sevenDayCoverageNote: "Ingestão validada via Hub Mercado Livre; série de 7 dias acumulada progressivamente.",
+        priceObservations: [],
+        specs: [
+          { name: "Capacidade", value: "1 TB" },
+          { name: "Interface", value: "M.2 2280 PCIe 4.0 NVMe" },
+        ],
+        variants: [
+          {
+            productId: "MLB39410080",
+            sku: "SNV3S/500G",
+            name: "SSD Kingston NV3 500GB",
+            priceBrlCents: 31990,
+            currency: "BRL",
+          },
+          {
+            productId: "MLB39410080",
+            sku: "SNV3S/1000G",
+            name: "SSD Kingston NV3 1TB",
+            priceBrlCents: 44990,
+            currency: "BRL",
+          },
+        ],
+        longDescription: "Unidade M.2 2280 PCIe 4.0 indicada para notebooks e desktops compatíveis.",
+      },
+    ],
+    evidenceSources: [
+      {
+        id: "ev-ml-MLB39410080",
+        sourceType: "hub-api-snapshot",
+        title: "Ingestão Hub Mercado Livre · MLB39410080",
+        publisher: "ZaturoBot Hub",
+        sourceUrl: "https://www.mercadolivre.com.br/p/MLB39410080",
+        retrievedAt: "2026-11-15T18:00:00Z",
+        verifiedFacts: ["Preço à vista e variantes estruturadas validadas na ingestão."],
+      },
+    ],
+    mediaRights: [
+      {
+        id: "mr-ml-MLB39410080",
+        assetDescription: "Fotos públicas hospedadas em MinIO — MLB39410080",
+        licenseType: "Mercado Livre Afiliados — Imagens públicas",
+        rightsVerified: true,
+        ownerPermittedUse: "Exibição vinculada ao anúncio oficial MLB39410080.",
+        attributionText: "Fotos oficiais do anúncio no Mercado Livre (MLB39410080).",
+      },
+    ],
+  };
+
+  const validation = validateCatalogSnapshot(snapshotFixture);
+  assert.equal(validation.valid, true, `Expected valid snapshot: ${validation.errors.join("; ")}`);
+
+  const tmpRoot = nodeFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), "procurali-api-build-"));
+  try {
+    const snapshotPath = nodePath.join(tmpRoot, "site-catalog.json");
+    const outDir = nodePath.join(tmpRoot, "site");
+    nodeFs.writeFileSync(snapshotPath, JSON.stringify(snapshotFixture, null, 2), "utf8");
+
+    const result = await buildSite({ apiSnapshotPath: snapshotPath, outDir, sourceLabel: "test-hub-snapshot" });
+    assert.ok(result.pageCount >= 10, `Expected full site output, got ${result.pageCount} pages`);
+
+    const emittedCatalogPath = nodePath.join(outDir, "api", "catalog.json");
+    assert.ok(nodeFs.existsSync(emittedCatalogPath), "Expected site/api/catalog.json to be emitted");
+    const emittedCatalog = JSON.parse(nodeFs.readFileSync(emittedCatalogPath, "utf8"));
+    assert.equal(emittedCatalog.offers.length, 1);
+    assert.equal(emittedCatalog.offers[0].imagePath, minioHero);
+    assert.equal(emittedCatalog.offers[0].galleryPaths[0].objectKey, "ml/MLB39410080/hero.jpg");
+
+    const detailHtml = nodeFs.readFileSync(
+      nodePath.join(outDir, "ofertas", "ssd-kingston-nv3-1tb-nvme-m2", "index.html"),
+      "utf8",
+    );
+    assert.ok(detailHtml.includes(minioHero), "Detail HTML must reference MinIO HTTPS image URL directly");
+    assert.ok(
+      detailHtml.includes(`<meta property="og:image" content="${minioHero}">`),
+      "Offer detail page must expose absolute HTTPS og:image for WhatsApp Web preview",
+    );
+    assert.ok(detailHtml.includes('href="https://meli.la/1iWQZbJ"'), "Detail HTML must preserve exact meli.la URL");
+    assert.ok(detailHtml.includes("M.2 2280 PCIe 4.0 NVMe"), "Detail HTML must render technical specs");
+    assert.ok(detailHtml.includes("SNV3S/500G"), "Detail HTML must render variant SKU options");
+    assert.ok(detailHtml.includes('id="tg-bot-draft-ssd-kingston-nv3-1tb-nvme-m2"'), "Detail HTML must include Telegram bot HTML draft");
+    assert.ok(detailHtml.includes('id="wa-web-draft-ssd-kingston-nv3-1tb-nvme-m2"'), "Detail HTML must include WhatsApp Web assisted draft");
+    assert.equal(detailHtml.includes(".local/"), false, "Detail HTML must never leak .local paths");
+
+    const waDraftsPath = nodePath.join(outDir, "api", "whatsapp-assisted-drafts.json");
+    assert.ok(nodeFs.existsSync(waDraftsPath), "Expected site/api/whatsapp-assisted-drafts.json to be emitted");
+    const waDrafts = JSON.parse(nodeFs.readFileSync(waDraftsPath, "utf8"));
+    assert.equal(waDrafts.mode, "whatsapp_web_human_assisted_no_meta_api");
+    assert.equal(waDrafts.draftCount, 1);
+    assert.ok(waDrafts.drafts[0].whatsappText.includes("https://meli.la/1iWQZbJ"));
+    assert.ok(waDrafts.drafts[0].whatsappText.includes("https://procurali.com.br/ofertas/ssd-kingston-nv3-1tb-nvme-m2/index.html"));
+
+    const sitemapXml = nodeFs.readFileSync(nodePath.join(outDir, "sitemap.xml"), "utf8");
+    assert.ok(sitemapXml.includes('xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"'));
+  } finally {
+    nodeFs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
 });

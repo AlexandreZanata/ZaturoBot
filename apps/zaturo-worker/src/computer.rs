@@ -463,6 +463,8 @@ print(json.dumps(result))
                 files: None,
                 youtube: None,
                 android: None,
+                minio: None,
+                telegram: None,
             };
             let journal = Arc::new(WorkerJournal::open(&config.database).unwrap());
             let local = journal.clone();

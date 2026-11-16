@@ -51,6 +51,119 @@ function contrastRatio(hexA, hexB) {
 }
 
 /**
+ * Validates that an asset URL/path is either a safe local /brand/ path, an HTTPS MinIO/CDN URL,
+ * or a local loopback test endpoint — rejecting filesystem leaks, file://, and javascript:.
+ * @param {string} value
+ * @returns {boolean}
+ */
+function isSafePublicAssetPath(value) {
+  if (typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 1024 || /[\s\0\\@]/.test(trimmed)) {
+    return false;
+  }
+  const lower = trimmed.toLowerCase();
+  if (
+    lower.includes(".local/") ||
+    lower.includes("/home/") ||
+    lower.includes("file://") ||
+    lower.includes("javascript:") ||
+    lower.includes("matt_tool=") ||
+    lower.includes("..")
+  ) {
+    return false;
+  }
+  if (trimmed.startsWith("https://")) {
+    const rest = trimmed.slice("https://".length);
+    const host = rest.split(/[/:]/)[0];
+    return Boolean(host) && rest.includes("/");
+  }
+  if (trimmed.startsWith("http://")) {
+    const rest = trimmed.slice("http://".length);
+    return (rest.startsWith("127.0.0.1") || rest.startsWith("[::1]")) && rest.includes("/");
+  }
+  return trimmed.startsWith("/brand/") || trimmed.startsWith("brand/");
+}
+
+/**
+ * Resolves a catalog image path for static HTML or browser DOM: preserves MinIO HTTP(S) URLs
+ * verbatim and prefixes relative asset paths with route depth `root`.
+ * @param {string} root
+ * @param {string} assetPath
+ * @returns {string}
+ */
+function resolveMediaSrc(root, assetPath) {
+  const value = String(assetPath || "").trim();
+  if (!value) return "";
+  if (value.startsWith("https://") || value.startsWith("http://")) {
+    return value;
+  }
+  return `${root}${value.replace(/^\//, "")}`;
+}
+
+/**
+ * Validates a Hub-emitted SiteCatalogSnapshot or merged runtime catalog before static generation.
+ * @param {object} snapshot
+ * @returns {{ valid: boolean, errors: Array<string> }}
+ */
+function validateCatalogSnapshot(snapshot) {
+  const errors = [];
+  if (!snapshot || typeof snapshot !== "object") {
+    return { valid: false, errors: ["snapshot must be a JSON object"] };
+  }
+  if (!Array.isArray(snapshot.offers) || snapshot.offers.length === 0) {
+    errors.push("snapshot.offers must contain at least one offer");
+  }
+  if (!Array.isArray(snapshot.categories) || snapshot.categories.length === 0) {
+    errors.push("snapshot.categories must contain at least one category");
+  }
+  if (!Array.isArray(snapshot.mediaRights)) {
+    errors.push("snapshot.mediaRights must be an array");
+  }
+  if (!Array.isArray(snapshot.evidenceSources)) {
+    errors.push("snapshot.evidenceSources must be an array");
+  }
+
+  for (const offer of snapshot.offers || []) {
+    if (!offer || typeof offer !== "object") {
+      errors.push("invalid offer entry");
+      continue;
+    }
+    if (!offer.slug || typeof offer.slug !== "string") {
+      errors.push(`offer ${offer.id || "?"} missing slug`);
+    }
+    if (!offer.title || typeof offer.title !== "string") {
+      errors.push(`offer ${offer.slug || offer.id || "?"} missing title`);
+    }
+    if (!Number.isInteger(offer.priceBrlCents) || offer.priceBrlCents <= 0) {
+      errors.push(`offer ${offer.slug} missing positive integer priceBrlCents`);
+    }
+    if (!isSafePublicAssetPath(offer.imagePath)) {
+      errors.push(`offer ${offer.slug} has unsafe or invalid imagePath`);
+    }
+    for (const img of offer.galleryPaths || []) {
+      if (!img || !isSafePublicAssetPath(img.path)) {
+        errors.push(`offer ${offer.slug} has unsafe or invalid galleryPaths item`);
+      }
+    }
+    if (!offer.isDemoFixture && offer.state === "approved") {
+      if (
+        typeof offer.officialAffiliateUrl !== "string" ||
+        !offer.officialAffiliateUrl.startsWith("https://meli.la/")
+      ) {
+        errors.push(`live ML offer ${offer.slug} must preserve official https://meli.la/ link`);
+      }
+    }
+    const serialized = JSON.stringify(offer).toLowerCase();
+    if (serialized.includes(".local/") || serialized.includes("/home/") || serialized.includes("file://")) {
+      errors.push(`offer ${offer.slug} leaked restricted filesystem path`);
+    }
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
+/**
  * Checks whether an offer observation is still within its freshness window (default 30 min).
  * @param {object} offer
  * @param {string} referenceIso
@@ -359,6 +472,174 @@ function runDeterministicFinder(
       mainTradeoff: offer.limitations[0],
       unknownItem: offer.unknowns[0],
     })),
+  };
+}
+
+function escapeTelegramHtml(text) {
+  return String(text || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function truncateChars(text, maxChars) {
+  const s = String(text || "").trim();
+  if (s.length <= maxChars) return s;
+  return `${s.slice(0, Math.max(0, maxChars - 3))}...`;
+}
+
+function sanitizeWhatsappInline(text) {
+  return String(text || "")
+    .replace(/\s+/g, " ")
+    .replace(/[*_~`]/g, "")
+    .trim();
+}
+
+/**
+ * Formats an approved live offer for Telegram Bot API (`parse_mode: "HTML"`, <= 1024 chars caption).
+ * @param {object} offer
+ * @param {string} [siteBaseUrl]
+ * @returns {string}
+ */
+function formatTelegramHtmlOffer(offer, siteBaseUrl = "https://procurali.com.br") {
+  const cleanSite = String(siteBaseUrl || "").replace(/\/+$/, "");
+  const siteOfferUrl =
+    cleanSite.startsWith("https://") || cleanSite.startsWith("http://")
+      ? `${cleanSite}/ofertas/${offer.slug}/index.html`
+      : null;
+  const priceStr = formatBrl(offer.priceBrlCents);
+  const refStr =
+    offer.referencePriceCents && offer.referencePriceCents > offer.priceBrlCents
+      ? formatBrl(offer.referencePriceCents)
+      : null;
+  const priceLine =
+    refStr && offer.discountPercentLabel
+      ? `💰 <b>${escapeTelegramHtml(priceStr)}</b> (<s>de ${escapeTelegramHtml(refStr)}</s> · <b>${escapeTelegramHtml(offer.discountPercentLabel)}</b>)`
+      : refStr
+        ? `💰 <b>${escapeTelegramHtml(priceStr)}</b> (<s>de ${escapeTelegramHtml(refStr)}</s>)`
+        : `💰 <b>${escapeTelegramHtml(priceStr)}</b>`;
+
+  const lines = [
+    `<i>${escapeTelegramHtml("Publicidade · Link de afiliado: podemos receber comissão se você comprar.")}</i>`,
+    "",
+    `🔥 <b>${escapeTelegramHtml(truncateChars(offer.title, 160))}</b>`,
+    `Marca: ${escapeTelegramHtml(offer.brand || "Mercado Livre")}${offer.productId ? ` · Cód. ML: <code>${escapeTelegramHtml(offer.productId)}</code>` : ""}`,
+    priceLine,
+    offer.shortCondition ? `💳 ${escapeTelegramHtml(truncateChars(offer.shortCondition, 120))}` : "",
+    offer.sellerName ? `🏪 ${escapeTelegramHtml(truncateChars(offer.sellerName, 100))}` : "",
+    offer.observedAtDisplay ? `🕐 Observado em ${escapeTelegramHtml(offer.observedAtDisplay)}` : "",
+    "",
+    offer.shareId ? `🔍 Buscador ML: <code>${escapeTelegramHtml(offer.shareId)}</code>` : "",
+    offer.officialAffiliateUrl
+      ? `🔗 <a href="${escapeTelegramHtml(offer.officialAffiliateUrl)}">Ver oferta oficial no Mercado Livre</a>`
+      : "",
+    siteOfferUrl ? `📋 <a href="${escapeTelegramHtml(siteOfferUrl)}">Ficha técnica e limitações no Procurali</a>` : "",
+  ].filter((line, idx, arr) => !(line === "" && (idx === 0 || arr[idx - 1] === "")));
+
+  return truncateChars(lines.join("\n"), 1024);
+}
+
+/**
+ * Formats an approved offer as human-assisted WhatsApp Web copy (no Meta API or unofficial automation).
+ * @param {object} offer
+ * @param {string} [siteBaseUrl]
+ * @returns {string}
+ */
+function formatWhatsappWebAssistedText(offer, siteBaseUrl = "https://procurali.com.br") {
+  const cleanSite = String(siteBaseUrl || "").replace(/\/+$/, "");
+  const siteOfferUrl =
+    cleanSite.startsWith("https://") || cleanSite.startsWith("http://")
+      ? `${cleanSite}/ofertas/${offer.slug}/index.html`
+      : null;
+  const priceStr = formatBrl(offer.priceBrlCents);
+  const refStr =
+    offer.referencePriceCents && offer.referencePriceCents > offer.priceBrlCents
+      ? formatBrl(offer.referencePriceCents)
+      : null;
+  const badge = offer.discountPercentLabel ? ` · *${sanitizeWhatsappInline(offer.discountPercentLabel)}*` : "";
+  const priceLine = refStr
+    ? `💰 *${priceStr}* (~De ${refStr}~${badge})`
+    : `💰 *${priceStr}*${badge ? ` (${badge.replace(/^ · /, "")})` : ""}`;
+
+  const lines = [
+    "_Publicidade · Link de afiliado: podemos receber comissão se você comprar._",
+    "",
+    `🔥 *${sanitizeWhatsappInline(offer.title)}*`,
+    `Marca: *${sanitizeWhatsappInline(offer.brand || "Mercado Livre")}*`,
+    priceLine,
+    offer.shortCondition ? `💳 ${sanitizeWhatsappInline(offer.shortCondition)}` : null,
+    offer.sellerName ? `🏪 ${sanitizeWhatsappInline(offer.sellerName)}` : null,
+    Array.isArray(offer.limitations) && offer.limitations[0]
+      ? `⚠️ Atenção: ${sanitizeWhatsappInline(offer.limitations[0])}`
+      : null,
+    offer.observedAtDisplay ? `_Observado em ${sanitizeWhatsappInline(offer.observedAtDisplay)}_` : null,
+    "",
+    offer.shareId ? `🔎 Código ML: \`\`\`${sanitizeWhatsappInline(offer.shareId)}\`\`\`` : null,
+    offer.officialAffiliateUrl ? `🔗 Oferta oficial: ${offer.officialAffiliateUrl}` : null,
+    siteOfferUrl ? `📋 Ficha completa no Procurali: ${siteOfferUrl}` : null,
+  ].filter((item) => item !== null);
+
+  return lines.join("\n");
+}
+
+/**
+ * Builds the site-emitted WhatsApp Web human-assisted draft package for active affiliate offers.
+ * @param {Array<object>} offers
+ * @param {string} generatedAtUtc
+ * @param {string} [siteBaseUrl]
+ * @returns {object}
+ */
+function buildWhatsappWebAssistedPackage(
+  offers,
+  generatedAtUtc,
+  siteBaseUrl = "https://procurali.com.br"
+) {
+  const cleanSite = String(siteBaseUrl || "").replace(/\/+$/, "");
+  const liveOffers = (offers || []).filter((o) => !o.isDemoFixture && o.state === "approved");
+  const drafts = liveOffers.map((offer) => ({
+    id: offer.id,
+    productId: offer.productId || offer.slug,
+    slug: offer.slug,
+    title: offer.title,
+    priceBrlCents: offer.priceBrlCents,
+    referencePriceCents: offer.referencePriceCents ?? null,
+    discountLabel: offer.discountPercentLabel ?? null,
+    shareLink: offer.officialAffiliateUrl,
+    shareId: offer.shareId ?? null,
+    imagePublicUrl: offer.imagePath,
+    siteOfferUrl: `${cleanSite}/ofertas/${offer.slug}/index.html`,
+    whatsappText: formatWhatsappWebAssistedText(offer, cleanSite),
+    operatorChecklist: [
+      "Envio humano assistido no WhatsApp Web (proibido usar API da Meta ou automação no WhatsApp Web).",
+      `Conferir se preço (${formatBrl(offer.priceBrlCents)}) e estoque no link oficial ainda estão ativos (< 30 min).`,
+      "Colar manualmente no grupo autorizado após validar a pré-visualização Open Graph do link.",
+    ],
+  }));
+
+  const combinedDigestText =
+    drafts.length === 0
+      ? "_Procurali · Resumo manual WhatsApp Web_\nNenhuma oferta aprovada disponível no momento."
+      : [
+          "*Seleção Procurali · Achados verificados*",
+          "_Publicidade · Link de afiliado: podemos receber comissão se você comprar._",
+          "",
+          ...drafts.flatMap((d, idx) => [
+            `${idx + 1}. *${sanitizeWhatsappInline(truncateChars(d.title, 90))}*`,
+            `   💰 *${formatBrl(d.priceBrlCents)}* · 🔗 ${d.shareLink}`,
+            `   📋 Ficha: ${d.siteOfferUrl}`,
+          ]),
+          "",
+          "_Revisão humana obrigatória no WhatsApp Web antes de enviar (sem API da Meta)._",
+        ].join("\n");
+
+  return {
+    generatedAt: generatedAtUtc,
+    mode: "whatsapp_web_human_assisted_no_meta_api",
+    channelId: "@procurali",
+    draftCount: drafts.length,
+    combinedDigestText,
+    drafts,
   };
 }
 
@@ -764,7 +1045,7 @@ function initOffersFilter() {
             ? offer.referencePriceCents - offer.priceBrlCents
             : 0;
         const sevenDay = verifySevenDaySample(offer);
-        const imageSrc = `${root}${offer.imagePath.replace(/^\//, "")}`;
+        const imageSrc = resolveMediaSrc(root, offer.imagePath);
         const detailHref = `${root}ofertas/${offer.slug}/index.html`;
         const conditionText =
           offer.shortCondition ||

@@ -7,6 +7,7 @@ mod devices;
 mod files;
 mod http;
 pub mod listener;
+mod mercadolivre;
 mod private_views;
 mod shared;
 mod websocket;

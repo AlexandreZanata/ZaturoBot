@@ -30,6 +30,10 @@ pub struct WorkerConfig {
     pub youtube: Option<zaturo_youtube::YoutubeConfig>,
     #[serde(default)]
     pub android: Option<AndroidConfig>,
+    #[serde(default)]
+    pub minio: Option<zaturo_transfer::minio::MinioConfig>,
+    #[serde(default)]
+    pub telegram: Option<crate::telegram::TelegramBotConfig>,
 }
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -145,6 +149,12 @@ impl WorkerConfig {
         }
         if let Some(youtube) = &self.youtube {
             youtube.validate()?;
+        }
+        if let Some(minio) = &self.minio {
+            minio.validate()?;
+        }
+        if let Some(telegram) = &self.telegram {
+            telegram.validate()?;
         }
         ensure!(
             (!self.capabilities.iter().any(|c| c == "assistant.chat.v1")

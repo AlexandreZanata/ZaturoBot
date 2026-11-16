@@ -28,6 +28,12 @@ only their public age key enters app_viewers SQL. Owner-confirmed captures remai
 
 Prepared USB capture is a native-confirmed fixed15-second one-shot under the original viewer and <=60-second expiry. Only opaque preparation metadata survives focus changes; no app background frame fetch. Never use an assistant/MCP request as native consent.
 
+`mercadolivre.rs` exposes authenticated ingest routes (`POST /v1/device/commerce/mercadolivre/ingest`
+for enrolled devices and `POST /v1/commerce/mercadolivre/ingest` for owner/apps) with an
+explicit 4 MiB route body limit, plus `GET /v1/commerce/mercadolivre/site-catalog`,
+`GET /v1/commerce/mercadolivre/telegram-queue`, `POST /v1/commerce/mercadolivre/telegram-queue/{id}/ack`,
+and `commerce` CLI export commands.
+
 
 The owner authorized0.8 remote private URL and SMS images plus source publication.
 Follow docs/REMOTE_PRIVATE_CAPTURE.md (repository root): native URL grant is RAM-only,

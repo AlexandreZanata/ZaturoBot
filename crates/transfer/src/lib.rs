@@ -2,6 +2,7 @@
 pub mod blob;
 pub mod client;
 pub mod crypto;
+pub mod minio;
 
 use serde::{Deserialize, Serialize};
 

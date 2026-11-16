@@ -2,6 +2,7 @@
 
 mod activity;
 mod computer;
+mod mercadolivre;
 mod service_journal;
 mod shared;
 pub use service_journal::{PendingServiceJob, ServiceIntent};
@@ -48,7 +49,7 @@ fn connection(
     let version: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
     if version == 0 {
         connection.execute_batch(&format!("BEGIN IMMEDIATE;\n{migration}\nCOMMIT;"))?;
-    } else if expected_version == 9 && matches!(version, 1 | 4 | 5 | 7) {
+    } else if expected_version == 10 && matches!(version, 1 | 4 | 5 | 7 | 9) {
         let base = if version == 1 {
             include_str!("../migrations/0004_hub_transfers.sql")
         } else {
@@ -59,14 +60,19 @@ fn connection(
         } else {
             ""
         };
-        let shared = if version != 7 {
+        let shared = if matches!(version, 1 | 4 | 5) {
             include_str!("../migrations/0007_hub_shared.sql")
         } else {
             ""
         };
-        connection.execute_batch(&format!(
-            "BEGIN IMMEDIATE;\n{base}\n{activity}\n{shared}\n{}\nCOMMIT;",
+        let computer = if version != 9 {
             include_str!("../migrations/0009_hub_computer.sql")
+        } else {
+            ""
+        };
+        connection.execute_batch(&format!(
+            "BEGIN IMMEDIATE;\n{base}\n{activity}\n{shared}\n{computer}\n{}\nCOMMIT;",
+            include_str!("../migrations/0010_hub_mercadolivre_commerce.sql")
         ))?;
     } else if expected_version == 8 && matches!(version, 2 | 3 | 6) {
         let base = if version == 2 {

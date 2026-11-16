@@ -210,7 +210,10 @@
             "required": ["path", "alt"],
             "properties": {
               "path": { "type": "string" },
-              "alt": { "type": "string" }
+              "alt": { "type": "string" },
+              "bucket": { "type": ["string", "null"] },
+              "objectKey": { "type": ["string", "null"] },
+              "sha256": { "type": ["string", "null"] }
             }
           }
         },

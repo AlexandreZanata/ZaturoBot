@@ -28,3 +28,18 @@ reconnect_max_seconds = 30
 # adb_serial = "EXPLICIT_OWNER_USB_SERIAL"
 # display_name = "Owner phone"
 # capabilities = ["device_status", "sensitive_screen_view"]
+# [minio]
+# endpoint = "http://127.0.0.1:9000"
+# public_base_url = "http://127.0.0.1:9000"
+# bucket = "procurali-media"
+# region = "us-east-1"
+# access_key_id = "procurali-uploader"
+# secret_access_key_file = "/etc/zaturobot/minio.secret"
+# timeout_seconds = 15
+# [telegram]
+# api_base_url = "https://api.telegram.org"
+# bot_token_file = "/etc/zaturobot/telegram.token"
+# default_channel_id = "@procurali"
+# site_base_url = "https://procurali.com.br"
+# min_send_interval_ms = 1100
+# allow_live_publish = false

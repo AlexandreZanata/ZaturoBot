@@ -5,9 +5,20 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { CATEGORIES, GUIDES, MEDIA_RIGHTS, OFFERS, SITE_META } from "../data/demo-catalog.mjs";
-import { checkForbiddenClaims } from "./validate-contracts.mjs";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  CATEGORIES,
+  EVIDENCE_SOURCES,
+  GUIDES,
+  MEDIA_RIGHTS,
+  OFFERS,
+  SITE_META,
+} from "../data/demo-catalog.mjs";
+import {
+  buildWhatsappWebAssistedPackage,
+  checkForbiddenClaims,
+  validateCatalogSnapshot,
+} from "./validate-contracts.mjs";
 import {
   esc,
   renderAiFinderPage,
@@ -24,12 +35,13 @@ import {
   renderOffersListPage,
   renderTrustPage,
   renderWeeklySelectionPage,
+  setActiveCatalog,
 } from "./pages.mjs";
 import { BRAND_SYMBOL_SVG, icon } from "./icons.mjs";
 
 const SRC_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROTOTYPE_ROOT = path.resolve(SRC_DIR, "..");
-const SITE_DIR = path.join(PROTOTYPE_ROOT, "site");
+const DEFAULT_SITE_DIR = path.join(PROTOTYPE_ROOT, "site");
 
 function ensureCleanDir(dirPath) {
   fs.rmSync(dirPath, { recursive: true, force: true });
@@ -86,15 +98,23 @@ function renderShell({
   bodyHtml,
   jsonLd = [],
   includeCatalogJson = false,
+  ogImage = null,
+  catalogData = { offers: OFFERS, categories: CATEGORIES, mediaRights: MEDIA_RIGHTS },
 }) {
   const root = rootPrefixForRoute(routePath);
   const fullTitle = `${title} — Procurali`;
   const robotsDirective = SITE_META.isDemoStaging ? "noindex, nofollow" : "index, follow";
+  const resolvedOgImage =
+    typeof ogImage === "string" && (ogImage.startsWith("https://") || ogImage.startsWith("http://"))
+      ? ogImage
+      : typeof ogImage === "string" && ogImage.trim()
+        ? `https://${SITE_META.domain}/${ogImage.replace(/^\/+/, "")}`
+        : `https://${SITE_META.domain}/brand/png/social-cover-1200x630.png`;
   const catalogScript = includeCatalogJson
     ? `<script type="application/json" id="procurali-catalog-data">${JSON.stringify({
-        offers: OFFERS,
-        categories: CATEGORIES,
-        mediaRights: MEDIA_RIGHTS,
+        offers: catalogData.offers,
+        categories: catalogData.categories,
+        mediaRights: catalogData.mediaRights,
       }).replace(/</g, "\\u003c")}</script>`
     : "";
 
@@ -118,7 +138,7 @@ function renderShell({
   <meta property="og:title" content="${esc(fullTitle)}">
   <meta property="og:description" content="${esc(description)}">
   <meta property="og:url" content="${esc(canonicalUrl(routePath))}">
-  <meta property="og:image" content="${esc(root)}brand/png/social-cover-1200x630.png">
+  <meta property="og:image" content="${esc(resolvedOgImage)}">
   <link rel="icon" type="image/svg+xml" href="${esc(root)}brand/procurali_icone_branco_transparente.svg">
   <link rel="alternate icon" type="image/svg+xml" href="${esc(root)}brand/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="${esc(root)}brand/png/favicon-32.png">
@@ -289,7 +309,7 @@ function renderShell({
 `;
 }
 
-function writePage(routePath, options) {
+function writePage(siteDir, routePath, options) {
   const html = renderShell({ routePath, ...options });
   const violations = checkForbiddenClaims(html);
   if (violations.length > 0) {
@@ -297,11 +317,11 @@ function writePage(routePath, options) {
   }
   let targetFile;
   if (routePath === "/") {
-    targetFile = path.join(SITE_DIR, "index.html");
+    targetFile = path.join(siteDir, "index.html");
   } else if (routePath === "/404.html") {
-    targetFile = path.join(SITE_DIR, "404.html");
+    targetFile = path.join(siteDir, "404.html");
   } else {
-    targetFile = path.join(SITE_DIR, routePath.replace(/^\/+|\/+$/g, ""), "index.html");
+    targetFile = path.join(siteDir, routePath.replace(/^\/+|\/+$/g, ""), "index.html");
   }
   fs.mkdirSync(path.dirname(targetFile), { recursive: true });
   fs.writeFileSync(targetFile, html, "utf8");
@@ -329,227 +349,367 @@ function breadcrumbLd(items) {
   };
 }
 
-function main() {
-  ensureCleanDir(SITE_DIR);
-
-  // Copy static assets and brand pack
-  fs.mkdirSync(path.join(SITE_DIR, "assets"), { recursive: true });
-  fs.copyFileSync(path.join(PROTOTYPE_ROOT, "brand", "tokens.css"), path.join(SITE_DIR, "assets", "tokens.css"));
-  fs.copyFileSync(path.join(SRC_DIR, "assets", "styles.css"), path.join(SITE_DIR, "assets", "styles.css"));
-  fs.writeFileSync(path.join(SITE_DIR, "assets", "app.js"), buildBrowserBundle(), "utf8");
-  copyTree(path.join(PROTOTYPE_ROOT, "brand"), path.join(SITE_DIR, "brand"));
-  copyTree(path.join(SRC_DIR, "assets", "fonts"), path.join(SITE_DIR, "assets", "fonts"));
-
-  const publicRoutes = [];
-
-  // 1. Home
-  publicRoutes.push(
-    writePage("/", {
-      activeNav: "home",
-      title: "Procura Ali · Ofertas e guias para escolher com mais contexto",
-      description:
-        "Procurali (Procura Ali): guias de compra, curadoria de ofertas com condições explicadas e comunidade no Telegram em português.",
-      bodyHtml: renderHomePage("./"),
-    })
-  );
-
-  // 2. Offers listing & detail pages
-  publicRoutes.push(
-    writePage("/ofertas/", {
-      activeNav: "ofertas",
-      title: "Ofertas e registros demonstrativos",
-      description:
-        "Filtre ofertas de demonstração por categoria, faixa de preço e condição com transparência de observação.",
-      bodyHtml: renderOffersListPage("../"),
-      includeCatalogJson: true,
-      jsonLd: [breadcrumbLd([{ name: "Início", path: "/" }, { name: "Ofertas", path: "/ofertas/" }])],
-    })
-  );
-
-  for (const offer of OFFERS) {
-    const route = `/ofertas/${offer.slug}/`;
-    const isLiveTest = !offer.isDemoFixture && offer.state === "approved";
-    publicRoutes.push(
-      writePage(route, {
-        activeNav: "ofertas",
-        title: isLiveTest
-          ? offer.title
-          : `${offer.title} (${offer.state === "approved" ? "demo" : offer.state})`,
-        description: isLiveTest
-          ? `${offer.oneLineReason} Registro real do Mercado Livre observado em ${offer.observedAtDisplay}.`
-          : `${offer.oneLineReason} Dados demonstrativos fictícios com horário de observação e limitações.`,
-        bodyHtml: renderOfferDetailPage("../../", offer),
-        jsonLd: [
-          breadcrumbLd([
-            { name: "Início", path: "/" },
-            { name: "Ofertas", path: "/ofertas/" },
-            { name: offer.title, path: route },
-          ]),
-        ],
-      })
-    );
+function parseCliArgs(argv) {
+  const opts = {
+    apiSnapshotPath: process.env.PROCURALI_API_SNAPSHOT || null,
+    hubApiUrl: process.env.PROCURALI_HUB_API_URL || null,
+    hubToken: process.env.PROCURALI_HUB_TOKEN || null,
+    outDir: process.env.PROCURALI_SITE_DIR ? path.resolve(process.env.PROCURALI_SITE_DIR) : DEFAULT_SITE_DIR,
+  };
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === "--api-snapshot" && argv[i + 1]) {
+      opts.apiSnapshotPath = path.resolve(argv[i + 1]);
+      i += 1;
+    } else if (arg === "--hub-url" && argv[i + 1]) {
+      opts.hubApiUrl = argv[i + 1];
+      i += 1;
+    } else if (arg === "--out-dir" && argv[i + 1]) {
+      opts.outDir = path.resolve(argv[i + 1]);
+      i += 1;
+    }
   }
+  return opts;
+}
 
-  // 3. Categories
-  publicRoutes.push(
-    writePage("/categorias/", {
-      activeNav: "categorias",
-      title: "Categorias iniciais (editáveis)",
-      description: "Explore categorias iniciais de organização, ergonomia, energia e iluminação de mesa.",
-      bodyHtml: renderCategoriesIndexPage("../"),
-      jsonLd: [breadcrumbLd([{ name: "Início", path: "/" }, { name: "Categorias", path: "/categorias/" }])],
-    })
-  );
-
-  for (const cat of CATEGORIES) {
-    const route = `/categorias/${cat.slug}/`;
-    publicRoutes.push(
-      writePage(route, {
-        activeNav: `cat-${cat.slug}`,
-        title: `${cat.name} — Categoria`,
-        description: cat.description,
-        bodyHtml: renderCategoryPage("../../", cat),
-        jsonLd: [
-          breadcrumbLd([
-            { name: "Início", path: "/" },
-            { name: "Categorias", path: "/categorias/" },
-            { name: cat.name, path: route },
-          ]),
-        ],
-      })
-    );
-  }
-
-  // 4. Guides & Weekly selection
-  publicRoutes.push(
-    writePage("/guias/", {
-      activeNav: "guias",
-      title: "Guias de compra e critérios",
-      description: "Guias originais baseados em pesquisa de bancada para evitar erros de compatibilidade.",
-      bodyHtml: renderGuidesIndexPage("../"),
-      jsonLd: [breadcrumbLd([{ name: "Início", path: "/" }, { name: "Guias", path: "/guias/" }])],
-    })
-  );
-
-  for (const guide of GUIDES) {
-    const route = `/guias/${guide.slug}/`;
-    publicRoutes.push(
-      writePage(route, {
-        activeNav: "guias",
-        title: guide.title,
-        description: guide.metaDescription,
-        bodyHtml: renderGuideDetailPage("../../", guide),
-        jsonLd: [
-          breadcrumbLd([
-            { name: "Início", path: "/" },
-            { name: "Guias", path: "/guias/" },
-            { name: guide.title, path: route },
-          ]),
-          {
-            "@context": "https://schema.org",
-            "@type": "Article",
-            headline: guide.title,
-            description: guide.metaDescription,
-            datePublished: guide.publishedAt,
-            dateModified: guide.updatedAt,
-            inLanguage: "pt-BR",
-            author: { "@type": "Organization", name: guide.author },
-            publisher: { "@type": "Organization", name: "Procurali (Procura Ali)" },
-          },
-        ],
-      })
-    );
-  }
-
-  publicRoutes.push(
-    writePage("/selecoes-da-semana/", {
-      activeNav: "semanal",
-      title: "Seleções da semana (demonstração)",
-      description: "Recorte semanal datado com escolhas distintas e separação de históricos encerrados.",
-      bodyHtml: renderWeeklySelectionPage("../"),
-      jsonLd: [
-        breadcrumbLd([
-          { name: "Início", path: "/" },
-          { name: "Seleções da semana", path: "/selecoes-da-semana/" },
-        ]),
-      ],
-    })
-  );
-
-  // 5. Guided AI Finder
-  publicRoutes.push(
-    writePage("/encontre-com-ia/", {
-      activeNav: "ia",
-      title: "Encontre com IA (Demonstração local)",
-      description:
-        "Seletor guiado por necessidade e orçamento em demonstração local determinística, sem consulta ao vivo.",
-      bodyHtml: renderAiFinderPage("../"),
-      includeCatalogJson: true,
-      jsonLd: [
-        breadcrumbLd([
-          { name: "Início", path: "/" },
-          { name: "Encontre com IA", path: "/encontre-com-ia/" },
-        ]),
-      ],
-    })
-  );
-
-  // 6. Community Directory
-  publicRoutes.push(
-    writePage("/grupos/", {
-      activeNav: "grupos",
-      title: "Grupos e canal no Telegram",
-      description:
-        "Diretório voluntário das comunidades do Procurali: canal oficial @procurali no Telegram e prévia de grupos no WhatsApp.",
-      bodyHtml: renderGroupsPage("../"),
-      jsonLd: [breadcrumbLd([{ name: "Início", path: "/" }, { name: "Grupos", path: "/grupos/" }])],
-    })
-  );
-
-  // 7. Trust & Contact pages
-  const trustPages = [
-    ["sobre", "Sobre o Procurali", "Conheça o papel editorial do Procurali e sua separação das lojas parceiras."],
-    ["como-selecionamos", "Como selecionamos", "Política editorial, janela de frescor de 30 minutos e regra de amostra de 7 dias."],
-    ["transparencia", "Transparência de afiliados", "Como o Procurali financia o projeto, uso de #publi e links rel=sponsored."],
-    ["privacidade", "Privacidade (rascunho)", "Rascunho de política de privacidade e controle opcional de medição local."],
-    ["termos", "Termos de uso (rascunho)", "Rascunho dos termos informativos e limites de responsabilidade sobre pedidos."],
-    ["contato", "Contato", "Rotas de contato e formulário demonstrativo não conectado do Procurali."],
+function mergeCatalogSnapshot(snapshot, sourceLabel) {
+  const snapshotCats = Array.isArray(snapshot.categories) ? snapshot.categories : [];
+  const seenCats = new Set(snapshotCats.map((c) => c.slug));
+  const mergedCategories = [
+    ...snapshotCats,
+    ...CATEGORIES.filter((c) => !seenCats.has(c.slug)),
   ];
-  for (const [slug, title, description] of trustPages) {
-    const route = `/${slug}/`;
+  const mergedMediaRights =
+    Array.isArray(snapshot.mediaRights) && snapshot.mediaRights.length > 0
+      ? snapshot.mediaRights
+      : MEDIA_RIGHTS;
+  const mergedEvidence =
+    Array.isArray(snapshot.evidenceSources) && snapshot.evidenceSources.length > 0
+      ? snapshot.evidenceSources
+      : EVIDENCE_SOURCES;
+
+  return {
+    schemaVersion: snapshot.schemaVersion || 1,
+    generatedAtUtc: snapshot.generatedAtUtc || new Date().toISOString(),
+    sourceLabel,
+    offers: snapshot.offers || [],
+    categories: mergedCategories,
+    mediaRights: mergedMediaRights,
+    evidenceSources: mergedEvidence,
+  };
+}
+
+async function resolveCatalog(options) {
+  if (options.snapshotData) {
+    const merged = mergeCatalogSnapshot(options.snapshotData, options.sourceLabel || "api-snapshot-memory");
+    const check = validateCatalogSnapshot(merged);
+    if (!check.valid) {
+      throw new Error(`Invalid API catalog snapshot: ${check.errors.join("; ")}`);
+    }
+    return merged;
+  }
+  if (options.apiSnapshotPath) {
+    const raw = JSON.parse(fs.readFileSync(options.apiSnapshotPath, "utf8"));
+    const merged = mergeCatalogSnapshot(raw, `api-snapshot:${path.basename(options.apiSnapshotPath)}`);
+    const check = validateCatalogSnapshot(merged);
+    if (!check.valid) {
+      throw new Error(`Invalid API catalog snapshot file: ${check.errors.join("; ")}`);
+    }
+    return merged;
+  }
+  if (options.hubApiUrl) {
+    const token = String(options.hubToken || "").trim();
+    if (!token) {
+      throw new Error("PROCURALI_HUB_TOKEN is required when PROCURALI_HUB_API_URL / --hub-url is set");
+    }
+    const endpoint = `${options.hubApiUrl.replace(/\/+$/, "")}/v1/commerce/mercadolivre/site-catalog`;
+    const res = await fetch(endpoint, {
+      headers: { Authorization: `Bearer ${token}` },
+      redirect: "error",
+    });
+    if (!res.ok) {
+      throw new Error(`Hub site-catalog fetch failed with HTTP ${res.status}`);
+    }
+    const raw = await res.json();
+    const merged = mergeCatalogSnapshot(raw, "hub-api");
+    const check = validateCatalogSnapshot(merged);
+    if (!check.valid) {
+      throw new Error(`Invalid Hub site-catalog payload: ${check.errors.join("; ")}`);
+    }
+    return merged;
+  }
+  return {
+    schemaVersion: 1,
+    generatedAtUtc: SITE_META.prototypeReferenceTimeUtc,
+    sourceLabel: "static-demo",
+    offers: OFFERS,
+    categories: CATEGORIES,
+    mediaRights: MEDIA_RIGHTS,
+    evidenceSources: EVIDENCE_SOURCES,
+  };
+}
+
+export async function buildSite(options = {}) {
+  const siteDir = options.outDir ? path.resolve(options.outDir) : DEFAULT_SITE_DIR;
+  const catalog = await resolveCatalog(options);
+  setActiveCatalog(catalog);
+
+  try {
+    const write = (routePath, pageOpts) =>
+      writePage(siteDir, routePath, { ...pageOpts, catalogData: catalog });
+
+    ensureCleanDir(siteDir);
+
+    // Copy static assets, brand pack, and machine-readable catalog snapshot
+    fs.mkdirSync(path.join(siteDir, "assets"), { recursive: true });
+    fs.mkdirSync(path.join(siteDir, "api"), { recursive: true });
+    fs.copyFileSync(path.join(PROTOTYPE_ROOT, "brand", "tokens.css"), path.join(siteDir, "assets", "tokens.css"));
+    fs.copyFileSync(path.join(SRC_DIR, "assets", "styles.css"), path.join(siteDir, "assets", "styles.css"));
+    fs.writeFileSync(path.join(siteDir, "assets", "app.js"), buildBrowserBundle(), "utf8");
+    fs.writeFileSync(
+      path.join(siteDir, "api", "catalog.json"),
+      JSON.stringify(
+        {
+          schemaVersion: catalog.schemaVersion,
+          generatedAtUtc: catalog.generatedAtUtc,
+          source: catalog.sourceLabel,
+          offers: catalog.offers,
+          categories: catalog.categories,
+          mediaRights: catalog.mediaRights,
+          evidenceSources: catalog.evidenceSources,
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    fs.writeFileSync(
+      path.join(siteDir, "api", "whatsapp-assisted-drafts.json"),
+      JSON.stringify(
+        buildWhatsappWebAssistedPackage(
+          catalog.offers,
+          catalog.generatedAtUtc,
+          `https://${SITE_META.domain}`
+        ),
+        null,
+        2
+      ),
+      "utf8"
+    );
+    copyTree(path.join(PROTOTYPE_ROOT, "brand"), path.join(siteDir, "brand"));
+    copyTree(path.join(SRC_DIR, "assets", "fonts"), path.join(siteDir, "assets", "fonts"));
+
+    const publicRoutes = [];
+
+    // 1. Home
     publicRoutes.push(
-      writePage(route, {
-        title,
-        description,
-        bodyHtml: renderTrustPage("../", slug),
-        jsonLd: [breadcrumbLd([{ name: "Início", path: "/" }, { name: title, path: route }])],
+      write("/", {
+        activeNav: "home",
+        title: "Procura Ali · Ofertas e guias para escolher com mais contexto",
+        description:
+          "Procurali (Procura Ali): guias de compra, curadoria de ofertas com condições explicadas e comunidade no Telegram em português.",
+        bodyHtml: renderHomePage("./"),
       })
     );
-  }
 
-  // 8. Creative Kit & Non-production CMS mockup (excluded from sitemap)
-  publicRoutes.push(
-    writePage("/criativos/", {
-      title: "Kit criativo e identidade visual",
-      description: "Logotipos, templates SVG determinísticos, roteiro vertical e rascunhos Telegram/WhatsApp.",
-      bodyHtml: renderCreativeKitPage("../"),
-    })
-  );
+    // 2. Offers listing & detail pages
+    publicRoutes.push(
+      write("/ofertas/", {
+        activeNav: "ofertas",
+        title: "Ofertas e registros demonstrativos",
+        description:
+          "Filtre ofertas de demonstração por categoria, faixa de preço e condição com transparência de observação.",
+        bodyHtml: renderOffersListPage("../"),
+        includeCatalogJson: true,
+        jsonLd: [breadcrumbLd([{ name: "Início", path: "/" }, { name: "Ofertas", path: "/ofertas/" }])],
+      })
+    );
 
-  writePage("/cms-preview/", {
-    title: "Mockup de fila editorial e contratos (não produtivo)",
-    description: "Prévia visual não produtiva das aprovações, teto de IA e Search Console.",
-    bodyHtml: renderCmsPreviewPage("../"),
-  });
+    for (const offer of catalog.offers) {
+      const route = `/ofertas/${offer.slug}/`;
+      const isLiveTest = !offer.isDemoFixture && offer.state === "approved";
+      publicRoutes.push(
+        write(route, {
+          activeNav: "ofertas",
+          title: isLiveTest
+            ? offer.title
+            : `${offer.title} (${offer.state === "approved" ? "demo" : offer.state})`,
+          description: isLiveTest
+            ? `${offer.oneLineReason} Registro real do Mercado Livre observado em ${offer.observedAtDisplay}.`
+            : `${offer.oneLineReason} Dados demonstrativos fictícios com horário de observação e limitações.`,
+          bodyHtml: renderOfferDetailPage("../../", offer),
+          ogImage: offer.imagePath,
+          jsonLd: [
+            breadcrumbLd([
+              { name: "Início", path: "/" },
+              { name: "Ofertas", path: "/ofertas/" },
+              { name: offer.title, path: route },
+            ]),
+          ],
+        })
+      );
+    }
 
-  writePage("/404.html", {
-    title: "Página não encontrada (404)",
-    description: "Página não encontrada neste protótipo do Procurali.",
-    bodyHtml: renderNotFoundPage("./"),
-  });
+    // 3. Categories
+    publicRoutes.push(
+      write("/categorias/", {
+        activeNav: "categorias",
+        title: "Categorias iniciais (editáveis)",
+        description: "Explore categorias iniciais de organização, ergonomia, energia e iluminação de mesa.",
+        bodyHtml: renderCategoriesIndexPage("../"),
+        jsonLd: [breadcrumbLd([{ name: "Início", path: "/" }, { name: "Categorias", path: "/categorias/" }])],
+      })
+    );
 
-  // Sitemap (excludes /cms-preview/ and /404.html)
-  const sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>
+    for (const cat of catalog.categories) {
+      const route = `/categorias/${cat.slug}/`;
+      publicRoutes.push(
+        write(route, {
+          activeNav: `cat-${cat.slug}`,
+          title: `${cat.name} — Categoria`,
+          description: cat.description,
+          bodyHtml: renderCategoryPage("../../", cat),
+          jsonLd: [
+            breadcrumbLd([
+              { name: "Início", path: "/" },
+              { name: "Categorias", path: "/categorias/" },
+              { name: cat.name, path: route },
+            ]),
+          ],
+        })
+      );
+    }
+
+    // 4. Guides & Weekly selection
+    publicRoutes.push(
+      write("/guias/", {
+        activeNav: "guias",
+        title: "Guias de compra e critérios",
+        description: "Guias originais baseados em pesquisa de bancada para evitar erros de compatibilidade.",
+        bodyHtml: renderGuidesIndexPage("../"),
+        jsonLd: [breadcrumbLd([{ name: "Início", path: "/" }, { name: "Guias", path: "/guias/" }])],
+      })
+    );
+
+    for (const guide of GUIDES) {
+      const route = `/guias/${guide.slug}/`;
+      publicRoutes.push(
+        write(route, {
+          activeNav: "guias",
+          title: guide.title,
+          description: guide.metaDescription,
+          bodyHtml: renderGuideDetailPage("../../", guide),
+          jsonLd: [
+            breadcrumbLd([
+              { name: "Início", path: "/" },
+              { name: "Guias", path: "/guias/" },
+              { name: guide.title, path: route },
+            ]),
+            {
+              "@context": "https://schema.org",
+              "@type": "Article",
+              headline: guide.title,
+              description: guide.metaDescription,
+              datePublished: guide.publishedAt,
+              dateModified: guide.updatedAt,
+              inLanguage: "pt-BR",
+              author: { "@type": "Organization", name: guide.author },
+              publisher: { "@type": "Organization", name: "Procurali (Procura Ali)" },
+            },
+          ],
+        })
+      );
+    }
+
+    publicRoutes.push(
+      write("/selecoes-da-semana/", {
+        activeNav: "semanal",
+        title: "Seleções da semana (demonstração)",
+        description: "Recorte semanal datado com escolhas distintas e separação de históricos encerrados.",
+        bodyHtml: renderWeeklySelectionPage("../"),
+        jsonLd: [
+          breadcrumbLd([
+            { name: "Início", path: "/" },
+            { name: "Seleções da semana", path: "/selecoes-da-semana/" },
+          ]),
+        ],
+      })
+    );
+
+    // 5. Guided AI Finder
+    publicRoutes.push(
+      write("/encontre-com-ia/", {
+        activeNav: "ia",
+        title: "Encontre com IA (Demonstração local)",
+        description:
+          "Seletor guiado por necessidade e orçamento em demonstração local determinística, sem consulta ao vivo.",
+        bodyHtml: renderAiFinderPage("../"),
+        includeCatalogJson: true,
+        jsonLd: [
+          breadcrumbLd([
+            { name: "Início", path: "/" },
+            { name: "Encontre com IA", path: "/encontre-com-ia/" },
+          ]),
+        ],
+      })
+    );
+
+    // 6. Community Directory
+    publicRoutes.push(
+      write("/grupos/", {
+        activeNav: "grupos",
+        title: "Grupos e canal no Telegram",
+        description:
+          "Diretório voluntário das comunidades do Procurali: canal oficial @procurali no Telegram e prévia de grupos no WhatsApp.",
+        bodyHtml: renderGroupsPage("../"),
+        jsonLd: [breadcrumbLd([{ name: "Início", path: "/" }, { name: "Grupos", path: "/grupos/" }])],
+      })
+    );
+
+    // 7. Trust & Contact pages
+    const trustPages = [
+      ["sobre", "Sobre o Procurali", "Conheça o papel editorial do Procurali e sua separação das lojas parceiras."],
+      ["como-selecionamos", "Como selecionamos", "Política editorial, janela de frescor de 30 minutos e regra de amostra de 7 dias."],
+      ["transparencia", "Transparência de afiliados", "Como o Procurali financia o projeto, uso de #publi e links rel=sponsored."],
+      ["privacidade", "Privacidade (rascunho)", "Rascunho de política de privacidade e controle opcional de medição local."],
+      ["termos", "Termos de uso (rascunho)", "Rascunho dos termos informativos e limites de responsabilidade sobre pedidos."],
+      ["contato", "Contato", "Rotas de contato e formulário demonstrativo não conectado do Procurali."],
+    ];
+    for (const [slug, title, description] of trustPages) {
+      const route = `/${slug}/`;
+      publicRoutes.push(
+        write(route, {
+          title,
+          description,
+          bodyHtml: renderTrustPage("../", slug),
+          jsonLd: [breadcrumbLd([{ name: "Início", path: "/" }, { name: title, path: route }])],
+        })
+      );
+    }
+
+    // 8. Creative Kit & Non-production CMS mockup (excluded from sitemap)
+    publicRoutes.push(
+      write("/criativos/", {
+        title: "Kit criativo e identidade visual",
+        description: "Logotipos, templates SVG determinísticos, roteiro vertical e rascunhos Telegram/WhatsApp.",
+        bodyHtml: renderCreativeKitPage("../"),
+      })
+    );
+
+    write("/cms-preview/", {
+      title: "Mockup de fila editorial e contratos (não produtivo)",
+      description: "Prévia visual não produtiva das aprovações, teto de IA e Search Console.",
+      bodyHtml: renderCmsPreviewPage("../"),
+    });
+
+    write("/404.html", {
+      title: "Página não encontrada (404)",
+      description: "Página não encontrada neste protótipo do Procurali.",
+      bodyHtml: renderNotFoundPage("./"),
+    });
+
+    // Sitemap (excludes /cms-preview/ and /404.html)
+    const sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${publicRoutes
   .filter((r) => r !== "/criativos/")
@@ -557,10 +717,10 @@ ${publicRoutes
   .join("\n")}
 </urlset>
 `;
-  fs.writeFileSync(path.join(SITE_DIR, "sitemap.xml"), sitemapXml, "utf8");
+    fs.writeFileSync(path.join(siteDir, "sitemap.xml"), sitemapXml, "utf8");
 
-  // Staging robots.txt keeps demo staging out of search indexes until production launch
-  const robotsTxt = `# Procurali — Ambiente de protótipo / staging
+    // Staging robots.txt keeps demo staging out of search indexes until production launch
+    const robotsTxt = `# Procurali — Ambiente de protótipo / staging
 # Em staging de demonstração, manter indexação bloqueada.
 # Antes do lançamento em procurali.com.br, substituir por:
 # User-agent: *
@@ -571,9 +731,24 @@ ${publicRoutes
 User-agent: *
 Disallow: /
 `;
-  fs.writeFileSync(path.join(SITE_DIR, "robots.txt"), robotsTxt, "utf8");
+    fs.writeFileSync(path.join(siteDir, "robots.txt"), robotsTxt, "utf8");
 
-  console.log(`Built Procurali prototype cleanly into ${SITE_DIR} (${publicRoutes.length + 2} HTML pages).`);
+    console.log(
+      `Built Procurali prototype cleanly into ${siteDir} (${publicRoutes.length + 2} HTML pages, source=${catalog.sourceLabel}).`
+    );
+    return { siteDir, pageCount: publicRoutes.length + 2, catalog };
+  } finally {
+    setActiveCatalog(null);
+  }
 }
 
-main();
+const isEntrypoint =
+  Boolean(process.argv[1]) &&
+  pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url;
+
+if (isEntrypoint) {
+  buildSite(parseCliArgs(process.argv.slice(2))).catch((err) => {
+    console.error(err);
+    process.exitCode = 1;
+  });
+}

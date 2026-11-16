@@ -31,7 +31,7 @@ fn hub_five_upgrades_to_nine_and_failed_upgrade_rolls_back() {
         let version: i64 = connection
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
-        assert_eq!(version, if collision { 5 } else { 9 });
+        assert_eq!(version, if collision { 5 } else { 10 });
         assert_eq!(
             connection
                 .query_row(
@@ -118,13 +118,60 @@ fn hub_seven_preserves_shared_records_and_rolls_back_a_computer_table_collision(
         assert_eq!(
             c.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
                 .unwrap(),
-            if collision { 7 } else { 9 }
+            if collision { 7 } else { 10 }
         );
         assert_eq!(
             c.query_row(
                 "SELECT count(*) FROM app_viewers WHERE app_id='preserved'",
                 [],
                 |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+            1
+        );
+    }
+}
+
+#[test]
+fn hub_nine_upgrades_to_ten_and_rolls_back_on_ml_table_collision() {
+    for collision in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("hub.db");
+        let c = rusqlite::Connection::open(&path).unwrap();
+        c.execute_batch(concat!(
+            include_str!("../migrations/0001_hub.sql"),
+            "\n",
+            include_str!("../migrations/0004_hub_transfers.sql"),
+            "\n",
+            include_str!("../migrations/0005_hub_activity.sql"),
+            "\n",
+            include_str!("../migrations/0007_hub_shared.sql"),
+            "\n",
+            include_str!("../migrations/0009_hub_computer.sql")
+        ))
+        .unwrap();
+        c.execute(
+            "INSERT INTO workers(id,body) VALUES('preserved','{\"id\":\"preserved\",\"capabilities\":[],\"last_seen_at\":1}')",
+            [],
+        )
+        .unwrap();
+        if collision {
+            c.execute_batch("CREATE TABLE ml_products(product_id TEXT);")
+                .unwrap();
+        }
+        drop(c);
+        assert_eq!(HubStore::open(&path).is_err(), collision);
+        let c = rusqlite::Connection::open(&path).unwrap();
+        assert_eq!(
+            c.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
+                .unwrap(),
+            if collision { 9 } else { 10 }
+        );
+        assert_eq!(
+            c.query_row(
+                "SELECT count(*) FROM workers WHERE id='preserved'",
+                [],
+                |r| { r.get::<_, i64>(0) }
             )
             .unwrap(),
             1

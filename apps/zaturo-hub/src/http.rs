@@ -26,6 +26,7 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .merge(crate::files::router(state.clone()))
         .merge(crate::activity::router(state.clone()))
+        .merge(crate::mercadolivre::router(state.clone()))
         .merge(crate::shared::router())
         .merge(crate::computer::router())
         .merge(crate::private_views::router(state.clone()))

@@ -400,7 +400,7 @@ function initOffersFilter() {
             ? offer.referencePriceCents - offer.priceBrlCents
             : 0;
         const sevenDay = verifySevenDaySample(offer);
-        const imageSrc = `${root}${offer.imagePath.replace(/^\//, "")}`;
+        const imageSrc = resolveMediaSrc(root, offer.imagePath);
         const detailHref = `${root}ofertas/${offer.slug}/index.html`;
         const conditionText =
           offer.shortCondition ||

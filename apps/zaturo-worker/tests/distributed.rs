@@ -41,6 +41,8 @@ fn worker_config(path: &std::path::Path, url: String) -> WorkerConfig {
         files: None,
         youtube: None,
         android: None,
+        minio: None,
+        telegram: None,
         hub_url: url,
         worker_id: "local-worker".into(),
         database: path.join("worker.db"),
