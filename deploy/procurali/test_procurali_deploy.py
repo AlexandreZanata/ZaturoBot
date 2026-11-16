@@ -303,6 +303,36 @@ class ProcuraliDeployTests(unittest.TestCase):
                 "# agent-v2\n",
             )
 
+    def test_find_latest_procurali_release_selects_newest_published_at(self) -> None:
+        assets = [
+            {"name": agent.BUNDLE_ASSET_NAME},
+            {"name": agent.MANIFEST_ASSET_NAME},
+        ]
+        # GitHub's /releases list is not guaranteed to be sorted by published_at descending.
+        releases = [
+            {
+                "id": 100,
+                "tag_name": "procurali-oldfirst",
+                "published_at": "2026-11-16T18:39:26Z",
+                "assets": assets,
+            },
+            {
+                "id": 102,
+                "tag_name": "procurali-newest",
+                "published_at": "2026-11-16T19:28:48Z",
+                "assets": assets,
+            },
+            {
+                "id": 101,
+                "tag_name": "procurali-middle",
+                "published_at": "2026-11-16T19:05:11Z",
+                "assets": assets,
+            },
+        ]
+        selected = agent.find_latest_procurali_release(releases)
+        self.assertIsNotNone(selected)
+        self.assertEqual(selected["tag_name"], "procurali-newest")
+
 
 if __name__ == "__main__":
     unittest.main()
