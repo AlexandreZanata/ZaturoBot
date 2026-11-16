@@ -184,6 +184,7 @@ def verify_ci_checks_passed(
 
 
 def find_latest_procurali_release(releases: list[dict[str, Any]]) -> dict[str, Any] | None:
+    candidates: list[dict[str, Any]] = []
     for rel in releases:
         if rel.get("draft") or rel.get("prerelease"):
             continue
@@ -192,8 +193,16 @@ def find_latest_procurali_release(releases: list[dict[str, Any]]) -> dict[str, A
             continue
         assets = {str(a.get("name") or ""): a for a in (rel.get("assets") or [])}
         if BUNDLE_ASSET_NAME in assets and MANIFEST_ASSET_NAME in assets:
-            return rel
-    return None
+            candidates.append(rel)
+    if not candidates:
+        return None
+    return max(
+        candidates,
+        key=lambda r: (
+            str(r.get("published_at") or r.get("created_at") or ""),
+            int(r.get("id") or 0),
+        ),
+    )
 
 
 def safe_extract_tar_gz(archive_path: Path, dest_dir: Path) -> None:
