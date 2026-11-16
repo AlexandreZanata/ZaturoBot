@@ -288,7 +288,11 @@ impl Repository<'_> {
         }
 
         if product.state == MercadoLivreProductState::Approved {
-            let lead = &product.images[0];
+            let lead = product
+                .images
+                .iter()
+                .find(|img| matches!(img.content_type.as_str(), "image/jpeg" | "image/png"))
+                .unwrap_or(&product.images[0]);
             let delivery_id = format!("tg-{}-{}", product.product_id, batch_id);
             let message_text = format_telegram_caption_pt_br(product);
             self.connection.execute(

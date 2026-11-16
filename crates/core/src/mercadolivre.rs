@@ -889,8 +889,8 @@ pub fn valid_telegram_channel(value: &str) -> bool {
                 .bytes()
                 .all(|b| b.is_ascii_alphanumeric() || b == b'_');
     }
-    if let Some(id) = value.strip_prefix("-100") {
-        return (6..=20).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_digit());
+    if let Some(id) = value.strip_prefix('-') {
+        return (6..=23).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_digit());
     }
     false
 }
@@ -1397,12 +1397,12 @@ pub fn build_telegram_offer_keyboard(
     site_base_url: Option<&str>,
 ) -> TelegramInlineKeyboardMarkup {
     let mut rows = vec![vec![TelegramInlineButton {
-        text: "🛒 Ver oferta no Mercado Livre".to_owned(),
+        text: "🔥 PEGAR OFERTA NO MERCADO LIVRE 🛒".to_owned(),
         url: item.share_link.clone(),
     }]];
     if let Some(offer_url) = build_site_offer_url(site_base_url, &item.title, &item.product_id) {
         rows.push(vec![TelegramInlineButton {
-            text: "📋 Ficha técnica no Procurali".to_owned(),
+            text: "📋 Ver Ficha Completa no Procurali".to_owned(),
             url: offer_url,
         }]);
     }
@@ -1417,51 +1417,71 @@ pub fn format_telegram_html_caption_pt_br(
 ) -> String {
     let render = |title_limit: usize, include_extra: bool| {
         let mut lines = Vec::new();
-        lines.push(format!(
-            "<i>{}</i>",
-            escape_telegram_html(AFFILIATE_DISCLOSURE_PT_BR)
-        ));
+        lines.push("🚨 <b>OFERTA RELÂMPAGO · ACHADO NO MERCADO LIVRE!</b> 🔥".to_owned());
         lines.push(String::new());
         lines.push(format!(
-            "🔥 <b>{}</b>",
+            "📦 <b>{}</b>",
             escape_telegram_html(&truncate_chars(&item.title, title_limit))
         ));
 
-        let mut id_parts = vec![format!("Marca: {}", escape_telegram_html(&item.brand))];
+        let mut id_parts = vec![format!(
+            "🏷️ <b>Marca:</b> {}",
+            escape_telegram_html(&item.brand)
+        )];
         if let Some(model) = &item.model {
-            id_parts.push(format!("Modelo: {}", escape_telegram_html(model)));
+            id_parts.push(format!("<b>Modelo:</b> {}", escape_telegram_html(model)));
         }
         id_parts.push(format!(
-            "Cód. ML: <code>{}</code>",
+            "<b>Cód. ML:</b> <code>{}</code>",
             escape_telegram_html(&item.product_id)
         ));
         lines.push(id_parts.join(" · "));
+        lines.push(String::new());
 
         let price_str = format_brl_cents(item.price_brl_cents);
-        match (item.reference_price_cents, item.discount_label.as_deref()) {
-            (Some(ref_cents), Some(discount)) if ref_cents > item.price_brl_cents => {
+        match item.reference_price_cents {
+            Some(ref_cents) if ref_cents > item.price_brl_cents => {
+                let savings_cents = ref_cents - item.price_brl_cents;
+                let savings_str = format_brl_cents(savings_cents);
+                let computed_pct =
+                    ((savings_cents as f64 / ref_cents as f64) * 100.0).round() as u32;
+                let badge = item
+                    .discount_label
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(ToOwned::to_owned)
+                    .unwrap_or_else(|| format!("{computed_pct}% OFF"));
                 lines.push(format!(
-                    "💰 <b>{}</b> (<s>de {}</s> · <b>{}</b>)",
+                    "❌ De: <s>{}</s>",
+                    escape_telegram_html(&format_brl_cents(ref_cents))
+                ));
+                lines.push(format!(
+                    "✅ <b>POR APENAS: {}</b> 🔥 <b>({} · Economia de {}!)</b>",
                     escape_telegram_html(&price_str),
-                    escape_telegram_html(&format_brl_cents(ref_cents)),
-                    escape_telegram_html(discount.trim()),
+                    escape_telegram_html(&badge),
+                    escape_telegram_html(&savings_str),
                 ));
             }
-            (Some(ref_cents), None) if ref_cents > item.price_brl_cents => {
-                lines.push(format!(
-                    "💰 <b>{}</b> (<s>de {}</s>)",
-                    escape_telegram_html(&price_str),
-                    escape_telegram_html(&format_brl_cents(ref_cents)),
-                ));
+            _ => {
+                if let Some(discount) = item
+                    .discount_label
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                {
+                    lines.push(format!(
+                        "✅ <b>PREÇO EM OFERTA: {}</b> 🔥 <b>({})</b>",
+                        escape_telegram_html(&price_str),
+                        escape_telegram_html(discount),
+                    ));
+                } else {
+                    lines.push(format!(
+                        "✅ <b>PREÇO EM OFERTA: {}</b> 🔥",
+                        escape_telegram_html(&price_str),
+                    ));
+                }
             }
-            (_, Some(discount)) => {
-                lines.push(format!(
-                    "💰 <b>{}</b> · <b>{}</b>",
-                    escape_telegram_html(&price_str),
-                    escape_telegram_html(discount.trim()),
-                ));
-            }
-            _ => lines.push(format!("💰 <b>{}</b>", escape_telegram_html(&price_str))),
         }
 
         if include_extra {
@@ -1469,45 +1489,53 @@ pub fn format_telegram_html_caption_pt_br(
                 let t = line.trim();
                 t.starts_with("💳") || t.starts_with("🏪") || t.starts_with("⚠️")
             }) {
-                lines.push(escape_telegram_html(&truncate_chars(extra.trim(), 160)));
+                lines.push(escape_telegram_html(&truncate_chars(extra.trim(), 140)));
             }
         }
 
         lines.push(format!(
-            "🕐 Observado em {}",
+            "🕐 Atualizado em {}",
             escape_telegram_html(&format_cuiaba_display(item.updated_at_ms))
         ));
         lines.push(String::new());
+        lines.push(
+            "⏳ <b>CORRA! Preço e estoque promocional sujeitos a alteração a qualquer momento!</b>"
+                .to_owned(),
+        );
         lines.push(format!(
-            "🔍 Buscador ML: <code>{}</code>",
-            escape_telegram_html(&item.share_id)
+            "👉 <b>GARANTA O SEU AQUI:</b> <a href=\"{}\">Clique para abrir a oferta oficial no Mercado Livre</a>",
+            escape_telegram_html(&item.share_link)
         ));
         lines.push(format!(
-            "🔗 <a href=\"{}\">Ver oferta oficial no Mercado Livre</a>",
-            escape_telegram_html(&item.share_link)
+            "🔍 <b>Código rápido no app ML:</b> <code>{}</code>",
+            escape_telegram_html(&item.share_id)
         ));
         if let Some(offer_url) = build_site_offer_url(site_base_url, &item.title, &item.product_id)
         {
             lines.push(format!(
-                "📋 <a href=\"{}\">Ficha técnica e limitações no Procurali</a>",
+                "📋 <a href=\"{}\">Ver ficha técnica e histórico no Procurali</a>",
                 escape_telegram_html(&offer_url)
             ));
         }
+        lines.push(format!(
+            "<i>{}</i>",
+            escape_telegram_html(AFFILIATE_DISCLOSURE_PT_BR)
+        ));
         lines.join("\n")
     };
 
     for (title_limit, include_extra) in [
-        (180usize, true),
-        (120usize, true),
-        (120usize, false),
-        (80usize, false),
+        (160usize, true),
+        (110usize, true),
+        (110usize, false),
+        (75usize, false),
     ] {
         let candidate = render(title_limit, include_extra);
         if rendered_html_char_count(&candidate) <= TELEGRAM_CAPTION_MAX_CHARS {
             return candidate;
         }
     }
-    render(60, false)
+    render(55, false)
 }
 
 fn sanitize_whatsapp_inline(value: &str) -> String {
@@ -1895,26 +1923,48 @@ pub fn format_telegram_bot_command_reply_pt_br(
 
 pub fn format_telegram_caption_pt_br(product: &ValidatedMercadoLivreProduct) -> String {
     let mut lines = Vec::new();
-    lines.push(AFFILIATE_DISCLOSURE_PT_BR.to_owned());
+    lines.push("🚨 OFERTA RELÂMPAGO · ACHADO NO MERCADO LIVRE! 🔥".to_owned());
     lines.push(String::new());
-    lines.push(format!("🔎 {}", product.title));
+    lines.push(format!("📦 {}", product.title));
 
-    let mut identity_parts = vec![format!("Marca: {}", product.brand)];
+    let mut identity_parts = vec![format!("🏷️ Marca: {}", product.brand)];
     if let Some(model) = &product.model {
         identity_parts.push(format!("Modelo: {model}"));
     }
     identity_parts.push(format!("Cód. ML: {}", product.product_id));
     lines.push(identity_parts.join(" · "));
+    lines.push(String::new());
 
     let price_str = format_brl_cents(product.price_brl_cents);
-    match (&product.reference_price_cents, &product.discount_label) {
-        (Some(ref_cents), Some(discount)) if *ref_cents > product.price_brl_cents => {
+    match product.reference_price_cents {
+        Some(ref_cents) if ref_cents > product.price_brl_cents => {
+            let savings_cents = ref_cents - product.price_brl_cents;
+            let savings_str = format_brl_cents(savings_cents);
+            let computed_pct = ((savings_cents as f64 / ref_cents as f64) * 100.0).round() as u32;
+            let badge = product
+                .discount_label
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(ToOwned::to_owned)
+                .unwrap_or_else(|| format!("{computed_pct}% OFF"));
+            lines.push(format!("❌ De: {}", format_brl_cents(ref_cents)));
             lines.push(format!(
-                "💰 {price_str} (de {}, {discount})",
-                format_brl_cents(*ref_cents)
+                "✅ POR APENAS: {price_str} 🔥 ({badge} · Economia de {savings_str}!)"
             ));
         }
-        _ => lines.push(format!("💰 {price_str}")),
+        _ => {
+            if let Some(discount) = product
+                .discount_label
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+            {
+                lines.push(format!("✅ PREÇO EM OFERTA: {price_str} 🔥 ({discount})"));
+            } else {
+                lines.push(format!("✅ PREÇO EM OFERTA: {price_str} 🔥"));
+            }
+        }
     }
 
     lines.push(format!("💳 {}", product.payment_conditions));
@@ -1935,12 +1985,16 @@ pub fn format_telegram_caption_pt_br(product: &ValidatedMercadoLivreProduct) -> 
     }
 
     lines.push(format!(
-        "🕐 Observado em {}",
+        "🕐 Atualizado em {}",
         product.observed_at_display_for_telegram()
     ));
     lines.push(String::new());
-    lines.push(format!("🔍 Código no buscador ML: {}", product.share_id));
-    lines.push(format!("🔗 Link oficial: {}", product.share_link));
+    lines.push(
+        "⏳ CORRA! Preço e estoque promocional sujeitos a alteração a qualquer momento!".to_owned(),
+    );
+    lines.push(format!("👉 GARANTA O SEU AQUI: {}", product.share_link));
+    lines.push(format!("🔍 Código rápido no app ML: {}", product.share_id));
+    lines.push(AFFILIATE_DISCLOSURE_PT_BR.to_owned());
     lines.join("\n")
 }
 
@@ -2180,12 +2234,19 @@ mod tests {
         let caption = format_telegram_html_caption_pt_br(&item, Some("https://procurali.com.br"));
         assert!(caption.contains("&lt;NV3&gt;"));
         assert!(caption.contains("&amp;"));
-        assert!(caption.contains("<s>de R$ 599,00</s>"));
+        assert!(caption.contains("OFERTA RELÂMPAGO"));
+        assert!(caption.contains("❌ De: <s>R$ 599,00</s>"));
+        assert!(caption.contains("✅ <b>POR APENAS: R$ 449,90</b>"));
+        assert!(caption.contains("Economia de R$ 149,10"));
         assert!(caption.contains("https://meli.la/1iWQZbJ"));
         assert!(rendered_html_char_count(&caption) <= TELEGRAM_CAPTION_MAX_CHARS);
 
         let kb = build_telegram_offer_keyboard(&item, Some("https://procurali.com.br"));
         assert_eq!(kb.inline_keyboard.len(), 2);
+        assert_eq!(
+            kb.inline_keyboard[0][0].text,
+            "🔥 PEGAR OFERTA NO MERCADO LIVRE 🛒"
+        );
         assert_eq!(kb.inline_keyboard[0][0].url, "https://meli.la/1iWQZbJ");
         assert!(
             kb.inline_keyboard[1][0]

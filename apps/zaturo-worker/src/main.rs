@@ -77,8 +77,8 @@ enum Commerce {
         input: PathBuf,
         #[arg(long, default_value = "hardware-e-perifericos")]
         category: String,
-        #[arg(long, default_value = "@procurali")]
-        channel: String,
+        #[arg(long)]
+        channel: Option<String>,
         #[arg(long)]
         idempotency_key: Option<String>,
         #[arg(long)]
@@ -106,9 +106,15 @@ enum Commerce {
         #[arg(long, default_value_t = 0)]
         timeout_secs: u64,
     },
+    TelegramDaemon {
+        #[arg(long, default_value_t = 15)]
+        poll_timeout_secs: u64,
+        #[arg(long, default_value_t = 3)]
+        tick_seconds: u64,
+    },
     WhatsappDrafts {
-        #[arg(long, default_value = "@procurali")]
-        channel: String,
+        #[arg(long)]
+        channel: Option<String>,
         #[arg(long, default_value_t = 20)]
         limit: u32,
         #[arg(long)]
@@ -148,10 +154,18 @@ async fn main() -> Result<()> {
                 dry_run_telegram,
                 whatsapp_drafts_out,
             } => {
+                let resolved_tg = config
+                    .telegram
+                    .as_ref()
+                    .map(|t| t.with_env_overrides())
+                    .transpose()?;
+                let target_channel = channel
+                    .or_else(|| resolved_tg.as_ref().map(|t| t.default_channel_id.clone()))
+                    .unwrap_or_else(|| "@procurali".to_owned());
                 let options = zaturo_worker::mercadolivre::BatchIngestOptions {
                     worker_id: config.worker_id.clone(),
                     default_category_slug: category,
-                    channel_id: channel.clone(),
+                    channel_id: target_channel.clone(),
                     now_ms: zaturo_worker::now_ms(),
                 };
                 let report = zaturo_worker::mercadolivre::ingest_file_to_hub(
@@ -163,8 +177,13 @@ async fn main() -> Result<()> {
                     source_base_dir.as_deref(),
                 )
                 .await?;
+                let should_publish_telegram = publish_telegram
+                    || dry_run_telegram
+                    || resolved_tg
+                        .as_ref()
+                        .is_some_and(|t| t.auto_publish_on_ingest || t.allow_live_publish);
                 let mut telegram_report = None;
-                if publish_telegram || dry_run_telegram {
+                if should_publish_telegram {
                     let tg_cfg = config.telegram.clone().context(
                         "[telegram] configuration section is required for Telegram publishing",
                     )?;
@@ -174,7 +193,7 @@ async fn main() -> Result<()> {
                         .publish_queued_from_hub(
                             &config.hub_url,
                             &token,
-                            Some(&channel),
+                            Some(&target_channel),
                             50,
                             dry_run_telegram,
                             zaturo_worker::now_ms(),
@@ -188,16 +207,15 @@ async fn main() -> Result<()> {
                     let items = zaturo_worker::telegram::fetch_hub_queue_with_token(
                         &config.hub_url,
                         &token,
-                        Some(&channel),
+                        Some(&target_channel),
                         None,
                         50,
                     )
                     .await?;
                     let pkg = zaturo_core::build_whatsapp_assisted_package(
                         &items,
-                        &channel,
-                        config
-                            .telegram
+                        &target_channel,
+                        resolved_tg
                             .as_ref()
                             .and_then(|t| t.site_base_url.as_deref()),
                         zaturo_worker::now_ms(),
@@ -256,24 +274,50 @@ async fn main() -> Result<()> {
                     .await?;
                 println!("{}", serde_json::to_string_pretty(&report)?);
             }
+            Commerce::TelegramDaemon {
+                poll_timeout_secs,
+                tick_seconds,
+            } => {
+                let tg_cfg = config
+                    .telegram
+                    .clone()
+                    .context("[telegram] configuration section is required")?;
+                let tg_client = zaturo_worker::telegram::TelegramBotClient::from_config(tg_cfg)?;
+                tg_client
+                    .run_telegram_daemon_cycles(
+                        &config.hub_url,
+                        &token,
+                        poll_timeout_secs,
+                        std::time::Duration::from_secs(tick_seconds.max(1)),
+                        None,
+                    )
+                    .await?;
+            }
             Commerce::WhatsappDrafts {
                 channel,
                 limit,
                 output,
             } => {
+                let resolved_tg = config
+                    .telegram
+                    .as_ref()
+                    .map(|t| t.with_env_overrides())
+                    .transpose()?;
+                let target_channel = channel
+                    .or_else(|| resolved_tg.as_ref().map(|t| t.default_channel_id.clone()))
+                    .unwrap_or_else(|| "@procurali".to_owned());
                 let items = zaturo_worker::telegram::fetch_hub_queue_with_token(
                     &config.hub_url,
                     &token,
-                    Some(&channel),
+                    Some(&target_channel),
                     None,
                     limit,
                 )
                 .await?;
                 let pkg = zaturo_core::build_whatsapp_assisted_package(
                     &items,
-                    &channel,
-                    config
-                        .telegram
+                    &target_channel,
+                    resolved_tg
                         .as_ref()
                         .and_then(|t| t.site_base_url.as_deref()),
                     zaturo_worker::now_ms(),

@@ -39,7 +39,12 @@ reconnect_max_seconds = 30
 # [telegram]
 # api_base_url = "https://api.telegram.org"
 # bot_token_file = "/etc/zaturobot/telegram.token"
+# env_file = ".secrets/telegram.env"
 # default_channel_id = "@procurali"
 # site_base_url = "https://procurali.com.br"
-# min_send_interval_ms = 1100
+# local_minio_endpoint = "http://127.0.0.1:9000"
+# minio_bucket = "procurali-media"
+# min_send_interval_ms = 60000
+# max_send_interval_ms = 180000
 # allow_live_publish = false
+# auto_publish_on_ingest = false

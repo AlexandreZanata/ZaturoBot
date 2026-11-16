@@ -509,32 +509,45 @@ function formatTelegramHtmlOffer(offer, siteBaseUrl = "https://procurali.com.br"
       ? `${cleanSite}/ofertas/${offer.slug}/index.html`
       : null;
   const priceStr = formatBrl(offer.priceBrlCents);
-  const refStr =
-    offer.referencePriceCents && offer.referencePriceCents > offer.priceBrlCents
-      ? formatBrl(offer.referencePriceCents)
-      : null;
-  const priceLine =
-    refStr && offer.discountPercentLabel
-      ? `💰 <b>${escapeTelegramHtml(priceStr)}</b> (<s>de ${escapeTelegramHtml(refStr)}</s> · <b>${escapeTelegramHtml(offer.discountPercentLabel)}</b>)`
-      : refStr
-        ? `💰 <b>${escapeTelegramHtml(priceStr)}</b> (<s>de ${escapeTelegramHtml(refStr)}</s>)`
-        : `💰 <b>${escapeTelegramHtml(priceStr)}</b>`;
+  const hasLowerPrice =
+    Number.isFinite(offer.referencePriceCents) && offer.referencePriceCents > offer.priceBrlCents;
+  const priceLines = [];
+  if (hasLowerPrice) {
+    const refStr = formatBrl(offer.referencePriceCents);
+    const savingsCents = offer.referencePriceCents - offer.priceBrlCents;
+    const savingsStr = formatBrl(savingsCents);
+    const computedPct = Math.round((savingsCents / offer.referencePriceCents) * 100);
+    const badge = String(offer.discountPercentLabel || `${computedPct}% OFF`).trim();
+    priceLines.push(`❌ De: <s>${escapeTelegramHtml(refStr)}</s>`);
+    priceLines.push(
+      `✅ <b>POR APENAS: ${escapeTelegramHtml(priceStr)}</b> 🔥 <b>(${escapeTelegramHtml(badge)} · Economia de ${escapeTelegramHtml(savingsStr)}!)</b>`
+    );
+  } else if (offer.discountPercentLabel) {
+    priceLines.push(
+      `✅ <b>PREÇO EM OFERTA: ${escapeTelegramHtml(priceStr)}</b> 🔥 <b>(${escapeTelegramHtml(offer.discountPercentLabel)})</b>`
+    );
+  } else {
+    priceLines.push(`✅ <b>PREÇO EM OFERTA: ${escapeTelegramHtml(priceStr)}</b> 🔥`);
+  }
 
   const lines = [
-    `<i>${escapeTelegramHtml("Publicidade · Link de afiliado: podemos receber comissão se você comprar.")}</i>`,
+    `🚨 <b>OFERTA RELÂMPAGO · ACHADO NO MERCADO LIVRE!</b> 🔥`,
     "",
-    `🔥 <b>${escapeTelegramHtml(truncateChars(offer.title, 160))}</b>`,
-    `Marca: ${escapeTelegramHtml(offer.brand || "Mercado Livre")}${offer.productId ? ` · Cód. ML: <code>${escapeTelegramHtml(offer.productId)}</code>` : ""}`,
-    priceLine,
+    `📦 <b>${escapeTelegramHtml(truncateChars(offer.title, 160))}</b>`,
+    `🏷️ <b>Marca:</b> ${escapeTelegramHtml(offer.brand || "Mercado Livre")}${offer.productId ? ` · <b>Cód. ML:</b> <code>${escapeTelegramHtml(offer.productId)}</code>` : ""}`,
+    "",
+    ...priceLines,
     offer.shortCondition ? `💳 ${escapeTelegramHtml(truncateChars(offer.shortCondition, 120))}` : "",
     offer.sellerName ? `🏪 ${escapeTelegramHtml(truncateChars(offer.sellerName, 100))}` : "",
-    offer.observedAtDisplay ? `🕐 Observado em ${escapeTelegramHtml(offer.observedAtDisplay)}` : "",
+    offer.observedAtDisplay ? `🕐 Atualizado em ${escapeTelegramHtml(offer.observedAtDisplay)}` : "",
     "",
-    offer.shareId ? `🔍 Buscador ML: <code>${escapeTelegramHtml(offer.shareId)}</code>` : "",
+    `⏳ <b>CORRA! Preço e estoque promocional sujeitos a alteração a qualquer momento!</b>`,
     offer.officialAffiliateUrl
-      ? `🔗 <a href="${escapeTelegramHtml(offer.officialAffiliateUrl)}">Ver oferta oficial no Mercado Livre</a>`
+      ? `👉 <b>GARANTA O SEU AQUI:</b> <a href="${escapeTelegramHtml(offer.officialAffiliateUrl)}">Clique para abrir a oferta oficial no Mercado Livre</a>`
       : "",
-    siteOfferUrl ? `📋 <a href="${escapeTelegramHtml(siteOfferUrl)}">Ficha técnica e limitações no Procurali</a>` : "",
+    offer.shareId ? `🔍 <b>Código rápido no app ML:</b> <code>${escapeTelegramHtml(offer.shareId)}</code>` : "",
+    siteOfferUrl ? `📋 <a href="${escapeTelegramHtml(siteOfferUrl)}">Ver ficha técnica e histórico no Procurali</a>` : "",
+    `<i>${escapeTelegramHtml("Publicidade · Link de afiliado: podemos receber comissão se você comprar.")}</i>`,
   ].filter((line, idx, arr) => !(line === "" && (idx === 0 || arr[idx - 1] === "")));
 
   return truncateChars(lines.join("\n"), 1024);
