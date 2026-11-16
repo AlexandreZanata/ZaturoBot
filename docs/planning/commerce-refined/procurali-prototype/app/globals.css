@@ -1,0 +1,110 @@
+@import "tailwindcss";
+
+/* The storefront is light-only: Aceternity `dark:` utilities only apply under an explicit .dark class. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Procurali design tokens (mirrors brand/design-tokens.json; contrast verified in tests). */
+@theme {
+  --font-sans: var(--font-fira-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-fira-mono), ui-monospace, monospace;
+
+  /* One brand hue (petrol green) over warm neutrals. */
+  --color-petrol-50: #f1f5f2;
+  --color-petrol-100: #dfe8e2;
+  --color-petrol-200: #bfd1c6;
+  --color-petrol-300: #94b2a1;
+  --color-petrol-400: #5f8a73;
+  --color-petrol-500: #3a6b52;
+  --color-petrol-600: #1e5a40;
+  --color-petrol-700: #1c5039;
+  --color-petrol-800: #143d2b;
+  --color-petrol-900: #0e2c1e;
+  --color-petrol-950: #081a12;
+
+  --color-lime-brand: #a3e635;
+  --color-lime-brand-soft: #ecfccb;
+  --color-action: #c2410c;
+  --color-action-hover: #9a3412;
+
+  --color-canvas: #fafaf8;
+  --color-tile: #f3f2ee;
+  --color-ink: #161616;
+  --color-muted: #6b6b66;
+  --color-line: #e6e4de;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-canvas text-ink font-sans antialiased;
+    overflow-x: clip;
+  }
+  ::selection {
+    @apply bg-petrol-800 text-white;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-petrol-800);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.02em;
+  }
+  /* Comfortable touch targets for interactive controls. */
+  button,
+  .tap {
+    min-height: 44px;
+  }
+  code {
+    @apply rounded bg-tile px-1 py-0.5 font-mono text-[0.85em] text-ink;
+  }
+}
+
+@layer components {
+  .container-site {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+  .prose-site {
+    @apply max-w-2xl text-[1.0625rem] leading-[1.75] text-neutral-700;
+  }
+  .prose-site h2 {
+    @apply mt-12 mb-3 text-xl font-semibold text-ink;
+  }
+  .prose-site h3 {
+    @apply mt-6 mb-2 text-base font-semibold text-ink;
+  }
+  .prose-site p {
+    @apply mb-4;
+  }
+  .prose-site ul {
+    @apply mb-4 list-disc space-y-2 pl-5 marker:text-neutral-300;
+  }
+  .prose-site ol {
+    @apply mb-4 list-decimal space-y-3 pl-5 marker:text-muted;
+  }
+  .prose-site a {
+    @apply text-ink underline decoration-neutral-300 underline-offset-4 hover:decoration-ink;
+  }
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
