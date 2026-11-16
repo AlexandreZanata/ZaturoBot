@@ -38,6 +38,7 @@ pub struct AppState {
     pub private_requests: Arc<Semaphore>,
     pub connections: Arc<Semaphore>,
     pub requests: Arc<Semaphore>,
+    pub commerce_requests: Arc<Semaphore>,
     pub connected: Arc<Mutex<HashSet<String>>>,
     pub changes: Arc<Notify>,
 }
@@ -86,6 +87,7 @@ impl AppState {
             device,
             connections: Arc::new(Semaphore::new(config.max_connections)),
             requests: Arc::new(Semaphore::new(32)),
+            commerce_requests: Arc::new(Semaphore::new(4096)),
             connected: Arc::new(Mutex::new(HashSet::new())),
             changes: Arc::new(Notify::new()),
             config,

@@ -2,6 +2,7 @@
 mod activity;
 mod computer;
 mod mercadolivre;
+pub use mercadolivre::CompiledCommerceIndex;
 mod service_tasks;
 mod shared;
 mod transfers;
@@ -35,6 +36,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub struct Engine {
     store: HubStore,
     limits: Limits,
+    commerce_cache: crate::mercadolivre::CommerceHotCache,
 }
 
 impl Engine {
@@ -44,7 +46,11 @@ impl Engine {
 
     pub fn new(store: HubStore, limits: Limits) -> Result<Self> {
         limits.validate().map_err(Error::Invalid)?;
-        Ok(Self { store, limits })
+        Ok(Self {
+            store,
+            limits,
+            commerce_cache: Default::default(),
+        })
     }
 
     pub fn create(&self, request: NewTask, now: i64) -> Result<Task> {

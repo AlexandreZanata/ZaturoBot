@@ -532,6 +532,65 @@ impl MercadoLivreIngestBatchRequest {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum PriceTrendKind {
+    #[default]
+    New,
+    Down,
+    Up,
+    Stable,
+}
+
+impl PriceTrendKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::New => "new",
+            Self::Down => "down",
+            Self::Up => "up",
+            Self::Stable => "stable",
+        }
+    }
+
+    pub fn from_prices(current_cents: i64, previous_cents: Option<i64>) -> (Self, i64, i16) {
+        let Some(prev) = previous_cents.filter(|p| *p > 0) else {
+            return (Self::New, 0, 0);
+        };
+        let delta = current_cents - prev;
+        let pct = ((delta as f64 / prev as f64) * 100.0).round() as i16;
+        let kind = if delta < 0 {
+            Self::Down
+        } else if delta > 0 {
+            Self::Up
+        } else {
+            Self::Stable
+        };
+        (kind, delta, pct)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MercadoLivrePriceComparison {
+    pub product_id: String,
+    pub title: String,
+    pub category_slug: String,
+    pub subcategory_slug: String,
+    pub current_price_cents: i64,
+    pub pix_price_cents: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous_price_cents: Option<i64>,
+    pub price_delta_cents: i64,
+    pub price_delta_pct: i16,
+    pub lowest_price_30d_cents: i64,
+    pub average_price_30d_cents: i64,
+    pub highest_price_30d_cents: i64,
+    pub observation_count: usize,
+    pub trend: PriceTrendKind,
+    pub telegram_enqueued: bool,
+    pub summary: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MercadoLivreIngestReport {
@@ -546,6 +605,18 @@ pub struct MercadoLivreIngestReport {
     pub telegram_awaiting_approval_count: usize,
     pub product_ids: Vec<String>,
     pub payload_sha256: String,
+    #[serde(default)]
+    pub new_product_count: usize,
+    #[serde(default)]
+    pub updated_product_count: usize,
+    #[serde(default)]
+    pub price_drop_count: usize,
+    #[serde(default)]
+    pub price_increase_count: usize,
+    #[serde(default)]
+    pub unchanged_price_count: usize,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub comparisons: Vec<MercadoLivrePriceComparison>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -609,6 +680,388 @@ pub struct SiteCatalogMediaRight {
     pub attribution_text: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum PriceLevelKind {
+    LowestPrice,
+    GoodPrice,
+    #[default]
+    TypicalPrice,
+}
+
+impl PriceLevelKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::LowestPrice => "lowest_price",
+            Self::GoodPrice => "good_price",
+            Self::TypicalPrice => "typical_price",
+        }
+    }
+
+    pub fn label_pt_br(self) -> &'static str {
+        match self {
+            Self::LowestPrice => "Menor preço",
+            Self::GoodPrice => "Bom preço",
+            Self::TypicalPrice => "Preço na média",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PriceIntelligence {
+    pub window_days: u16,
+    pub current_price_cents: i64,
+    pub lowest_price_30d_cents: i64,
+    pub average_price_30d_cents: i64,
+    pub highest_price_30d_cents: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reference_price_cents: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous_price_cents: Option<i64>,
+    #[serde(default)]
+    pub price_delta_cents: i64,
+    #[serde(default)]
+    pub price_delta_pct: i16,
+    #[serde(default)]
+    pub observation_count: usize,
+    #[serde(default)]
+    pub price_trend: PriceTrendKind,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub first_observed_at_display: String,
+    pub discount_pct: u8,
+    pub savings_vs_reference_cents: i64,
+    pub savings_vs_average_cents: i64,
+    pub price_level: PriceLevelKind,
+    pub price_level_label: String,
+    pub is_price_drop: bool,
+    pub verified_at_display: String,
+    pub svg_sparkline: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProductFaqItem {
+    pub question: String,
+    pub answer: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommerceReferenceItem {
+    pub product_id: String,
+    pub slug: String,
+    pub title: String,
+    pub brand: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    pub exact_variant: String,
+    pub category_slug: String,
+    pub subcategory_slug: String,
+    pub seller_name: String,
+    pub state: String,
+    pub current_price_cents: i64,
+    pub pix_price_cents: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reference_price_cents: Option<i64>,
+    pub discount_pct: u8,
+    pub lowest_price_30d_cents: i64,
+    pub average_price_30d_cents: i64,
+    pub highest_price_30d_cents: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous_price_cents: Option<i64>,
+    pub price_delta_cents: i64,
+    pub price_delta_pct: i16,
+    pub observation_count: usize,
+    pub price_trend: PriceTrendKind,
+    pub price_level: PriceLevelKind,
+    pub price_level_label: String,
+    pub observed_at: String,
+    pub observed_at_ms: i64,
+    pub official_affiliate_url: String,
+    pub short_summary: String,
+    #[serde(default)]
+    pub telegram_published_count: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub telegram_last_status: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommerceReferenceCatalog {
+    pub generated_at: String,
+    pub cache_generation: u64,
+    pub total_products: usize,
+    pub items: Vec<CommerceReferenceItem>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubcategoryMetadata {
+    pub slug: String,
+    pub name: String,
+    pub parent_category_slug: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FacetBucketCount {
+    pub key: String,
+    pub label: String,
+    pub count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CategoryTaxonomyNode {
+    pub slug: String,
+    pub name: String,
+    pub description: String,
+    pub offer_count: usize,
+    pub subcategories: Vec<FacetBucketCount>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KeywordClusterNode {
+    pub slug: String,
+    pub label: String,
+    pub offer_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTaxonomyResponse {
+    pub generated_at: String,
+    pub cache_generation: u64,
+    pub categories: Vec<CategoryTaxonomyNode>,
+    pub keyword_clusters: Vec<KeywordClusterNode>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogSearchQuery {
+    #[serde(default)]
+    pub q: Option<String>,
+    #[serde(default)]
+    pub categoria: Option<String>,
+    #[serde(default)]
+    pub subcategoria: Option<String>,
+    #[serde(default)]
+    pub loja: Option<String>,
+    #[serde(default)]
+    pub ordem: Option<String>,
+    #[serde(default)]
+    pub desconto: Option<u8>,
+    #[serde(default)]
+    pub preco: Option<String>,
+    #[serde(default)]
+    pub avaliacao: Option<String>,
+    #[serde(default)]
+    pub colecao: Option<String>,
+    #[serde(default)]
+    pub pagina: Option<u32>,
+    #[serde(default, alias = "por_pagina")]
+    pub por_pagina: Option<u32>,
+    #[serde(default)]
+    pub formato: Option<String>,
+}
+
+impl CatalogSearchQuery {
+    pub fn validate(&self) -> Result<(), String> {
+        if let Some(q) = &self.q
+            && (q.chars().count() > 120 || q.contains('\0'))
+        {
+            return Err("invalid search query length".into());
+        }
+        for slug in [
+            &self.categoria,
+            &self.subcategoria,
+            &self.loja,
+            &self.colecao,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            let trimmed = slug.trim();
+            if trimmed.len() > 80 || trimmed.contains('\0') {
+                return Err("invalid taxonomy filter".into());
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogFacetsSummary {
+    pub categories: Vec<FacetBucketCount>,
+    pub subcategories: Vec<FacetBucketCount>,
+    pub stores: Vec<FacetBucketCount>,
+    pub price_ranges: Vec<FacetBucketCount>,
+    pub discount_tiers: Vec<FacetBucketCount>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogSearchResponse {
+    pub total_matches: usize,
+    pub page: u32,
+    pub per_page: u32,
+    pub total_pages: u32,
+    pub cache_generation: u64,
+    pub facets: CatalogFacetsSummary,
+    pub items: Vec<SiteCatalogOffer>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub html_fragment: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BreadcrumbItem {
+    pub label: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProductDetailResponse {
+    pub cache_generation: u64,
+    pub offer: SiteCatalogOffer,
+    pub breadcrumb: Vec<BreadcrumbItem>,
+    pub similar_offers: Vec<SiteCatalogOffer>,
+    pub alert_count: usize,
+    pub impressions: u64,
+    pub clicks: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ExposureEventItem {
+    pub product_id: String,
+    pub store: String,
+    pub pos: u32,
+    #[serde(default)]
+    pub discount_pct: u8,
+    #[serde(default)]
+    pub price_cents: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ExposureBeaconRequest {
+    pub route: String,
+    pub events: Vec<ExposureEventItem>,
+    pub timestamp_ms: i64,
+}
+
+impl ExposureBeaconRequest {
+    pub fn validates(&self) -> Result<(), String> {
+        if !crate::ordinary_text(&self.route, 160) || !no_local_path_leak(&self.route) {
+            return Err("invalid exposure route".into());
+        }
+        if self.events.is_empty() || self.events.len() > 60 {
+            return Err("exposure events count must be 1..=60".into());
+        }
+        for ev in &self.events {
+            if !validate_ml_product_id(&ev.product_id) || !crate::ordinary_text(&ev.store, 48) {
+                return Err("invalid exposure event item".into());
+            }
+        }
+        if self.timestamp_ms <= 0 {
+            return Err("invalid exposure timestamp_ms".into());
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExposureBeaconResponse {
+    pub accepted: usize,
+    pub route: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PriceAlertActionRequest {
+    pub action: String,
+    pub subscriber_id: String,
+    #[serde(default)]
+    pub product_id: Option<String>,
+    #[serde(default)]
+    pub target_price_cents: Option<i64>,
+}
+
+impl PriceAlertActionRequest {
+    pub fn validates(&self) -> Result<(), String> {
+        if !matches!(
+            self.action.as_str(),
+            "criar-alerta" | "remover-alerta" | "listar-alertas"
+        ) {
+            return Err("unsupported price alert action".into());
+        }
+        if self.subscriber_id.is_empty()
+            || self.subscriber_id.len() > 80
+            || !self
+                .subscriber_id
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
+        {
+            return Err("invalid subscriber_id".into());
+        }
+        if let Some(pid) = &self.product_id
+            && !validate_ml_product_id(pid)
+        {
+            return Err("invalid alert product_id".into());
+        }
+        if matches!(self.action.as_str(), "criar-alerta" | "remover-alerta")
+            && self.product_id.is_none()
+        {
+            return Err("product_id is required for criar-alerta / remover-alerta".into());
+        }
+        if self.action == "criar-alerta" {
+            let Some(target) = self.target_price_cents else {
+                return Err("target_price_cents is required for criar-alerta".into());
+            };
+            if target <= 0 {
+                return Err("target_price_cents must be positive".into());
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PriceAlertSubscription {
+    pub subscriber_id: String,
+    pub product_id: String,
+    pub target_price_cents: i64,
+    pub created_at_ms: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TriggeredPriceAlert {
+    pub subscriber_id: String,
+    pub product_id: String,
+    pub title: String,
+    pub target_price_cents: i64,
+    pub current_price_cents: i64,
+    pub share_link: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PriceAlertResponse {
+    pub action: String,
+    pub subscriber_id: String,
+    pub active_alerts: Vec<PriceAlertSubscription>,
+    #[serde(default)]
+    pub triggered: Vec<TriggeredPriceAlert>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SiteCatalogOffer {
@@ -622,6 +1075,10 @@ pub struct SiteCatalogOffer {
     pub title: String,
     pub exact_variant: String,
     pub category_slug: String,
+    #[serde(default)]
+    pub subcategory_slug: String,
+    #[serde(default)]
+    pub subcategory_name: String,
     pub merchant: String,
     pub marketplace_label: String,
     pub seller_name: String,
@@ -637,11 +1094,19 @@ pub struct SiteCatalogOffer {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub marketplace_rating: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rating_milli: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub marketplace_sales_label: Option<String>,
+    #[serde(default)]
+    pub sales_volume_estimate: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub card_badge: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub discount_percent_label: Option<String>,
+    #[serde(default)]
+    pub discount_pct: u8,
+    #[serde(default)]
+    pub trust_badges: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub installment_summary: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -688,6 +1153,12 @@ pub struct SiteCatalogOffer {
     pub specs: Vec<MercadoLivreSpec>,
     pub variants: Vec<MercadoLivreVariant>,
     pub long_description: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub price_intelligence: Option<PriceIntelligence>,
+    #[serde(default)]
+    pub dynamic_faq: Vec<ProductFaqItem>,
+    #[serde(default)]
+    pub similar_offer_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -920,8 +1391,8 @@ pub fn valid_telegram_channel(value: &str) -> bool {
                 .bytes()
                 .all(|b| b.is_ascii_alphanumeric() || b == b'_');
     }
-    if let Some(id) = value.strip_prefix("-100") {
-        return (6..=20).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_digit());
+    if let Some(id) = value.strip_prefix('-') {
+        return (6..=23).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_digit());
     }
     false
 }
@@ -1428,12 +1899,12 @@ pub fn build_telegram_offer_keyboard(
     site_base_url: Option<&str>,
 ) -> TelegramInlineKeyboardMarkup {
     let mut rows = vec![vec![TelegramInlineButton {
-        text: "🛒 Ver oferta no Mercado Livre".to_owned(),
+        text: "🔥 PEGAR OFERTA NO MERCADO LIVRE 🛒".to_owned(),
         url: item.share_link.clone(),
     }]];
     if let Some(offer_url) = build_site_offer_url(site_base_url, &item.title, &item.product_id) {
         rows.push(vec![TelegramInlineButton {
-            text: "📋 Ficha técnica no Procurali".to_owned(),
+            text: "📋 Ver Ficha Completa no Procurali".to_owned(),
             url: offer_url,
         }]);
     }
@@ -1448,97 +1919,128 @@ pub fn format_telegram_html_caption_pt_br(
 ) -> String {
     let render = |title_limit: usize, include_extra: bool| {
         let mut lines = Vec::new();
-        lines.push(format!(
-            "<i>{}</i>",
-            escape_telegram_html(AFFILIATE_DISCLOSURE_PT_BR)
-        ));
+        lines.push("🚨 <b>OFERTA RELÂMPAGO · ACHADO NO MERCADO LIVRE!</b> 🔥".to_owned());
         lines.push(String::new());
         lines.push(format!(
-            "🔥 <b>{}</b>",
+            "📦 <b>{}</b>",
             escape_telegram_html(&truncate_chars(&item.title, title_limit))
         ));
 
-        let mut id_parts = vec![format!("Marca: {}", escape_telegram_html(&item.brand))];
+        let mut id_parts = vec![format!(
+            "🏷️ <b>Marca:</b> {}",
+            escape_telegram_html(&item.brand)
+        )];
         if let Some(model) = &item.model {
-            id_parts.push(format!("Modelo: {}", escape_telegram_html(model)));
+            id_parts.push(format!("<b>Modelo:</b> {}", escape_telegram_html(model)));
         }
         id_parts.push(format!(
-            "Cód. ML: <code>{}</code>",
+            "<b>Cód. ML:</b> <code>{}</code>",
             escape_telegram_html(&item.product_id)
         ));
         lines.push(id_parts.join(" · "));
+        lines.push(String::new());
 
         let price_str = format_brl_cents(item.price_brl_cents);
-        match (item.reference_price_cents, item.discount_label.as_deref()) {
-            (Some(ref_cents), Some(discount)) if ref_cents > item.price_brl_cents => {
+        match item.reference_price_cents {
+            Some(ref_cents) if ref_cents > item.price_brl_cents => {
+                let savings_cents = ref_cents - item.price_brl_cents;
+                let savings_str = format_brl_cents(savings_cents);
+                let computed_pct =
+                    ((savings_cents as f64 / ref_cents as f64) * 100.0).round() as u32;
+                let badge = item
+                    .discount_label
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(ToOwned::to_owned)
+                    .unwrap_or_else(|| format!("{computed_pct}% OFF"));
                 lines.push(format!(
-                    "💰 <b>{}</b> (<s>de {}</s> · <b>{}</b>)",
+                    "❌ De: <s>{}</s>",
+                    escape_telegram_html(&format_brl_cents(ref_cents))
+                ));
+                lines.push(format!(
+                    "✅ <b>POR APENAS: {}</b> 🔥 <b>({} · Economia de {}!)</b>",
                     escape_telegram_html(&price_str),
-                    escape_telegram_html(&format_brl_cents(ref_cents)),
-                    escape_telegram_html(discount.trim()),
+                    escape_telegram_html(&badge),
+                    escape_telegram_html(&savings_str),
                 ));
             }
-            (Some(ref_cents), None) if ref_cents > item.price_brl_cents => {
-                lines.push(format!(
-                    "💰 <b>{}</b> (<s>de {}</s>)",
-                    escape_telegram_html(&price_str),
-                    escape_telegram_html(&format_brl_cents(ref_cents)),
-                ));
+            _ => {
+                if let Some(discount) = item
+                    .discount_label
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                {
+                    lines.push(format!(
+                        "✅ <b>PREÇO EM OFERTA: {}</b> 🔥 <b>({})</b>",
+                        escape_telegram_html(&price_str),
+                        escape_telegram_html(discount),
+                    ));
+                } else {
+                    lines.push(format!(
+                        "✅ <b>PREÇO EM OFERTA: {}</b> 🔥",
+                        escape_telegram_html(&price_str),
+                    ));
+                }
             }
-            (_, Some(discount)) => {
-                lines.push(format!(
-                    "💰 <b>{}</b> · <b>{}</b>",
-                    escape_telegram_html(&price_str),
-                    escape_telegram_html(discount.trim()),
-                ));
-            }
-            _ => lines.push(format!("💰 <b>{}</b>", escape_telegram_html(&price_str))),
         }
 
         if include_extra {
             for extra in item.message_text.lines().filter(|line| {
                 let t = line.trim();
-                t.starts_with("💳") || t.starts_with("🏪") || t.starts_with("⚠️")
+                t.starts_with("📉")
+                    || t.starts_with("💳")
+                    || t.starts_with("🏪")
+                    || t.starts_with("⚠️")
             }) {
-                lines.push(escape_telegram_html(&truncate_chars(extra.trim(), 160)));
+                lines.push(escape_telegram_html(&truncate_chars(extra.trim(), 140)));
             }
         }
 
         lines.push(format!(
-            "🕐 Observado em {}",
+            "🕐 Atualizado em {}",
             escape_telegram_html(&format_cuiaba_display(item.updated_at_ms))
         ));
         lines.push(String::new());
+        lines.push(
+            "⏳ <b>CORRA! Preço e estoque promocional sujeitos a alteração a qualquer momento!</b>"
+                .to_owned(),
+        );
         lines.push(format!(
-            "🔍 Buscador ML: <code>{}</code>",
-            escape_telegram_html(&item.share_id)
+            "👉 <b>GARANTA O SEU AQUI:</b> <a href=\"{}\">Clique para abrir a oferta oficial no Mercado Livre</a>",
+            escape_telegram_html(&item.share_link)
         ));
         lines.push(format!(
-            "🔗 <a href=\"{}\">Ver oferta oficial no Mercado Livre</a>",
-            escape_telegram_html(&item.share_link)
+            "🔍 <b>Código rápido no app ML:</b> <code>{}</code>",
+            escape_telegram_html(&item.share_id)
         ));
         if let Some(offer_url) = build_site_offer_url(site_base_url, &item.title, &item.product_id)
         {
             lines.push(format!(
-                "📋 <a href=\"{}\">Ficha técnica e limitações no Procurali</a>",
+                "📋 <a href=\"{}\">Ver ficha técnica e histórico no Procurali</a>",
                 escape_telegram_html(&offer_url)
             ));
         }
+        lines.push(format!(
+            "<i>{}</i>",
+            escape_telegram_html(AFFILIATE_DISCLOSURE_PT_BR)
+        ));
         lines.join("\n")
     };
 
     for (title_limit, include_extra) in [
-        (180usize, true),
-        (120usize, true),
-        (120usize, false),
-        (80usize, false),
+        (160usize, true),
+        (110usize, true),
+        (110usize, false),
+        (75usize, false),
     ] {
         let candidate = render(title_limit, include_extra);
         if rendered_html_char_count(&candidate) <= TELEGRAM_CAPTION_MAX_CHARS {
             return candidate;
         }
     }
-    render(60, false)
+    render(55, false)
 }
 
 fn sanitize_whatsapp_inline(value: &str) -> String {
@@ -1595,7 +2097,7 @@ pub fn build_whatsapp_assisted_draft(
 
     for extra in item.message_text.lines().filter(|line| {
         let t = line.trim();
-        t.starts_with("💳") || t.starts_with("🏪") || t.starts_with("⚠️")
+        t.starts_with("📉") || t.starts_with("💳") || t.starts_with("🏪") || t.starts_with("⚠️")
     }) {
         lines.push(sanitize_whatsapp_inline(extra));
     }
@@ -1647,8 +2149,10 @@ pub fn build_whatsapp_assisted_package(
     site_base_url: Option<&str>,
     now_ms: i64,
 ) -> WhatsappAssistedPackage {
+    let mut seen_products = std::collections::HashSet::with_capacity(items.len());
     let drafts: Vec<WhatsappAssistedDraft> = items
         .iter()
+        .filter(|item| seen_products.insert(item.product_id.as_str()))
         .map(|item| build_whatsapp_assisted_draft(item, site_base_url))
         .collect();
 
@@ -1916,26 +2420,48 @@ pub fn format_telegram_bot_command_reply_pt_br(
 
 pub fn format_telegram_caption_pt_br(product: &ValidatedMercadoLivreProduct) -> String {
     let mut lines = Vec::new();
-    lines.push(AFFILIATE_DISCLOSURE_PT_BR.to_owned());
+    lines.push("🚨 OFERTA RELÂMPAGO · ACHADO NO MERCADO LIVRE! 🔥".to_owned());
     lines.push(String::new());
-    lines.push(format!("🔎 {}", product.title));
+    lines.push(format!("📦 {}", product.title));
 
-    let mut identity_parts = vec![format!("Marca: {}", product.brand)];
+    let mut identity_parts = vec![format!("🏷️ Marca: {}", product.brand)];
     if let Some(model) = &product.model {
         identity_parts.push(format!("Modelo: {model}"));
     }
     identity_parts.push(format!("Cód. ML: {}", product.product_id));
     lines.push(identity_parts.join(" · "));
+    lines.push(String::new());
 
     let price_str = format_brl_cents(product.price_brl_cents);
-    match (&product.reference_price_cents, &product.discount_label) {
-        (Some(ref_cents), Some(discount)) if *ref_cents > product.price_brl_cents => {
+    match product.reference_price_cents {
+        Some(ref_cents) if ref_cents > product.price_brl_cents => {
+            let savings_cents = ref_cents - product.price_brl_cents;
+            let savings_str = format_brl_cents(savings_cents);
+            let computed_pct = ((savings_cents as f64 / ref_cents as f64) * 100.0).round() as u32;
+            let badge = product
+                .discount_label
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(ToOwned::to_owned)
+                .unwrap_or_else(|| format!("{computed_pct}% OFF"));
+            lines.push(format!("❌ De: {}", format_brl_cents(ref_cents)));
             lines.push(format!(
-                "💰 {price_str} (de {}, {discount})",
-                format_brl_cents(*ref_cents)
+                "✅ POR APENAS: {price_str} 🔥 ({badge} · Economia de {savings_str}!)"
             ));
         }
-        _ => lines.push(format!("💰 {price_str}")),
+        _ => {
+            if let Some(discount) = product
+                .discount_label
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+            {
+                lines.push(format!("✅ PREÇO EM OFERTA: {price_str} 🔥 ({discount})"));
+            } else {
+                lines.push(format!("✅ PREÇO EM OFERTA: {price_str} 🔥"));
+            }
+        }
     }
 
     lines.push(format!("💳 {}", product.payment_conditions));
@@ -1956,13 +2482,43 @@ pub fn format_telegram_caption_pt_br(product: &ValidatedMercadoLivreProduct) -> 
     }
 
     lines.push(format!(
-        "🕐 Observado em {}",
+        "🕐 Atualizado em {}",
         product.observed_at_display_for_telegram()
     ));
     lines.push(String::new());
-    lines.push(format!("🔍 Código no buscador ML: {}", product.share_id));
-    lines.push(format!("🔗 Link oficial: {}", product.share_link));
+    lines.push(
+        "⏳ CORRA! Preço e estoque promocional sujeitos a alteração a qualquer momento!".to_owned(),
+    );
+    lines.push(format!("👉 GARANTA O SEU AQUI: {}", product.share_link));
+    lines.push(format!("🔍 Código rápido no app ML: {}", product.share_id));
+    lines.push(AFFILIATE_DISCLOSURE_PT_BR.to_owned());
     lines.join("\n")
+}
+
+/// Formats Telegram caption lines adding a historical price-drop banner when an offer dropped
+/// below its prior tracked capture in the Hub database.
+pub fn format_telegram_caption_with_price_history_pt_br(
+    product: &ValidatedMercadoLivreProduct,
+    comparison: Option<&MercadoLivrePriceComparison>,
+) -> String {
+    let base = format_telegram_caption_pt_br(product);
+    let Some(cmp) = comparison else {
+        return base;
+    };
+    if cmp.trend != PriceTrendKind::Down {
+        return base;
+    }
+    let Some(prev) = cmp.previous_price_cents else {
+        return base;
+    };
+    let drop_line = format!(
+        "📉 BAIXOU DE PREÇO! Antes: {} → Agora: {} ({}% vs captura anterior · Mín. 30d: {})",
+        format_brl_cents(prev),
+        format_brl_cents(cmp.current_price_cents),
+        cmp.price_delta_pct,
+        format_brl_cents(cmp.lowest_price_30d_cents),
+    );
+    format!("{drop_line}\n{base}")
 }
 
 impl ValidatedMercadoLivreProduct {
@@ -1987,7 +2543,7 @@ impl ValidatedMercadoLivreProduct {
         } else {
             self.short_description.clone()
         };
-        SiteCatalogOffer {
+        let mut offer = SiteCatalogOffer {
             id: format!("offer-ml-{}", self.product_id),
             slug: self.slug.clone(),
             is_demo_fixture: false,
@@ -1997,6 +2553,8 @@ impl ValidatedMercadoLivreProduct {
             title: self.title.clone(),
             exact_variant: self.exact_variant.clone(),
             category_slug: self.category_slug.clone(),
+            subcategory_slug: String::new(),
+            subcategory_name: String::new(),
             merchant: format!("Mercado Livre · {}", self.seller_name),
             marketplace_label: "Mercado Livre".into(),
             seller_name: self.seller_name.clone(),
@@ -2009,9 +2567,13 @@ impl ValidatedMercadoLivreProduct {
             sponsored: self.sponsored,
             commission_rate: self.commission_label.clone(),
             marketplace_rating: self.marketplace_rating.clone(),
+            rating_milli: None,
             marketplace_sales_label: self.marketplace_sales_label.clone(),
+            sales_volume_estimate: 0,
             card_badge: self.card_badge.clone(),
             discount_percent_label: self.discount_label.clone(),
+            discount_pct: 0,
+            trust_badges: Vec::new(),
             installment_summary: self.installment_summary.clone(),
             return_days: self.return_days,
             availability: self.availability.clone(),
@@ -2058,7 +2620,10 @@ impl ValidatedMercadoLivreProduct {
             evidence_refs: vec![evidence_id.to_owned()],
             media_rights_ref: media_rights_id.to_owned(),
             state: self.state.as_str().to_owned(),
-            approval_revision: format!("ml-ingested-{}", self.evidence_sha256.chars().take(12).collect::<String>()),
+            approval_revision: format!(
+                "ml-ingested-{}",
+                self.evidence_sha256.chars().take(12).collect::<String>()
+            ),
             one_line_reason: self.one_line_reason.clone(),
             for_whom_it_makes_sense: self.for_whom.clone(),
             supported_benefits: self.supported_benefits.clone(),
@@ -2086,7 +2651,561 @@ impl ValidatedMercadoLivreProduct {
             specs: self.specs.clone(),
             variants: self.variants.clone(),
             long_description: self.long_description.clone(),
+            price_intelligence: None,
+            dynamic_faq: Vec::new(),
+            similar_offer_ids: Vec::new(),
+        };
+        enrich_site_catalog_offer(&mut offer, self.observed_at_ms);
+        offer
+    }
+}
+
+/// Classifies an offer into a two-level category/subcategory taxonomy inspired by cloo.be.
+pub fn classify_product_subcategory(
+    title: &str,
+    category_slug: &str,
+    specs: &[MercadoLivreSpec],
+) -> (String, String) {
+    let mut hay = title.to_ascii_lowercase();
+    for spec in specs.iter().take(12) {
+        hay.push(' ');
+        hay.push_str(&spec.name.to_ascii_lowercase());
+        hay.push(' ');
+        hay.push_str(&spec.value.to_ascii_lowercase());
+    }
+    let rules: &[(&[&str], &str, &str)] = &[
+        (
+            &[
+                "monitor",
+                "ultragear",
+                "aoc agon",
+                "144hz",
+                "200hz",
+                "displayport",
+            ],
+            "monitores",
+            "Monitores",
+        ),
+        (
+            &[
+                "ssd",
+                "nvme",
+                "m.2",
+                "pcie",
+                "disco sólido",
+                "armazenamento",
+                "hd externo",
+            ],
+            "ssd-e-armazenamento",
+            "SSDs e Armazenamento",
+        ),
+        (
+            &[
+                "teclado",
+                "mouse",
+                "kumara",
+                "switch",
+                "mecanico",
+                "mecânico",
+            ],
+            "teclados-e-mouses",
+            "Teclados e Mouses",
+        ),
+        (
+            &[
+                "headset",
+                "fone",
+                "audio",
+                "áudio",
+                "microfone",
+                "drivers 53mm",
+            ],
+            "headsets-e-audio",
+            "Headsets e Áudio",
+        ),
+        (
+            &[
+                "carregador",
+                "gan",
+                "cabo",
+                "filtro de linha",
+                "dps",
+                "tomada",
+                "hub usb",
+            ],
+            "cabos-e-energia",
+            "Cabos, Hubs e Energia",
+        ),
+        (
+            &["suporte", "ergonomia", "articulado", "braço", "stand"],
+            "suportes-e-ergonomia",
+            "Suportes e Ergonomia",
+        ),
+        (
+            &["luminaria", "luminária", "lightbar", "led"],
+            "iluminacao",
+            "Iluminação de Bancada",
+        ),
+    ];
+    for (keywords, slug, label) in rules {
+        if keywords.iter().any(|kw| hay.contains(kw)) {
+            return ((*slug).to_owned(), (*label).to_owned());
         }
+    }
+    match category_slug {
+        "ergonomia-e-suportes" => ("suportes-e-ergonomia".into(), "Suportes e Ergonomia".into()),
+        "energia-e-cabos" => ("cabos-e-energia".into(), "Cabos, Hubs e Energia".into()),
+        "iluminacao-de-bancada" => ("iluminacao".into(), "Iluminação de Bancada".into()),
+        _ => (
+            "acessorios-gerais".into(),
+            "Acessórios e Periféricos".into(),
+        ),
+    }
+}
+
+/// Parses marketplace rating string such as `"4,9 / 5"` into milli-stars (`4900`).
+pub fn parse_rating_milli(rating: Option<&str>) -> Option<u16> {
+    let raw = rating?.trim();
+    let score_part = raw.split('/').next()?.trim().replace(',', ".");
+    let parsed: f64 = score_part.parse().ok()?;
+    if !(0.0..=5.0).contains(&parsed) {
+        return None;
+    }
+    Some((parsed * 1000.0).round() as u16)
+}
+
+/// Parses marketplace sales labels such as `"+10 mil vendidos no ML"` into integer volume.
+pub fn parse_sales_volume_estimate(sales: Option<&str>) -> u32 {
+    let Some(raw) = sales else {
+        return 0;
+    };
+    let lower = raw.to_ascii_lowercase();
+    let digits: String = lower
+        .chars()
+        .skip_while(|c| !c.is_ascii_digit())
+        .take_while(|c| c.is_ascii_digit() || *c == '.')
+        .filter(|c| c.is_ascii_digit())
+        .collect();
+    let Ok(base) = digits.parse::<u32>() else {
+        return 0;
+    };
+    if lower.contains("mil") && base < 1000 {
+        base.saturating_mul(1000)
+    } else {
+        base
+    }
+}
+
+/// Resolves integer discount percentage (`0..=99`) from prices or explicit badge text.
+pub fn compute_discount_pct(
+    price_cents: i64,
+    reference_cents: Option<i64>,
+    discount_label: Option<&str>,
+) -> u8 {
+    if let Some(ref_c) = reference_cents
+        && ref_c > price_cents
+        && price_cents > 0
+    {
+        let pct = ((ref_c - price_cents) as f64 / ref_c as f64 * 100.0).round() as u32;
+        return u8::try_from(pct.clamp(1, 99)).unwrap_or(99);
+    }
+    if let Some(lbl) = discount_label {
+        let digits: String = lbl
+            .chars()
+            .skip_while(|c| !c.is_ascii_digit())
+            .take_while(|c| c.is_ascii_digit())
+            .collect();
+        if let Ok(pct) = digits.parse::<u8>() {
+            return pct.min(99);
+        }
+    }
+    0
+}
+
+pub fn format_verified_at_cuiaba(ms: i64) -> String {
+    let offset = FixedOffset::west_opt(4 * 3600).expect("valid UTC-4 offset");
+    let dt = DateTime::<Utc>::from_timestamp_millis(ms)
+        .unwrap_or_default()
+        .with_timezone(&offset);
+    format!("Preços verificados em {}", dt.format("%d/%m/%Y, %H:%M"))
+}
+
+/// Renders a zero-dependency server-side `<svg viewBox="0 0 300 80">` sparkline chart.
+pub fn build_price_sparkline_svg(
+    chronological_prices: &[i64],
+    lowest_cents: i64,
+    current_cents: i64,
+) -> String {
+    let samples: Vec<i64> = if chronological_prices.len() >= 2 {
+        chronological_prices.to_vec()
+    } else if chronological_prices.len() == 1 && lowest_cents != current_cents {
+        vec![lowest_cents.max(current_cents), current_cents]
+    } else {
+        vec![current_cents, current_cents]
+    };
+
+    let min_v = samples.iter().copied().min().unwrap_or(current_cents);
+    let max_v = samples.iter().copied().max().unwrap_or(current_cents);
+    let span = (max_v - min_v).max(1) as f64;
+    let width = 280.0f64;
+    let pad_x = 10.0f64;
+    let height = 56.0f64;
+    let pad_top = 12.0f64;
+    let count = samples.len().max(2);
+
+    let mut coords = Vec::with_capacity(samples.len());
+    let mut area_points = Vec::with_capacity(samples.len() + 2);
+    let mut min_idx = 0usize;
+    for (idx, price) in samples.iter().enumerate() {
+        if *price == min_v {
+            min_idx = idx;
+        }
+        let x = pad_x + (idx as f64 / (count - 1) as f64) * width;
+        let norm_y = if max_v == min_v {
+            0.5
+        } else {
+            (*price - min_v) as f64 / span
+        };
+        let y = pad_top + (1.0 - norm_y) * height;
+        coords.push((x, y));
+        area_points.push(format!("{x:.1},{y:.1}"));
+    }
+
+    let points_attr = area_points.join(" ");
+    let last_x = coords.last().map(|p| p.0).unwrap_or(290.0);
+    let first_x = coords.first().map(|p| p.0).unwrap_or(10.0);
+    let base_y = pad_top + height + 6.0;
+    let fill_attr = format!("{first_x:.1},{base_y:.1} {points_attr} {last_x:.1},{base_y:.1}");
+    let (min_x, min_y) = coords[min_idx];
+    let (cur_x, cur_y) = coords[coords.len() - 1];
+
+    format!(
+        "<svg viewBox=\"0 0 300 80\" width=\"300\" height=\"80\" role=\"img\" aria-label=\"Histórico de preço observado nos últimos 30 dias\" xmlns=\"http://www.w3.org/2000/svg\"><polygon points=\"{fill_attr}\" fill=\"rgba(22, 101, 52, 0.10)\"/><polyline fill=\"none\" stroke=\"#166534\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" points=\"{points_attr}\"/><circle cx=\"{min_x:.1}\" cy=\"{min_y:.1}\" r=\"3.5\" fill=\"#65a30d\"/><circle cx=\"{cur_x:.1}\" cy=\"{cur_y:.1}\" r=\"4\" fill=\"#c2410c\"/></svg>"
+    )
+}
+
+/// Computes 30-day window pricing intelligence, classification, savings, and SVG sparkline.
+pub fn compute_price_intelligence(
+    current_price_cents: i64,
+    reference_price_cents: Option<i64>,
+    discount_label: Option<&str>,
+    observed_at_ms: i64,
+    observations: &[SiteCatalogPriceObservation],
+) -> PriceIntelligence {
+    let mut chronological: Vec<i64> = observations
+        .iter()
+        .rev()
+        .map(|obs| obs.price_brl_cents)
+        .filter(|c| *c > 0)
+        .collect();
+    if chronological.is_empty() && current_price_cents > 0 {
+        chronological.push(current_price_cents);
+    }
+
+    let obs_min = chronological
+        .iter()
+        .copied()
+        .min()
+        .unwrap_or(current_price_cents);
+    let obs_max = chronological
+        .iter()
+        .copied()
+        .max()
+        .unwrap_or(current_price_cents);
+    let obs_sum: i128 = chronological.iter().map(|c| i128::from(*c)).sum();
+    let avg_cents = if chronological.is_empty() {
+        current_price_cents
+    } else {
+        i64::try_from(obs_sum / i128::try_from(chronological.len()).unwrap_or(1))
+            .unwrap_or(current_price_cents)
+    };
+
+    let lowest_price_30d_cents = obs_min.min(current_price_cents);
+    let highest_price_30d_cents = reference_price_cents
+        .filter(|r| *r > 0)
+        .map_or(obs_max.max(current_price_cents), |r| {
+            obs_max.max(current_price_cents).max(r)
+        });
+    let discount_pct =
+        compute_discount_pct(current_price_cents, reference_price_cents, discount_label);
+    let savings_vs_reference_cents = reference_price_cents
+        .filter(|r| *r > current_price_cents)
+        .map_or(0, |r| r - current_price_cents);
+    let savings_vs_average_cents = (avg_cents - current_price_cents).max(0);
+
+    // Price drop occurs if the prior observed snapshot was higher or discount is meaningful.
+    let previous_price_cents = observations
+        .get(1)
+        .map(|prev| prev.price_brl_cents)
+        .filter(|c| *c > 0);
+    let (price_trend, price_delta_cents, price_delta_pct) =
+        PriceTrendKind::from_prices(current_price_cents, previous_price_cents);
+    let is_price_drop = price_trend == PriceTrendKind::Down || discount_pct >= 20;
+    let first_observed_at_display = observations
+        .last()
+        .map(|obs| obs.observed_at.clone())
+        .unwrap_or_else(|| format_utc_iso_ms(observed_at_ms));
+    let observation_count = chronological.len().max(1);
+
+    let price_level = if chronological.len() >= 2 {
+        if current_price_cents <= lowest_price_30d_cents && current_price_cents < avg_cents {
+            PriceLevelKind::LowestPrice
+        } else if current_price_cents.saturating_mul(100) <= avg_cents.saturating_mul(92)
+            || discount_pct >= 20
+        {
+            PriceLevelKind::GoodPrice
+        } else {
+            PriceLevelKind::TypicalPrice
+        }
+    } else if discount_pct >= 25 {
+        PriceLevelKind::LowestPrice
+    } else if discount_pct >= 10 {
+        PriceLevelKind::GoodPrice
+    } else {
+        PriceLevelKind::TypicalPrice
+    };
+
+    let sparkline_points = if chronological.len() >= 2 {
+        chronological
+    } else if let Some(ref_c) = reference_price_cents.filter(|r| *r > current_price_cents) {
+        vec![ref_c, current_price_cents]
+    } else {
+        vec![current_price_cents]
+    };
+    let svg_sparkline = build_price_sparkline_svg(
+        &sparkline_points,
+        highest_price_30d_cents,
+        current_price_cents,
+    );
+
+    PriceIntelligence {
+        window_days: 30,
+        current_price_cents,
+        lowest_price_30d_cents,
+        average_price_30d_cents: avg_cents,
+        highest_price_30d_cents,
+        reference_price_cents,
+        previous_price_cents,
+        price_delta_cents,
+        price_delta_pct,
+        observation_count,
+        price_trend,
+        first_observed_at_display,
+        discount_pct,
+        savings_vs_reference_cents,
+        savings_vs_average_cents,
+        price_level,
+        price_level_label: price_level.label_pt_br().to_owned(),
+        is_price_drop,
+        verified_at_display: format_verified_at_cuiaba(observed_at_ms),
+        svg_sparkline,
+    }
+}
+
+pub fn build_trust_badges(offer: &SiteCatalogOffer, intel: &PriceIntelligence) -> Vec<String> {
+    let mut badges = Vec::new();
+    if intel.discount_pct >= 5 {
+        badges.push(format!("-{}%", intel.discount_pct));
+    }
+    let seller_lower = offer.seller_name.to_ascii_lowercase();
+    if seller_lower.contains("oficial") {
+        badges.push("OFICIAL".to_owned());
+    }
+    if offer.card_badge.is_some() {
+        badges.push("MAIS VENDIDO".to_owned());
+    }
+    if intel.price_level == PriceLevelKind::LowestPrice {
+        badges.push("MENOR PREÇO".to_owned());
+    } else if intel.is_price_drop {
+        badges.push("BAIXOU DE PREÇO".to_owned());
+    }
+    if offer.return_days.is_some_and(|d| d >= 7) {
+        badges.push("DEVOLUÇÃO GRÁTIS".to_owned());
+    }
+    badges
+}
+
+pub fn build_dynamic_product_faq(
+    offer: &SiteCatalogOffer,
+    intel: &PriceIntelligence,
+) -> Vec<ProductFaqItem> {
+    let cur = format_brl_cents(offer.price_brl_cents);
+    let low = format_brl_cents(intel.lowest_price_30d_cents);
+    let avg = format_brl_cents(intel.average_price_30d_cents);
+    let mut faq = vec![ProductFaqItem {
+        question: format!("O preço atual de {} está bom hoje?", offer.brand),
+        answer: format!(
+            "No monitoramento dos últimos {} dias, a oferta atual ({cur}) recebeu classificação \"{}\". O menor preço registrado no período foi {low} e a média observada é {avg}. {}",
+            intel.window_days, intel.price_level_label, intel.verified_at_display
+        ),
+    }];
+    faq.push(ProductFaqItem {
+        question: "O vendedor e o link de compra são oficiais?".to_owned(),
+        answer: format!(
+            "Sim. O produto {} ({}) direciona exclusivamente para o anúncio oficial {} em {} sem encurtadores paralelos.",
+            offer.product_id, offer.seller_name, offer.official_affiliate_url, offer.marketplace_label
+        ),
+    });
+    faq.push(ProductFaqItem {
+        question: "Qual é a política de pagamento, frete e devolução?".to_owned(),
+        answer: format!("{} · {}.", offer.payment_conditions, offer.freight_status),
+    });
+    if let Some(lim) = offer.limitations.first() {
+        faq.push(ProductFaqItem {
+            question: "O que devo conferir antes de comprar?".to_owned(),
+            answer: lim.clone(),
+        });
+    }
+    faq
+}
+
+/// Populates taxonomy, ratings, sales volume, trust badges, price intelligence, and FAQ cleanly.
+pub fn enrich_site_catalog_offer(offer: &mut SiteCatalogOffer, observed_at_ms: i64) {
+    let (sub_slug, sub_name) =
+        classify_product_subcategory(&offer.title, &offer.category_slug, &offer.specs);
+    offer.subcategory_slug = sub_slug;
+    offer.subcategory_name = sub_name;
+    offer.rating_milli = parse_rating_milli(offer.marketplace_rating.as_deref());
+    offer.sales_volume_estimate =
+        parse_sales_volume_estimate(offer.marketplace_sales_label.as_deref());
+    let intel = compute_price_intelligence(
+        offer.pix_price_cents.min(offer.price_brl_cents),
+        offer.reference_price_cents,
+        offer.discount_percent_label.as_deref(),
+        observed_at_ms,
+        &offer.price_observations,
+    );
+    offer.discount_pct = intel.discount_pct;
+    offer.trust_badges = build_trust_badges(offer, &intel);
+    offer.dynamic_faq = build_dynamic_product_faq(offer, &intel);
+    offer.price_intelligence = Some(intel);
+}
+
+/// Renders zero-hydration Cloobe-style `<article class="offer-card">` HTML fragments for incremental pagination.
+pub fn render_offer_cards_html_fragment(offers: &[SiteCatalogOffer], start_pos: usize) -> String {
+    let mut html = String::with_capacity(offers.len().saturating_mul(640));
+    for (idx, offer) in offers.iter().enumerate() {
+        let pos = start_pos.saturating_add(idx).saturating_add(1);
+        let badges_html = offer
+            .trust_badges
+            .iter()
+            .take(3)
+            .map(|b| format!("<span class=\"badge\">{}</span>", escape_telegram_html(b)))
+            .collect::<Vec<_>>()
+            .join("");
+        let ref_html = offer
+            .reference_price_cents
+            .filter(|r| *r > offer.price_brl_cents)
+            .map(|r| format!("<del>{}</del>", escape_telegram_html(&format_brl_cents(r))))
+            .unwrap_or_default();
+        let intel_badge = offer
+            .price_intelligence
+            .as_ref()
+            .map(|i| escape_telegram_html(&i.price_level_label))
+            .unwrap_or_default();
+        html.push_str(&format!(
+            "<article class=\"offer-card\" data-store=\"mercadolivre\" data-id=\"{}\" data-pos=\"{pos}\" data-subcat=\"{}\"><a class=\"offer-card__link\" href=\"/ofertas/{}/index.html\"><img src=\"{}\" alt=\"{}\" loading=\"lazy\" decoding=\"async\"><div class=\"offer-card__badges\">{badges_html}</div><h3>{}</h3><p class=\"offer-card__price\">{ref_html}<strong>{}</strong></p><p class=\"offer-card__meta\">{} · {}</p></a></article>",
+            escape_telegram_html(&offer.product_id),
+            escape_telegram_html(&offer.subcategory_slug),
+            escape_telegram_html(&offer.slug),
+            escape_telegram_html(&offer.image_path),
+            escape_telegram_html(&offer.image_alt),
+            escape_telegram_html(&offer.title),
+            escape_telegram_html(&format_brl_cents(offer.price_brl_cents)),
+            intel_badge,
+            escape_telegram_html(&offer.short_condition),
+        ));
+    }
+    html
+}
+
+/// Formats a concise Portuguese summary comparing an offer's current spot price against
+/// historical observations in the 30-day catalog window.
+pub fn format_price_comparison_summary(
+    current_price_cents: i64,
+    previous_price_cents: Option<i64>,
+    lowest_30d_cents: i64,
+    average_30d_cents: i64,
+    observation_count: usize,
+    trend: PriceTrendKind,
+    delta_pct: i16,
+) -> String {
+    let cur = format_brl_cents(current_price_cents);
+    let low = format_brl_cents(lowest_30d_cents);
+    let avg = format_brl_cents(average_30d_cents);
+    match (trend, previous_price_cents) {
+        (PriceTrendKind::Down, Some(prev)) => format!(
+            "Queda para {cur} ({delta_pct}% vs anterior {}; mín 30d {low}, méd {avg}, {observation_count} obs)",
+            format_brl_cents(prev)
+        ),
+        (PriceTrendKind::Up, Some(prev)) => format!(
+            "Alta para {cur} (+{delta_pct}% vs anterior {}; mín 30d {low}, méd {avg}, {observation_count} obs)",
+            format_brl_cents(prev)
+        ),
+        (PriceTrendKind::Stable, _) => {
+            format!("Estável em {cur} (mín 30d {low}, méd {avg}, {observation_count} obs)")
+        }
+        _ => format!("Primeira captura em {cur} (mín 30d {low}, méd {avg})"),
+    }
+}
+
+/// Projects a compact `CommerceReferenceItem` from an enriched `SiteCatalogOffer` and
+/// its aggregate Telegram delivery telemetry.
+pub fn build_commerce_reference_item(
+    offer: &SiteCatalogOffer,
+    telegram_published_count: u32,
+    telegram_last_status: Option<String>,
+) -> CommerceReferenceItem {
+    let current_eff = offer.pix_price_cents.min(offer.price_brl_cents);
+    let intel = offer.price_intelligence.clone().unwrap_or_else(|| {
+        compute_price_intelligence(
+            current_eff,
+            offer.reference_price_cents,
+            offer.discount_percent_label.as_deref(),
+            parse_iso_to_ms(&offer.observed_at).unwrap_or(1),
+            &offer.price_observations,
+        )
+    });
+    let short_summary = format_price_comparison_summary(
+        current_eff,
+        intel.previous_price_cents,
+        intel.lowest_price_30d_cents,
+        intel.average_price_30d_cents,
+        intel.observation_count,
+        intel.price_trend,
+        intel.price_delta_pct,
+    );
+    CommerceReferenceItem {
+        product_id: offer.product_id.clone(),
+        slug: offer.slug.clone(),
+        title: offer.title.clone(),
+        brand: offer.brand.clone(),
+        model: offer.model.clone(),
+        exact_variant: offer.exact_variant.clone(),
+        category_slug: offer.category_slug.clone(),
+        subcategory_slug: offer.subcategory_slug.clone(),
+        seller_name: offer.seller_name.clone(),
+        state: offer.state.clone(),
+        current_price_cents: offer.price_brl_cents,
+        pix_price_cents: offer.pix_price_cents,
+        reference_price_cents: offer.reference_price_cents,
+        discount_pct: intel.discount_pct,
+        lowest_price_30d_cents: intel.lowest_price_30d_cents,
+        average_price_30d_cents: intel.average_price_30d_cents,
+        highest_price_30d_cents: intel.highest_price_30d_cents,
+        previous_price_cents: intel.previous_price_cents,
+        price_delta_cents: intel.price_delta_cents,
+        price_delta_pct: intel.price_delta_pct,
+        observation_count: intel.observation_count,
+        price_trend: intel.price_trend,
+        price_level: intel.price_level,
+        price_level_label: intel.price_level_label,
+        observed_at: offer.observed_at.clone(),
+        observed_at_ms: parse_iso_to_ms(&offer.observed_at).unwrap_or(0),
+        official_affiliate_url: offer.official_affiliate_url.clone(),
+        short_summary,
+        telegram_published_count,
+        telegram_last_status,
     }
 }
 
@@ -2201,12 +3320,19 @@ mod tests {
         let caption = format_telegram_html_caption_pt_br(&item, Some("https://procurali.com.br"));
         assert!(caption.contains("&lt;NV3&gt;"));
         assert!(caption.contains("&amp;"));
-        assert!(caption.contains("<s>de R$ 599,00</s>"));
+        assert!(caption.contains("OFERTA RELÂMPAGO"));
+        assert!(caption.contains("❌ De: <s>R$ 599,00</s>"));
+        assert!(caption.contains("✅ <b>POR APENAS: R$ 449,90</b>"));
+        assert!(caption.contains("Economia de R$ 149,10"));
         assert!(caption.contains("https://meli.la/1iWQZbJ"));
         assert!(rendered_html_char_count(&caption) <= TELEGRAM_CAPTION_MAX_CHARS);
 
         let kb = build_telegram_offer_keyboard(&item, Some("https://procurali.com.br"));
         assert_eq!(kb.inline_keyboard.len(), 2);
+        assert_eq!(
+            kb.inline_keyboard[0][0].text,
+            "🔥 PEGAR OFERTA NO MERCADO LIVRE 🛒"
+        );
         assert_eq!(kb.inline_keyboard[0][0].url, "https://meli.la/1iWQZbJ");
         assert!(
             kb.inline_keyboard[1][0]
@@ -2268,6 +3394,142 @@ mod tests {
         assert!(pkg.drafts[0].whatsapp_text.contains("*R$ 449,90*"));
         assert!(pkg.drafts[0].whatsapp_text.contains("*Kingston*"));
         assert!(!pkg.drafts[0].whatsapp_text.contains("🔥 * "));
+    }
+
+    #[test]
+    fn computes_cloobe_taxonomy_price_intelligence_sparkline_and_alerts() {
+        let (sub_slug, sub_name) = classify_product_subcategory(
+            "Monitor Gamer LG UltraGear 27 IPS 200Hz",
+            "hardware-e-perifericos",
+            &[],
+        );
+        assert_eq!(sub_slug, "monitores");
+        assert_eq!(sub_name, "Monitores");
+        assert_eq!(parse_rating_milli(Some("4,9 / 5")), Some(4900));
+        assert_eq!(
+            parse_sales_volume_estimate(Some("+10 mil vendidos no ML")),
+            10_000
+        );
+        assert_eq!(compute_discount_pct(69_990, Some(137_900), None), 49);
+
+        let obs = vec![
+            SiteCatalogPriceObservation {
+                id: "o3".into(),
+                offer_id: "of1".into(),
+                variant_id: "v1".into(),
+                seller_name: "Oficial".into(),
+                payment_basis: "Pix".into(),
+                freight_note: "Grátis".into(),
+                price_brl_cents: 69_990,
+                observed_at: "2026-11-16T12:00:00Z".into(),
+                evidence_id: "ev1".into(),
+            },
+            SiteCatalogPriceObservation {
+                id: "o2".into(),
+                offer_id: "of1".into(),
+                variant_id: "v1".into(),
+                seller_name: "Oficial".into(),
+                payment_basis: "Pix".into(),
+                freight_note: "Grátis".into(),
+                price_brl_cents: 89_900,
+                observed_at: "2026-11-10T12:00:00Z".into(),
+                evidence_id: "ev1".into(),
+            },
+            SiteCatalogPriceObservation {
+                id: "o1".into(),
+                offer_id: "of1".into(),
+                variant_id: "v1".into(),
+                seller_name: "Oficial".into(),
+                payment_basis: "Pix".into(),
+                freight_note: "Grátis".into(),
+                price_brl_cents: 94_900,
+                observed_at: "2026-11-01T12:00:00Z".into(),
+                evidence_id: "ev1".into(),
+            },
+        ];
+
+        let intel = compute_price_intelligence(
+            69_990,
+            Some(137_900),
+            Some("49% OFF"),
+            1_763_252_000_000,
+            &obs,
+        );
+        assert_eq!(intel.window_days, 30);
+        assert_eq!(intel.lowest_price_30d_cents, 69_990);
+        assert_eq!(intel.highest_price_30d_cents, 137_900);
+        assert_eq!(intel.previous_price_cents, Some(89_900));
+        assert_eq!(intel.price_delta_cents, -19_910);
+        assert_eq!(intel.price_delta_pct, -22);
+        assert_eq!(intel.observation_count, 3);
+        assert_eq!(intel.price_trend, PriceTrendKind::Down);
+        assert_eq!(intel.first_observed_at_display, "2026-11-01T12:00:00Z");
+        assert_eq!(intel.price_level, PriceLevelKind::LowestPrice);
+        assert_eq!(intel.price_level_label, "Menor preço");
+        assert!(intel.is_price_drop);
+        assert!(
+            intel
+                .verified_at_display
+                .starts_with("Preços verificados em ")
+        );
+        assert!(intel.svg_sparkline.contains("<svg viewBox=\"0 0 300 80\""));
+        assert!(intel.svg_sparkline.contains("<polyline"));
+
+        let summary = format_price_comparison_summary(
+            intel.current_price_cents,
+            intel.previous_price_cents,
+            intel.lowest_price_30d_cents,
+            intel.average_price_30d_cents,
+            intel.observation_count,
+            intel.price_trend,
+            intel.price_delta_pct,
+        );
+        assert!(summary.contains("Queda para"));
+        assert!(summary.contains("-22%"));
+
+        // Verify WhatsApp package deduplicates duplicate deliveries by product_id.
+        let dup_a = TelegramOfferQueueItem {
+            delivery_id: "tg-new".into(),
+            product_id: "MLB39410080".into(),
+            offer_id: "of2".into(),
+            channel_id: "@procurali".into(),
+            title: "SSD Kingston NV3".into(),
+            brand: "Kingston".into(),
+            model: None,
+            price_brl_cents: 69_990,
+            reference_price_cents: None,
+            discount_label: None,
+            share_link: "https://meli.la/1iWQZbJ".into(),
+            share_id: "1PBCGF-SMN5".into(),
+            image_public_url: None,
+            image_object_key: None,
+            message_text: String::new(),
+            status: TelegramDeliveryStatus::Queued,
+            external_message_id: None,
+            created_at_ms: 2_000,
+            updated_at_ms: 2_000,
+            published_at_ms: None,
+        };
+        let mut dup_b = dup_a.clone();
+        dup_b.delivery_id = "tg-old".into();
+        let pkg = build_whatsapp_assisted_package(&[dup_a, dup_b], "@procurali", None, 2_000);
+        assert_eq!(pkg.draft_count, 1);
+        assert_eq!(pkg.drafts[0].delivery_id, "tg-new");
+
+        let ok_alert = PriceAlertActionRequest {
+            action: "criar-alerta".into(),
+            subscriber_id: "sub_01".into(),
+            product_id: Some("MLB39410080".into()),
+            target_price_cents: Some(65_000),
+        };
+        ok_alert.validates().unwrap();
+
+        let bad_beacon = ExposureBeaconRequest {
+            route: "/categorias/hardware/".into(),
+            events: vec![],
+            timestamp_ms: 1_763_252_000_000,
+        };
+        assert!(bad_beacon.validates().is_err());
     }
 
     #[test]

@@ -636,6 +636,62 @@ export function renderOffersListPage(root) {
   </section>`;
 }
 
+function sanitizeSparklineSvg(raw) {
+  if (typeof raw !== "string") return "";
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith("<svg") || !trimmed.endsWith("</svg>")) return "";
+  const lower = trimmed.toLowerCase();
+  if (
+    lower.includes("<script") ||
+    lower.includes("<foreignobject") ||
+    lower.includes("javascript:") ||
+    /\son[a-z]+\s*=/.test(lower)
+  ) {
+    return "";
+  }
+  return trimmed;
+}
+
+function resolveOfferPriceIntelligence(offer) {
+  if (offer.priceIntelligence && Number.isFinite(offer.priceIntelligence.lowestPrice30dCents)) {
+    return offer.priceIntelligence;
+  }
+  const samplePrices = (Array.isArray(offer.priceObservations) ? offer.priceObservations : [])
+    .map((obs) => obs.priceBrlCents)
+    .filter((v) => Number.isFinite(v) && v > 0);
+  if (Number.isFinite(offer.priceBrlCents) && offer.priceBrlCents > 0) {
+    samplePrices.push(offer.priceBrlCents);
+  }
+  if (Number.isFinite(offer.referencePriceCents) && offer.referencePriceCents > offer.priceBrlCents) {
+    samplePrices.push(offer.referencePriceCents);
+  }
+  if (samplePrices.length === 0) return null;
+  const lowest = Math.min(...samplePrices);
+  const highest = Math.max(...samplePrices);
+  const avg = Math.round(samplePrices.reduce((sum, n) => sum + n, 0) / samplePrices.length);
+  const curr = offer.priceBrlCents;
+  let priceLevel = "typical_price";
+  let priceLevelLabel = "Preço na média";
+  if (curr <= lowest) {
+    priceLevel = "lowest_price";
+    priceLevelLabel = "Menor preço dos últimos 30 dias";
+  } else if (curr < avg) {
+    priceLevel = "good_price";
+    priceLevelLabel = "Bom preço";
+  }
+  return {
+    windowDays: 30,
+    currentPriceCents: curr,
+    lowestPrice30dCents: lowest,
+    averagePrice30dCents: avg,
+    highestPrice30dCents: highest,
+    priceLevel,
+    priceLevelLabel,
+    verifiedAtDisplay: offer.observedAtDisplay || "",
+    svgSparkline: null,
+  };
+}
+
 export function renderOfferDetailPage(root, offer) {
   const category = activeCategories.find((c) => c.slug === offer.categorySlug);
   const rights = activeMediaRights.find((m) => m.id === offer.mediaRightsRef);
@@ -644,6 +700,9 @@ export function renderOfferDetailPage(root, offer) {
   const sevenDay = verifySevenDaySample(offer);
   const ctaProps = buildOfficialAffiliateAnchorProps(offer, activeMediaRights);
   const alternatives = activeOffers.filter((o) => (offer.alternativeOfferSlugs || []).includes(o.slug));
+  const priceIntel = resolveOfferPriceIntelligence(offer);
+  const sparklineHtml = sanitizeSparklineSvg(priceIntel?.svgSparkline);
+  const faqItems = Array.isArray(offer.dynamicFaq) ? offer.dynamicFaq : [];
 
   let stateAlertHtml = "";
   if (offer.state === "stale") {
@@ -932,6 +991,64 @@ export function renderOfferDetailPage(root, offer) {
           : ""
       }
 
+      ${
+        priceIntel
+          ? `<div class="section">
+              <article class="card price-intel-card">
+                <div class="price-intel-head">
+                  <div>
+                    <span class="badge ${
+                      priceIntel.priceLevel === "lowest_price"
+                        ? "badge-emerald"
+                        : priceIntel.priceLevel === "good_price"
+                        ? "badge-petrol"
+                        : "badge-neutral"
+                    }">${esc(priceIntel.priceLevelLabel || "Preço observado")}</span>
+                    ${
+                      priceIntel.priceTrend === "down"
+                        ? `<span class="badge badge-emerald" style="margin-left:0.35rem;">Em queda (${esc(priceIntel.priceDeltaPct || 0)}%)</span>`
+                        : priceIntel.priceTrend === "up"
+                        ? `<span class="badge badge-neutral" style="margin-left:0.35rem;">Acima da captura anterior (+${esc(priceIntel.priceDeltaPct || 0)}%)</span>`
+                        : ""
+                    }
+                    <h2 style="margin-top:0.4rem;">Histórico e Inteligência de Preço (${esc(priceIntel.windowDays || 30)} dias${
+                      Number.isFinite(priceIntel.observationCount) && priceIntel.observationCount > 0
+                        ? ` · ${esc(priceIntel.observationCount)} registros`
+                        : ""
+                    })</h2>
+                  </div>
+                  ${
+                    priceIntel.verifiedAtDisplay
+                      ? `<span class="muted price-intel-verified">${esc(priceIntel.verifiedAtDisplay)}</span>`
+                      : ""
+                  }
+                </div>
+                <div class="price-intel-stats">
+                  <div class="price-stat-box">
+                    <span class="price-stat-label">Menor preço (30d)</span>
+                    <strong class="price-stat-value">${esc(formatBrl(priceIntel.lowestPrice30dCents))}</strong>
+                  </div>
+                  <div class="price-stat-box">
+                    <span class="price-stat-label">Preço médio (30d)</span>
+                    <strong class="price-stat-value">${esc(formatBrl(priceIntel.averagePrice30dCents))}</strong>
+                  </div>
+                  <div class="price-stat-box">
+                    <span class="price-stat-label">Maior preço (30d)</span>
+                    <strong class="price-stat-value">${esc(formatBrl(priceIntel.highestPrice30dCents))}</strong>
+                  </div>
+                </div>
+                ${
+                  sparklineHtml
+                    ? `<div class="price-sparkline-wrap" role="img" aria-label="Tendência de preço nos últimos 30 dias">
+                        ${sparklineHtml}
+                      </div>`
+                    : ""
+                }
+              </article>
+            </div>`
+          : ""
+      }
+
       <div class="section">
         <h2>Histórico de observações de preço (${esc(offer.priceObservations.length)})</h2>
         <p class="muted">${esc(offer.sevenDayCoverageNote)}</p>
@@ -965,6 +1082,25 @@ export function renderOfferDetailPage(root, offer) {
           </table>
         </div>
       </div>
+
+      ${
+        faqItems.length > 0
+          ? `<div class="section">
+              <h2>Perguntas frequentes sobre esta oferta</h2>
+              <div class="faq-list">
+                ${faqItems
+                  .map(
+                    (faq, idx) => `
+                  <details class="card faq-item"${idx === 0 ? " open" : ""}>
+                    <summary class="faq-question">${esc(faq.question)}</summary>
+                    <p class="faq-answer">${esc(faq.answer)}</p>
+                  </details>`
+                  )
+                  .join("")}
+              </div>
+            </div>`
+          : ""
+      }
 
       <div class="section">
         <h2>Evidência e direitos de mídia</h2>

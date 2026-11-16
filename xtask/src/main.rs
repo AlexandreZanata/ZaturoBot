@@ -42,7 +42,7 @@ fn main() -> Result<()> {
             let mut docs = vec!["doc", "--workspace", "--no-deps"];
             docs.extend_from_slice(lock_arg);
             run(root, &docs)?;
-            for directory in ["deploy/services", "deploy/computer"] {
+            for directory in ["deploy/services", "deploy/computer", "deploy/procurali"] {
                 let helpers = Command::new("python3")
                     .args([
                         "-m",

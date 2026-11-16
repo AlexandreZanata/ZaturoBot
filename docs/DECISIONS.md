@@ -329,6 +329,17 @@ Publishers must claim (`queued -> sending`) before sending and may then only fin
 owner review if its result was lost. Claims on stale or superseded offers are skipped.
 Public bot replies only repeat published offers. See [migrations](MIGRATIONS.md).
 
+## ADR-0025 — Owner-authorized @procurali auto-queueing with ADR-0024 pre-send claim - accepted
+
+While retaining Schema 11's `awaiting_approval -> queued -> sending -> published|failed`
+state machine, owner-only `approve` endpoint for `Candidate` offers, freshness bounds, and
+non-retrying `sending` claims from ADR-0024, the owner explicitly authorized automatic
+queueing (`Approved -> queued`) for validated `@procurali` pipeline ingests when an offer
+has not yet been published on that channel or drops strictly below its last published price
+(triggering the `"📉 BAIXOU DE PREÇO"` header). Identical or higher prices are deduplicated
+without spamming Telegram, active `sending` deliveries are never disturbed, and public bot
+command replies remain restricted to `Published` deliveries.
+
 ## Procurali content and website planning note
 
 The owner requested the next-stage creative/short-video instructions, business model,

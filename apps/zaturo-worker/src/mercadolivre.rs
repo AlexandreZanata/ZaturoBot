@@ -10,15 +10,16 @@ use std::{
     time::Duration,
 };
 use zaturo_core::{
-    DEFAULT_ML_FRESHNESS_TTL_MINUTES, MAX_ML_BATCH_PRODUCTS, MAX_ML_IMAGES_PER_PRODUCT,
-    MAX_ML_SPECS_PER_PRODUCT, MAX_ML_VARIANTS_PER_PRODUCT, MercadoLivreBotBatch,
-    MercadoLivreBotProduct, MercadoLivreIngestBatchRequest, MercadoLivreIngestReport,
-    MercadoLivreProductState, MercadoLivreSpec, MercadoLivreVariant, MinioProductImage,
-    ValidatedMercadoLivreProduct, extract_product_id_from_url, format_brl_cents,
-    no_local_path_leak, parse_brl_amount_cents, parse_card_text, parse_commission_bp,
-    parse_iso_to_ms, parse_jsonld_variant, parse_price_value_cents, slugify_pt_br, valid_slug,
-    valid_telegram_channel, validate_asset_public_url, validate_meli_share_link,
-    validate_ml_canonical_url, validate_ml_product_id, validate_ml_share_id,
+    CommerceReferenceCatalog, CommerceReferenceItem, DEFAULT_ML_FRESHNESS_TTL_MINUTES,
+    MAX_ML_BATCH_PRODUCTS, MAX_ML_IMAGES_PER_PRODUCT, MAX_ML_SPECS_PER_PRODUCT,
+    MAX_ML_VARIANTS_PER_PRODUCT, MercadoLivreBotBatch, MercadoLivreBotProduct,
+    MercadoLivreIngestBatchRequest, MercadoLivreIngestReport, MercadoLivreProductState,
+    MercadoLivreSpec, MercadoLivreVariant, MinioProductImage, ValidatedMercadoLivreProduct,
+    extract_product_id_from_url, format_brl_cents, no_local_path_leak, parse_brl_amount_cents,
+    parse_card_text, parse_commission_bp, parse_iso_to_ms, parse_jsonld_variant,
+    parse_price_value_cents, slugify_pt_br, valid_slug, valid_telegram_channel,
+    validate_asset_public_url, validate_meli_share_link, validate_ml_canonical_url,
+    validate_ml_product_id, validate_ml_share_id,
 };
 use zaturo_transfer::minio::{
     InspectedImage, MinioClient, inspect_image_bytes, read_image_file, sha256_hex,
@@ -200,6 +201,233 @@ pub async fn ingest_file_to_hub(
         }
     };
     ingest_to_hub(&config.hub_url, worker_token, &batch_req, &derived_key).await
+}
+
+/// Checks `input_path`'s SHA-256 digest against `state_file`, skipping ingestion when the payload
+/// has not changed and atomically recording the new digest after a successful Hub ingest.
+pub async fn ingest_file_if_changed(
+    config: &WorkerConfig,
+    worker_token: &str,
+    input_path: &Path,
+    state_file: &Path,
+    options: &BatchIngestOptions,
+    source_base_dir: Option<&Path>,
+) -> Result<Option<MercadoLivreIngestReport>> {
+    let raw_bytes = std::fs::read(input_path)
+        .with_context(|| format!("failed reading bot batch file {}", input_path.display()))?;
+    let digest = sha256_hex(&raw_bytes);
+    if let Ok(previous) = std::fs::read_to_string(state_file)
+        && previous.trim() == digest
+    {
+        return Ok(None);
+    }
+
+    let idempotency_key = format!("ml-watch-{}", &digest[..24]);
+    let report = ingest_file_to_hub(
+        config,
+        worker_token,
+        input_path,
+        options,
+        Some(&idempotency_key),
+        source_base_dir,
+    )
+    .await?;
+
+    if let Some(parent) = state_file.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+    let tmp_path = state_file.with_extension("sha256.tmp");
+    std::fs::write(&tmp_path, format!("{digest}\n"))?;
+    std::fs::rename(&tmp_path, state_file)?;
+    Ok(Some(report))
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+pub struct ReferenceSyncSummary {
+    pub status: String,
+    pub etag: Option<String>,
+    pub cache_generation: u64,
+    pub total_products: usize,
+    pub output_path: String,
+}
+
+fn write_atomic_private(path: &Path, bytes: &[u8]) -> Result<()> {
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+    let tmp = path.with_extension("tmp");
+    std::fs::write(&tmp, bytes)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600))?;
+    }
+    std::fs::rename(&tmp, path)?;
+    Ok(())
+}
+
+/// Fetches the compact VPS product/price-trend reference catalog using ETag conditional GET
+/// (`If-None-Match` -> `304 Not Modified`) and writes `output_path` atomically for fast local lookup.
+pub async fn sync_reference_catalog(
+    hub_url: &str,
+    worker_token: &str,
+    output_path: &Path,
+) -> Result<ReferenceSyncSummary> {
+    zaturo_security::validate_endpoint(hub_url)?;
+    zaturo_security::Credential::new(worker_token)?;
+
+    let etag_path = output_path.with_extension("etag");
+    let cached_etag = if output_path.exists() {
+        std::fs::read_to_string(&etag_path)
+            .ok()
+            .map(|s| s.trim().to_owned())
+            .filter(|s| !s.is_empty())
+    } else {
+        None
+    };
+
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(30))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?;
+    let url = format!(
+        "{}/v1/device/commerce/mercadolivre/reference-catalog",
+        hub_url.trim_end_matches('/')
+    );
+    let mut req = client.get(&url).bearer_auth(worker_token);
+    if let Some(ref etag) = cached_etag {
+        req = req.header(reqwest::header::IF_NONE_MATCH, etag);
+    }
+
+    let response = req
+        .send()
+        .await
+        .context("failed connecting to Hub reference-catalog endpoint")?;
+    let status = response.status();
+    if status == reqwest::StatusCode::NOT_MODIFIED {
+        let existing_bytes = std::fs::read(output_path)
+            .with_context(|| format!("missing cached reference file {}", output_path.display()))?;
+        let existing: CommerceReferenceCatalog = serde_json::from_slice(&existing_bytes)
+            .context("cached local reference JSON is invalid")?;
+        return Ok(ReferenceSyncSummary {
+            status: "not_modified".into(),
+            etag: cached_etag,
+            cache_generation: existing.cache_generation,
+            total_products: existing.total_products,
+            output_path: output_path.display().to_string(),
+        });
+    }
+    if !status.is_success() {
+        let snippet = response.text().await.unwrap_or_default();
+        bail!(
+            "Hub rejected reference-catalog sync with HTTP {} ({})",
+            status.as_u16(),
+            truncate_utf8(&snippet, 200)
+        );
+    }
+
+    let new_etag = response
+        .headers()
+        .get(reqwest::header::ETAG)
+        .and_then(|v| v.to_str().ok())
+        .map(ToOwned::to_owned);
+    let body = response
+        .bytes()
+        .await
+        .context("failed reading Hub reference-catalog response body")?;
+    let catalog: CommerceReferenceCatalog = serde_json::from_slice(&body)
+        .context("invalid CommerceReferenceCatalog JSON returned by Hub")?;
+
+    write_atomic_private(output_path, &body)?;
+    if let Some(ref etag) = new_etag {
+        write_atomic_private(&etag_path, format!("{etag}\n").as_bytes())?;
+    }
+
+    Ok(ReferenceSyncSummary {
+        status: "updated".into(),
+        etag: new_etag,
+        cache_generation: catalog.cache_generation,
+        total_products: catalog.total_products,
+        output_path: output_path.display().to_string(),
+    })
+}
+
+/// Queries the locally cached `vps-reference.json` file in milliseconds with zero network round-trips.
+pub fn load_and_query_reference_catalog(
+    reference_path: &Path,
+    query: Option<&str>,
+    product_id: Option<&str>,
+    category: Option<&str>,
+    limit: usize,
+) -> Result<Vec<CommerceReferenceItem>> {
+    let raw = std::fs::read(reference_path).with_context(|| {
+        format!(
+            "failed reading local reference file {}",
+            reference_path.display()
+        )
+    })?;
+    let catalog: CommerceReferenceCatalog = serde_json::from_slice(&raw).with_context(|| {
+        format!(
+            "invalid reference catalog JSON in {}",
+            reference_path.display()
+        )
+    })?;
+
+    let target_pid = product_id
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_ascii_uppercase);
+    let target_cat = category
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_ascii_lowercase);
+    let tokens: Vec<String> = query
+        .unwrap_or_default()
+        .split_whitespace()
+        .map(str::to_ascii_lowercase)
+        .filter(|t| !t.is_empty())
+        .collect();
+
+    let cap = limit.max(1);
+    let mut matches = Vec::new();
+    for item in catalog.items {
+        if let Some(ref pid) = target_pid
+            && item.product_id.to_ascii_uppercase() != *pid
+        {
+            continue;
+        }
+        if let Some(ref cat) = target_cat
+            && item.category_slug.to_ascii_lowercase() != *cat
+            && item.subcategory_slug.to_ascii_lowercase() != *cat
+        {
+            continue;
+        }
+        if !tokens.is_empty() {
+            let haystack = format!(
+                "{} {} {} {} {} {}",
+                item.product_id,
+                item.title,
+                item.brand,
+                item.category_slug,
+                item.subcategory_slug,
+                item.short_summary
+            )
+            .to_ascii_lowercase();
+            if !tokens.iter().all(|tok| haystack.contains(tok)) {
+                continue;
+            }
+        }
+        matches.push(item);
+        if matches.len() >= cap {
+            break;
+        }
+    }
+    Ok(matches)
 }
 
 async fn normalize_and_upload_product(
@@ -409,8 +637,9 @@ async fn normalize_and_upload_product(
         observed_at_ms,
         freshness_ttl_minutes: DEFAULT_ML_FRESHNESS_TTL_MINUTES,
         evidence_sha256,
-        // Ingest only proposes offers; publication needs the owner's per-offer approval.
-        state: MercadoLivreProductState::Candidate,
+        // Owner-authorized @procurali pipeline batches auto-enqueue (deduplicated / price drops
+        // per ADR-0025); Candidate batches still require per-offer approval (ADR-0024).
+        state: MercadoLivreProductState::Approved,
     };
     validated.validates().map_err(anyhow::Error::msg)?;
     Ok(validated)
@@ -1017,7 +1246,7 @@ mod tests {
         sync::{Arc, Mutex},
     };
     use tokio::task::JoinHandle;
-    use zaturo_core::{SiteCatalogSnapshot, TelegramDeliveryStatus, TelegramOfferQueueItem};
+    use zaturo_core::{SiteCatalogSnapshot, TelegramOfferQueueItem};
     use zaturo_hub::{AppState, config::HubConfig};
     use zaturo_transfer::minio::MinioConfig;
 
@@ -1345,7 +1574,7 @@ mod tests {
         assert!(parsed_schema1.network.is_empty());
 
         let raw_bytes = serde_json::to_vec(&bot_batch).unwrap();
-        let req = prepare_and_upload_batch(
+        let mut req = prepare_and_upload_batch(
             &raw_bytes,
             &minio_client,
             &BatchIngestOptions {
@@ -1358,6 +1587,11 @@ mod tests {
         )
         .await
         .unwrap();
+        let live_now = crate::now_ms();
+        req.captured_at_ms = live_now;
+        for p in &mut req.products {
+            p.observed_at_ms = live_now;
+        }
 
         assert_eq!(req.products.len(), 4);
         // NV3 had 1 vertical video frame + 1 square photo -> only the 1 square photo was uploaded.
@@ -1392,8 +1626,8 @@ mod tests {
             .unwrap();
         assert_eq!(report.product_count, 4);
         assert_eq!(report.image_count, 4);
-        assert_eq!(report.telegram_queued_count, 0);
-        assert_eq!(report.telegram_awaiting_approval_count, 4);
+        assert_eq!(report.telegram_queued_count, 4);
+        assert_eq!(report.telegram_awaiting_approval_count, 0);
 
         let http = reqwest::Client::builder().no_proxy().build().unwrap();
         let catalog: SiteCatalogSnapshot = http
@@ -1434,14 +1668,265 @@ mod tests {
                 .unwrap()
             }
         };
-        // Ingested offers wait for the owner's per-offer approval; none is publishable yet.
-        assert!(queue("queued").await.is_empty());
-        let awaiting = queue("awaiting_approval").await;
-        assert_eq!(awaiting.len(), 4);
-        assert!(
-            awaiting
-                .iter()
-                .all(|item| item.status == TelegramDeliveryStatus::AwaitingApproval)
+        assert_eq!(queue("queued").await.len(), 4);
+        assert!(queue("awaiting_approval").await.is_empty());
+    }
+
+    async fn spawn_watch_test_backends(root: &Path) -> (WorkerConfig, AbortOnDrop, AbortOnDrop) {
+        let minio_state = MockMinioState::default();
+        let minio_router = Router::new()
+            .route("/{bucket}", put(mock_put_bucket).head(mock_head_bucket))
+            .route("/{bucket}/{*key}", put(mock_put_object))
+            .with_state(minio_state);
+        let minio_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let minio_addr = minio_listener.local_addr().unwrap();
+        let minio_srv = AbortOnDrop(tokio::spawn(async move {
+            axum::serve(minio_listener, minio_router).await.unwrap();
+        }));
+
+        let minio_secret_path = root.join("minio.watch.secret");
+        fs::write(&minio_secret_path, "synthetic-test-minio-secret-key\n").unwrap();
+        fs::set_permissions(&minio_secret_path, fs::Permissions::from_mode(0o600)).unwrap();
+
+        let minio_cfg = MinioConfig {
+            endpoint: format!("http://{minio_addr}"),
+            public_base_url: format!("http://{minio_addr}"),
+            bucket: "procurali-media".into(),
+            region: "us-east-1".into(),
+            access_key_id: "procurali-worker".into(),
+            secret_access_key_file: minio_secret_path,
+            timeout_seconds: 5,
+        };
+
+        let hub_dir = root.join("hub-watch");
+        fs::create_dir_all(&hub_dir).unwrap();
+        let recipient =
+            zaturo_transfer::crypto::generate_identity(&hub_dir.join("worker-ml.identity"))
+                .unwrap();
+        let devices_toml = format!(
+            "[[devices]]\nid=\"worker-ml\"\ntoken_sha256=\"{:x}\"\nencryption_recipient={recipient:?}\n",
+            Sha256::digest(DEVICE)
         );
+        fs::write(hub_dir.join("devices.toml"), devices_toml).unwrap();
+        fs::set_permissions(
+            hub_dir.join("devices.toml"),
+            fs::Permissions::from_mode(0o600),
+        )
+        .unwrap();
+
+        let hub_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let hub_addr = hub_listener.local_addr().unwrap();
+        let hub_url = format!("http://{hub_addr}");
+        let hub_state = AppState::new(
+            HubConfig {
+                bind: hub_addr,
+                client_url: hub_url.clone(),
+                database: hub_dir.join("hub.db"),
+                worker_id: "worker-ml".into(),
+                max_connections: 4,
+                max_queued_tasks: 16,
+                max_page_size: 100,
+                lease_seconds: 30,
+                max_workers: 4,
+                devices_file: Some(hub_dir.join("devices.toml")),
+                apps_file: None,
+                transfer_root: Some(hub_dir.join("spool")),
+                transfer_limits: Default::default(),
+            },
+            OWNER,
+            DEVICE,
+        )
+        .unwrap();
+        let hub_srv = AbortOnDrop(tokio::spawn(async move {
+            axum::serve(hub_listener, zaturo_hub::router(hub_state))
+                .await
+                .unwrap();
+        }));
+
+        let worker_cfg = WorkerConfig {
+            hub_url,
+            worker_id: "worker-ml".into(),
+            database: root.join("worker.db"),
+            workspace_root: root.join("ws"),
+            artifact_root: root.join("art"),
+            capabilities: vec!["diagnostic.v1".into()],
+            max_concurrent_tasks: 1,
+            heartbeat_seconds: 5,
+            reconnect_max_seconds: 30,
+            models_config: None,
+            assistant_models_config: None,
+            computer_models_config: None,
+            computer: None,
+            opencode: None,
+            files: None,
+            youtube: None,
+            android: None,
+            minio: Some(minio_cfg),
+            telegram: None,
+        };
+        (worker_cfg, minio_srv, hub_srv)
+    }
+
+    #[tokio::test]
+    async fn ingest_file_if_changed_skips_unchanged_and_reingests_on_change() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let photos_dir = root.join("photos");
+        fs::create_dir_all(&photos_dir).unwrap();
+        fs::write(photos_dir.join("item.png"), valid_png_bytes(800, 800)).unwrap();
+
+        let (worker_cfg, _minio_srv, _hub_srv) = spawn_watch_test_backends(root).await;
+        let input_path = root.join("products.json");
+        let state_file = root.join("state/last.sha256");
+
+        let make_batch = |price: f64| {
+            json!({
+                "network": "mercadolivre_afiliados",
+                "query": "hardware watch test",
+                "captured_at": "2026-11-16T12:00:00Z",
+                "products": [{
+                    "product_id": "MLB39410080",
+                    "title": "SSD Kingston NV3 500GB NVMe",
+                    "canonical_url": "https://www.mercadolivre.com.br/ssd-kingston/p/MLB39410080",
+                    "share_link": "https://meli.la/1iWQZbJ",
+                    "price": price,
+                    "currency": "BRL",
+                    "seller": "Loja Oficial Kingston",
+                    "photos": ["photos/item.png"]
+                }]
+            })
+        };
+
+        fs::write(
+            &input_path,
+            serde_json::to_vec(&make_batch(499.90)).unwrap(),
+        )
+        .unwrap();
+        let opts = BatchIngestOptions {
+            worker_id: "worker-ml".into(),
+            default_category_slug: "hardware-e-perifericos".into(),
+            channel_id: "@procurali".into(),
+            now_ms: 1_763_300_000_000,
+        };
+
+        let first = ingest_file_if_changed(
+            &worker_cfg,
+            DEVICE,
+            &input_path,
+            &state_file,
+            &opts,
+            Some(root),
+        )
+        .await
+        .unwrap()
+        .expect("initial batch must ingest");
+        assert_eq!(first.product_count, 1);
+
+        let second = ingest_file_if_changed(
+            &worker_cfg,
+            DEVICE,
+            &input_path,
+            &state_file,
+            &opts,
+            Some(root),
+        )
+        .await
+        .unwrap();
+        assert!(second.is_none(), "unchanged digest must skip ingest");
+
+        fs::write(
+            &input_path,
+            serde_json::to_vec(&make_batch(449.90)).unwrap(),
+        )
+        .unwrap();
+        let third = ingest_file_if_changed(
+            &worker_cfg,
+            DEVICE,
+            &input_path,
+            &state_file,
+            &opts,
+            Some(root),
+        )
+        .await
+        .unwrap()
+        .expect("modified batch must ingest again");
+        assert_eq!(third.product_count, 1);
+    }
+
+    #[tokio::test]
+    async fn sync_reference_catalog_supports_304_cache_and_fast_local_queries() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let photos_dir = root.join("photos");
+        fs::create_dir_all(&photos_dir).unwrap();
+        fs::write(photos_dir.join("item.png"), valid_png_bytes(800, 800)).unwrap();
+
+        let (worker_cfg, _minio_srv, _hub_srv) = spawn_watch_test_backends(root).await;
+        let input_path = root.join("products.json");
+        let ref_path = root.join("state/vps-reference.json");
+
+        let batch = json!({
+            "network": "mercadolivre_afiliados",
+            "query": "mouse gamer",
+            "captured_at": "2026-11-16T12:00:00Z",
+            "products": [{
+                "product_id": "MLB63816534",
+                "title": "Delux M900pro Mouse Gamer Sem Fio 8000Hz",
+                "canonical_url": "https://www.mercadolivre.com.br/delux-m900pro/p/MLB63816534",
+                "share_link": "https://meli.la/31tuNW3",
+                "price": 299.86,
+                "currency": "BRL",
+                "brand": "Delux",
+                "seller": "Delux Official",
+                "photos": ["photos/item.png"]
+            }]
+        });
+        fs::write(&input_path, serde_json::to_vec(&batch).unwrap()).unwrap();
+        let opts = BatchIngestOptions {
+            worker_id: "worker-ml".into(),
+            default_category_slug: "hardware-e-perifericos".into(),
+            channel_id: "@procurali".into(),
+            now_ms: 1_763_300_000_000,
+        };
+        ingest_file_to_hub(
+            &worker_cfg,
+            DEVICE,
+            &input_path,
+            &opts,
+            Some("ref-sync-1"),
+            Some(root),
+        )
+        .await
+        .unwrap();
+
+        let sync1 = sync_reference_catalog(&worker_cfg.hub_url, DEVICE, &ref_path)
+            .await
+            .unwrap();
+        assert_eq!(sync1.status, "updated");
+        assert_eq!(sync1.total_products, 1);
+        assert!(sync1.etag.is_some());
+
+        let sync2 = sync_reference_catalog(&worker_cfg.hub_url, DEVICE, &ref_path)
+            .await
+            .unwrap();
+        assert_eq!(sync2.status, "not_modified");
+        assert_eq!(sync2.total_products, 1);
+
+        let hits = load_and_query_reference_catalog(
+            &ref_path,
+            Some("delux m900pro"),
+            None,
+            Some("hardware-e-perifericos"),
+            10,
+        )
+        .unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].product_id, "MLB63816534");
+        assert_eq!(hits[0].current_price_cents, 29_986);
+
+        let by_id =
+            load_and_query_reference_catalog(&ref_path, None, Some("mlb63816534"), None, 10)
+                .unwrap();
+        assert_eq!(by_id.len(), 1);
     }
 }

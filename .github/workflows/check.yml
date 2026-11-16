@@ -40,3 +40,76 @@ jobs:
       - name: Compile, lint and test Android without packaging or signing
         working-directory: mobile/android
         run: ./gradlew --no-daemon :app:compileDebugKotlin :app:compileDebugJavaWithJavac :app:testDebugUnitTest :app:lintDebug
+
+  release-bundle:
+    needs: [check, android]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Rust toolchain
+        run: rustup show active-toolchain
+      - name: Install Linux build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends pkg-config libfontconfig1-dev
+      - name: Build release Hub and Worker binaries
+        run: cargo build --locked --release -p zaturo-hub -p zaturo-worker
+      - name: Assemble verifiable Procurali release bundle
+        id: bundle
+        run: |
+          set -euo pipefail
+          SHORT_SHA="${GITHUB_SHA::12}"
+          TAG="procurali-${SHORT_SHA}"
+          STAGE="$(mktemp -d)"
+          mkdir -p "${STAGE}/bundle/bin" "${STAGE}/bundle/site-builder" "${STAGE}/bundle/deploy" "${STAGE}/dist"
+          install -m 0755 target/release/zaturo-hub "${STAGE}/bundle/bin/zaturo-hub"
+          install -m 0755 target/release/zaturo-worker "${STAGE}/bundle/bin/zaturo-worker"
+          cp -R docs/planning/commerce-refined/procurali-prototype/src "${STAGE}/bundle/site-builder/src"
+          cp -R deploy/procurali "${STAGE}/bundle/deploy/procurali"
+          tar -C "${STAGE}/bundle" -czf "${STAGE}/dist/procurali-bundle-linux-amd64.tar.gz" .
+          BUNDLE_SHA="$(sha256sum "${STAGE}/dist/procurali-bundle-linux-amd64.tar.gz" | awk '{print $1}')"
+          HUB_SHA="$(sha256sum "${STAGE}/bundle/bin/zaturo-hub" | awk '{print $1}')"
+          WORKER_SHA="$(sha256sum "${STAGE}/bundle/bin/zaturo-worker" | awk '{print $1}')"
+          cat > "${STAGE}/dist/manifest.json" <<EOF
+          {
+            "schema_version": 1,
+            "commit_sha": "${GITHUB_SHA}",
+            "short_sha": "${SHORT_SHA}",
+            "release_tag": "${TAG}",
+            "built_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "run_id": "${GITHUB_RUN_ID}",
+            "bundle_sha256": "${BUNDLE_SHA}",
+            "files": {
+              "bin/zaturo-hub": "${HUB_SHA}",
+              "bin/zaturo-worker": "${WORKER_SHA}"
+            }
+          }
+          EOF
+          (cd "${STAGE}/dist" && sha256sum procurali-bundle-linux-amd64.tar.gz manifest.json > SHA256SUMS)
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+          echo "dist=${STAGE}/dist" >> "${GITHUB_OUTPUT}"
+      - name: Publish immutable CI-verified GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.bundle.outputs.tag }}"
+          DIST="${{ steps.bundle.outputs.dist }}"
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release upload "${TAG}" --clobber \
+              "${DIST}/procurali-bundle-linux-amd64.tar.gz" \
+              "${DIST}/manifest.json" \
+              "${DIST}/SHA256SUMS"
+          else
+            gh release create "${TAG}" \
+              --target "${GITHUB_SHA}" \
+              --title "Procurali Auto-Deploy ${GITHUB_SHA::12}" \
+              --notes "Automated zero-downtime release built after check and android passed on main (${GITHUB_SHA})." \
+              "${DIST}/procurali-bundle-linux-amd64.tar.gz" \
+              "${DIST}/manifest.json" \
+              "${DIST}/SHA256SUMS"
+          fi
