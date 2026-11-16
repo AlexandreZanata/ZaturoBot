@@ -7,7 +7,7 @@ Date: `2026-11-15` · Scope: visual identity, responsive `pt-BR` static website 
 | Capability | Status in this handoff | Honest boundary |
 |---|---|---|
 | Visual identity, SVGs & PNGs | **Delivered** | Custom `procurali` wordmark, symbol, favicon, square avatar, social cover, design tokens and [brand guide](BRAND-GUIDE.md). |
-| Responsive static `pt-BR` pages | **Delivered (29 HTML pages in `site/`)** | Zero-dependency Node.js SSG (`src/build.mjs`); core content works without JavaScript, enhanced progressively by `app.js`. |
+| Responsive static `pt-BR` pages | **Delivered (34 HTML pages in `out/`)** | Next.js static export with Tailwind CSS and Aceternity UI (see [README](README.md)); core content works without JavaScript, enhanced progressively by React client islands. |
 | Filters, explicit sorting & saved items | **Delivered (demo data)** | Filters by category, price band, condition, search and state; `Salvos` uses opt-in local `localStorage` only. |
 | Official Telegram channel `@procurali` | **Real active link** | Links directly to `https://t.me/procurali` across Home, footer and `/grupos`. |
 | Shopee purchase & WhatsApp groups | **Disabled / honest preview** | Shopee affiliate application is under review and WhatsApp invites are not yet supplied; zero invented links or fake counts. |
@@ -18,9 +18,9 @@ Date: `2026-11-15` · Scope: visual identity, responsive `pt-BR` static website 
 
 ## 2. Verification Results and Known Limitations
 
-- **Automated verification suite (`test/verify-prototype.test.mjs`):** 8/8 checks passing — validates all 29 HTML pages, single `<h1>`, unique title/description, staging `noindex`, internal link integrity, affiliate disclosures beside offer actions, URL byte-preservation helper, disabled demo/WhatsApp CTAs, real Telegram link, filter/7-day/freshness/AI-finder logic, absence of forbidden claims, WCAG contrast ratios (`>= 4.5:1` across all active text pairings), valid PNG headers, and CMS schema definitions.
+- **Automated verification suite (`test/verify-prototype.test.mjs`, `npm test`):** 9/9 checks passing against the Next.js static export — validates all 34 HTML pages, single `<h1>`, unique title/description, staging `noindex`, internal link integrity, affiliate disclosures beside offer actions, URL byte-preservation helper, disabled demo/WhatsApp CTAs, real Telegram link, filter/7-day/freshness/AI-finder logic, absence of forbidden claims, WCAG contrast ratios (`>= 4.5:1` across all active text pairings), valid PNG headers, CMS schema definitions, and a second export built from a Hub catalog snapshot.
 - **Visual SVG/PNG QA:** rendered brand assets (`logo-primary-light-800.png`, `logo-primary-dark-800.png`, `avatar-512.png`, `social-cover-1200x630.png`, `favicon-32.png`) and creative templates (`feed-card-45.png`, `feed-card-11.png`, `carousel-5.png`, `story-cover.png`) were exported via Inkscape and inspected visually to prevent text clipping.
-- **SSR & environment limitations:** public pages use static site generation (SSG) rather than a live Node/Rust SSR server; dynamic server routes (`/encontre-com-ia` live inference, authenticated CMS approvals, live price freshness rechecks) require future server deployment. Live multi-viewport browser interaction was not run in a headless browser session; responsiveness rules (`overflow-x: clip`, `44px` touch targets, `360px`/`768px`/`1200px` breakpoints) were verified in CSS and HTML structure.
+- **SSR & environment limitations:** public pages use static site generation (SSG) rather than a live Node/Rust SSR server; dynamic server routes (`/encontre-com-ia` live inference, authenticated CMS approvals, live price freshness rechecks) require future server deployment. The 2026-11-16 Next.js/Aceternity redesign was checked in a browser at 1024×768 and 375×812 (no horizontal overflow; filters, URL parameters and gallery exercised); responsiveness rules (`overflow-x: clip`, `44px` touch targets, `prefers-reduced-motion`) are asserted on the compiled CSS.
 
 ## 3. Remaining Owner Inputs Before Production Launch
 

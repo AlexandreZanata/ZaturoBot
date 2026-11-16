@@ -16,7 +16,7 @@ import {
 import * as nodeFs from "node:fs";
 import * as nodeOs from "node:os";
 import * as nodePath from "node:path";
-import { buildSite } from "../src/build.mjs";
+import { execFileSync } from "node:child_process";
 import {
   buildOfficialAffiliateAnchorProps,
   checkForbiddenClaims,
@@ -29,23 +29,48 @@ import {
   runDeterministicFinder,
   validateCatalogSnapshot,
   verifySevenDaySample,
-} from "../src/validate-contracts.mjs";
+} from "../lib/contracts.mjs";
 
 const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(TEST_DIR, "..");
-const SITE_DIR = path.join(ROOT, "site");
+const SITE_DIR = path.join(ROOT, process.env.PROCURALI_OUT_DIR || "out");
+// Next.js also emits copies of the 404 page at 404/ and _not-found/; build assets live in _next/.
+const SKIPPED_DIRS = new Set(["_next", "404", "_not-found"]);
 
 function collectHtmlFiles(dir) {
   const out = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
+      if (SKIPPED_DIRS.has(entry.name) && dir === SITE_DIR) continue;
       out.push(...collectHtmlFiles(full));
     } else if (entry.isFile() && entry.name.endsWith(".html")) {
       out.push(full);
     }
   }
   return out.sort();
+}
+
+/** Finds an opening tag of `tagName` that carries every given attribute (order-independent). */
+function findTag(html, tagName, attrs) {
+  const tags = html.match(new RegExp(`<${tagName}\\b[^>]*>`, "g")) || [];
+  return tags.find((tag) =>
+    Object.entries(attrs).every(([name, value]) => tag.includes(`${name}="${value}"`))
+  );
+}
+
+/** Rendered markup only: drops the React Server Component payload scripts and JSON-LD blocks. */
+function visibleMarkup(html) {
+  return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "");
+}
+
+function resolveLocalTarget(file, target) {
+  const clean = decodeURIComponent(target.split("#")[0].split("?")[0]);
+  let resolved = clean.startsWith("/") ? path.join(SITE_DIR, clean) : path.resolve(path.dirname(file), clean);
+  if (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory()) {
+    resolved = path.join(resolved, "index.html");
+  }
+  return resolved;
 }
 
 test("1. All required static pages exist, use pt-BR, single H1, unique metadata, and valid relative links", () => {
@@ -60,11 +85,11 @@ test("1. All required static pages exist, use pt-BR, single H1, unique metadata,
     const rel = path.relative(SITE_DIR, file);
 
     assert.match(html, /<html lang="pt-BR"/, `${rel}: missing pt-BR lang attribute`);
-    assert.match(html, /<meta name="robots" content="noindex, nofollow">/, `${rel}: demo staging must stay noindex`);
+    assert.match(html, /<meta name="robots" content="noindex, nofollow"\/?>/, `${rel}: demo staging must stay noindex`);
     assert.match(html, /href="#conteudo-principal"/, `${rel}: missing skip link`);
     assert.match(html, /<main id="conteudo-principal"/, `${rel}: missing main landmark`);
 
-    const h1Matches = html.match(/<h1[\s>]/g) || [];
+    const h1Matches = visibleMarkup(html).match(/<h1[\s>]/g) || [];
     assert.equal(h1Matches.length, 1, `${rel}: must contain exactly one <h1>`);
 
     const titleMatch = html.match(/<title>([^<]+)<\/title>/);
@@ -72,23 +97,24 @@ test("1. All required static pages exist, use pt-BR, single H1, unique metadata,
     assert.ok(!titles.has(titleMatch[1]), `${rel}: duplicate title ${titleMatch[1]}`);
     titles.add(titleMatch[1]);
 
-    const descMatch = html.match(/<meta name="description" content="([^"]+)">/);
+    const descMatch = html.match(/<meta name="description" content="([^"]+)"\/?>/);
     assert.ok(descMatch, `${rel}: missing meta description`);
     assert.ok(!descriptions.has(descMatch[1]), `${rel}: duplicate description`);
     descriptions.add(descMatch[1]);
 
-    // Check relative href / src targets resolve to real files in site/
-    const attrMatches = [...html.matchAll(/(?:href|src)="([^"]+)"/g)];
+    // Check local href / src targets (site-absolute or relative) resolve to exported files.
+    const attrMatches = [...visibleMarkup(html).matchAll(/(?:href|src)="([^"]+)"/g)];
     for (const m of attrMatches) {
       const target = m[1];
       if (
         target.startsWith("http://") ||
         target.startsWith("https://") ||
-        target.startsWith("#")
+        target.startsWith("#") ||
+        target.startsWith("data:")
       ) {
         continue;
       }
-      const resolved = path.resolve(path.dirname(file), target.split("#")[0].split("?")[0]);
+      const resolved = resolveLocalTarget(file, target);
       assert.ok(fs.existsSync(resolved), `${rel}: broken local link/asset ${target} -> ${resolved}`);
     }
   }
@@ -100,7 +126,7 @@ test("2. Home copy, primary nav, affiliate disclosure, and honest disabled demo/
   assert.match(home, /Ofertas e guias para escolher com mais contexto\./);
   assert.match(home, /Explorar ofertas/);
   assert.match(home, /Receber achados no Telegram/);
-  assert.match(home, /como-selecionamos\/index\.html/);
+  assert.match(home, /href="\/como-selecionamos\/"/);
   assert.match(home, /Achados que fazem sentido\./);
   assert.match(home, /href="https:\/\/t\.me\/procurali"/);
 
@@ -119,16 +145,26 @@ test("2. Home copy, primary nav, affiliate disclosure, and honest disabled demo/
     assert.match(detail, /Preço e disponibilidade podem mudar\. Confirme as condições na loja\./);
     assert.doesNotMatch(detail, /\.local\/|GANHOS 5%/);
     if (offer.isDemoFixture) {
-      assert.match(detail, /<button type="button" class="btn" disabled aria-disabled="true">/);
+      assert.ok(
+        findTag(detail, "button", { "data-cta": "disabled", disabled: "", "aria-disabled": "true" }),
+        `${offer.slug}: demo fixture must render a disabled purchase button`
+      );
+      assert.equal(findTag(detail, "a", { "data-cta": "affiliate" }), undefined, `${offer.slug}: demo must not link out`);
       assert.doesNotMatch(detail, /shopee\.com\.br/);
     } else {
-      const escapedUrl = offer.officialAffiliateUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      assert.match(
-        detail,
-        new RegExp(`<a class="btn btn-action" href="${escapedUrl}" rel="sponsored noopener" target="_blank"`),
+      assert.ok(
+        findTag(detail, "a", {
+          href: offer.officialAffiliateUrl,
+          rel: "sponsored noopener",
+          target: "_blank",
+          "data-cta": "affiliate",
+        }),
         `${offer.slug}: expected exact official ML affiliate anchor`
       );
-      assert.match(home, new RegExp(escapedUrl), `Home must include exact live URL for ${offer.slug}`);
+      assert.ok(
+        findTag(home, "a", { href: offer.officialAffiliateUrl, rel: "sponsored noopener", target: "_blank" }),
+        `Home must include exact live URL for ${offer.slug}`
+      );
       assert.match(detail, /specs-grid/, `${offer.slug}: expected rendered specs matrix`);
       assert.match(detail, /long-desc-card/, `${offer.slug}: expected full description block`);
       assert.match(detail, new RegExp(offer.shareId), `${offer.slug}: expected shareId ${offer.shareId}`);
@@ -145,7 +181,7 @@ test("2. Home copy, primary nav, affiliate disclosure, and honest disabled demo/
   assert.match(groups, /href="https:\/\/t\.me\/procurali"/);
   assert.doesNotMatch(groups, /chat\.whatsapp\.com/);
   assert.match(groups, /expor seu número de telefone/);
-  assert.match(groups, /disabled aria-disabled="true"/);
+  assert.ok(findTag(groups, "button", { disabled: "", "aria-disabled": "true" }), "WhatsApp previews stay disabled");
 
   const contact = fs.readFileSync(path.join(SITE_DIR, "contato", "index.html"), "utf8");
   assert.doesNotMatch(contact, /enviado com sucesso/i);
@@ -288,16 +324,27 @@ test("7. WCAG contrast pairings, CSS responsiveness rules, and form/image access
   assert.ok(contrastRatio(tokens.colors.coralText.value, tokens.colors.canvas.value) >= 4.5);
   assert.ok(contrastRatio(tokens.colors.petrol.value, tokens.colors.lime.value) >= 4.5);
 
-  const css = fs.readFileSync(path.join(SITE_DIR, "assets", "styles.css"), "utf8");
+  const cssDir = path.join(SITE_DIR, "_next", "static");
+  const cssFiles = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith(".css")) cssFiles.push(full);
+    }
+  };
+  walk(cssDir);
+  assert.ok(cssFiles.length > 0, "Expected compiled CSS in the export");
+  const css = cssFiles.map((f) => fs.readFileSync(f, "utf8")).join("\n");
   assert.match(css, /overflow-x:\s*clip/);
   assert.match(css, /:focus-visible/);
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
-  assert.match(css, /min-height:\s*44px/);
+  assert.match(css, /min-height:\s*(44px|2\.75rem|calc\(var\(--spacing\)\s*\*\s*11\))/);
 
   // Every img in generated HTML has alt attribute
   for (const file of collectHtmlFiles(SITE_DIR)) {
     const html = fs.readFileSync(file, "utf8");
-    const imgs = [...html.matchAll(/<img\b[^>]*>/g)];
+    const imgs = [...visibleMarkup(html).matchAll(/<img\b[^>]*>/g)];
     for (const img of imgs) {
       assert.match(img[0], /\balt="[^"]+"/, `${file}: image missing non-empty alt`);
     }
@@ -498,16 +545,23 @@ test("9. Hub API catalog snapshot ingestion preserves MinIO HTTPS URLs, specs, v
   assert.equal(validation.valid, true, `Expected valid snapshot: ${validation.errors.join("; ")}`);
 
   const tmpRoot = nodeFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), "procurali-api-build-"));
+  // A second, isolated static export built from the Hub snapshot (distDir is env-controlled).
+  const outName = "out-snapshot-test";
+  const outDir = nodePath.join(ROOT, outName);
+  const nextBin = nodePath.join(ROOT, "node_modules", "next", "dist", "bin", "next");
+  const run = (args, env = {}) =>
+    execFileSync(process.execPath, args, { cwd: ROOT, env: { ...process.env, ...env }, stdio: "pipe" });
   try {
     const snapshotPath = nodePath.join(tmpRoot, "site-catalog.json");
-    const outDir = nodePath.join(tmpRoot, "site");
     nodeFs.writeFileSync(snapshotPath, JSON.stringify(snapshotFixture, null, 2), "utf8");
 
-    const result = await buildSite({ apiSnapshotPath: snapshotPath, outDir, sourceLabel: "test-hub-snapshot" });
-    assert.ok(result.pageCount >= 10, `Expected full site output, got ${result.pageCount} pages`);
+    run(["scripts/prepare.mjs", "--api-snapshot", snapshotPath]);
+    run([nextBin, "build"], { PROCURALI_DIST_DIR: outName });
+    const pageCount = collectHtmlFiles(outDir).length;
+    assert.ok(pageCount >= 10, `Expected full site output, got ${pageCount} pages`);
 
     const emittedCatalogPath = nodePath.join(outDir, "api", "catalog.json");
-    assert.ok(nodeFs.existsSync(emittedCatalogPath), "Expected site/api/catalog.json to be emitted");
+    assert.ok(nodeFs.existsSync(emittedCatalogPath), "Expected api/catalog.json to be emitted");
     const emittedCatalog = JSON.parse(nodeFs.readFileSync(emittedCatalogPath, "utf8"));
     assert.equal(emittedCatalog.offers.length, 1);
     assert.equal(emittedCatalog.offers[0].imagePath, minioHero);
@@ -519,7 +573,7 @@ test("9. Hub API catalog snapshot ingestion preserves MinIO HTTPS URLs, specs, v
     );
     assert.ok(detailHtml.includes(minioHero), "Detail HTML must reference MinIO HTTPS image URL directly");
     assert.ok(
-      detailHtml.includes(`<meta property="og:image" content="${minioHero}">`),
+      detailHtml.includes(`<meta property="og:image" content="${minioHero}"`),
       "Offer detail page must expose absolute HTTPS og:image for WhatsApp Web preview",
     );
     assert.ok(detailHtml.includes('href="https://meli.la/1iWQZbJ"'), "Detail HTML must preserve exact meli.la URL");
@@ -530,7 +584,7 @@ test("9. Hub API catalog snapshot ingestion preserves MinIO HTTPS URLs, specs, v
     assert.equal(detailHtml.includes(".local/"), false, "Detail HTML must never leak .local paths");
 
     const waDraftsPath = nodePath.join(outDir, "api", "whatsapp-assisted-drafts.json");
-    assert.ok(nodeFs.existsSync(waDraftsPath), "Expected site/api/whatsapp-assisted-drafts.json to be emitted");
+    assert.ok(nodeFs.existsSync(waDraftsPath), "Expected api/whatsapp-assisted-drafts.json to be emitted");
     const waDrafts = JSON.parse(nodeFs.readFileSync(waDraftsPath, "utf8"));
     assert.equal(waDrafts.mode, "whatsapp_web_human_assisted_no_meta_api");
     assert.equal(waDrafts.draftCount, 1);
@@ -540,6 +594,9 @@ test("9. Hub API catalog snapshot ingestion preserves MinIO HTTPS URLs, specs, v
     const sitemapXml = nodeFs.readFileSync(nodePath.join(outDir, "sitemap.xml"), "utf8");
     assert.ok(sitemapXml.includes('xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"'));
   } finally {
+    // Restore the default demo catalog for the main export and remove the snapshot build.
+    run(["scripts/prepare.mjs"]);
+    nodeFs.rmSync(outDir, { recursive: true, force: true });
     nodeFs.rmSync(tmpRoot, { recursive: true, force: true });
   }
 });
