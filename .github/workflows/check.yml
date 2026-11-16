@@ -68,7 +68,9 @@ jobs:
           mkdir -p "${STAGE}/bundle/bin" "${STAGE}/bundle/site-builder" "${STAGE}/bundle/deploy" "${STAGE}/dist"
           install -m 0755 target/release/zaturo-hub "${STAGE}/bundle/bin/zaturo-hub"
           install -m 0755 target/release/zaturo-worker "${STAGE}/bundle/bin/zaturo-worker"
-          cp -R docs/planning/commerce-refined/procurali-prototype/src "${STAGE}/bundle/site-builder/src"
+          for sub in src data brand contracts; do
+            cp -R "docs/planning/commerce-refined/procurali-prototype/${sub}" "${STAGE}/bundle/site-builder/${sub}"
+          done
           cp -R deploy/procurali "${STAGE}/bundle/deploy/procurali"
           tar -C "${STAGE}/bundle" -czf "${STAGE}/dist/procurali-bundle-linux-amd64.tar.gz" .
           BUNDLE_SHA="$(sha256sum "${STAGE}/dist/procurali-bundle-linux-amd64.tar.gz" | awk '{print $1}')"
