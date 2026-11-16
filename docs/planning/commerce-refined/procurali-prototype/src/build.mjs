@@ -13,8 +13,10 @@
  *
  * Without --api-snapshot (or PROCURALI_API_SNAPSHOT / PROCURALI_HUB_API_URL) the demo
  * fixtures are used, exactly like `npm run build`. Builds are expected to be serialized by
- * the caller (the site sync is a single loop). When the package directory is read-only the
- * build runs in a per-package writable copy under PROCURALI_SITE_WORK_DIR (default: tmpdir).
+ * the caller (the site sync is a single loop). When the package directory is read-only (the
+ * VPS unit uses ProtectSystem=strict) the build runs in a per-package writable copy under
+ * PROCURALI_SITE_WORK_DIR (default: tmpdir); copies of older packages there are removed.
+ * PROCURALI_BUILD_CPUS caps Next.js static-generation workers (see next.config.mjs).
  */
 
 import { spawnSync } from "node:child_process";
@@ -68,8 +70,11 @@ function resolveWorkRoot() {
   const workRoot = path.join(base, key);
   const marker = path.join(workRoot, ".procurali-copy-complete");
   if (!fs.existsSync(marker)) {
-    fs.rmSync(workRoot, { recursive: true, force: true });
     fs.mkdirSync(base, { recursive: true });
+    // Builds are serialized, so copies made for previous releases are no longer needed.
+    for (const entry of fs.readdirSync(base)) {
+      fs.rmSync(path.join(base, entry), { recursive: true, force: true });
+    }
     fs.cpSync(PACKAGE_ROOT, workRoot, { recursive: true });
     fs.chmodSync(workRoot, 0o755);
     fs.writeFileSync(marker, `${PACKAGE_ROOT}\n`, "utf8");

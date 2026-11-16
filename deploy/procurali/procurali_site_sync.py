@@ -88,6 +88,31 @@ def compute_builder_digest(builder_path: Path = BUILDER_SCRIPT) -> str:
     return h.hexdigest()
 
 
+def builder_environment(state_dir: Path = STATE_DIR) -> dict[str, str]:
+    """Environment for `next build` inside the hardened unit (ProtectSystem=strict, ProtectHome).
+
+    Only the state directory is writable, so the read-only release is copied there, and the
+    temporary files and Node's home directory live there as well.
+    """
+    work_root = state_dir / "builder"
+    env = dict(os.environ)
+    # The snapshot is already fetched; the build never talks to the Hub or sees its token.
+    for key in ("PROCURALI_HUB_TOKEN", "PROCURALI_HUB_API_URL", "PROCURALI_API_SNAPSHOT"):
+        env.pop(key, None)
+    env.update(
+        {
+            "NEXT_TELEMETRY_DISABLED": "1",
+            "PROCURALI_SITE_WORK_DIR": str(work_root / "work"),
+            "TMPDIR": str(work_root / "tmp"),
+            "HOME": str(work_root / "home"),
+            "PROCURALI_BUILD_CPUS": os.environ.get("PROCURALI_BUILD_CPUS", "2"),
+        }
+    )
+    for key in ("TMPDIR", "HOME"):
+        Path(env[key]).mkdir(parents=True, exist_ok=True)
+    return env
+
+
 def resolve_node_executable(builder_path: Path = BUILDER_SCRIPT) -> str:
     """Prefers PROCURALI_SITE_NODE, then the runtime bundled with the release, then PATH."""
     explicit = os.environ.get("PROCURALI_SITE_NODE", "").strip()
@@ -197,6 +222,7 @@ def rebuild_site(
             text=True,
             timeout=BUILD_TIMEOUT_SECS,
             check=True,
+            env=builder_environment(state_dir),
         )
         verify_built_site(target_dir)
         if chown_caddy:

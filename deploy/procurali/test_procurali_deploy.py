@@ -236,6 +236,29 @@ class ProcuraliDeployTests(unittest.TestCase):
                 if saved is not None:
                     os.environ["PROCURALI_SITE_NODE"] = saved
 
+    def test_builder_environment_is_writable_inside_state_dir_and_hides_hub_token(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            state = Path(tmp) / "state"
+            saved = {k: os.environ.get(k) for k in ("PROCURALI_HUB_TOKEN", "PROCURALI_BUILD_CPUS")}
+            os.environ["PROCURALI_HUB_TOKEN"] = "fixture-token"
+            os.environ.pop("PROCURALI_BUILD_CPUS", None)
+            try:
+                env = site_sync.builder_environment(state)
+            finally:
+                for key, value in saved.items():
+                    if value is None:
+                        os.environ.pop(key, None)
+                    else:
+                        os.environ[key] = value
+            self.assertNotIn("PROCURALI_HUB_TOKEN", env)
+            self.assertNotIn("PROCURALI_HUB_API_URL", env)
+            self.assertEqual(env["PROCURALI_BUILD_CPUS"], "2")
+            self.assertEqual(env["NEXT_TELEMETRY_DISABLED"], "1")
+            for key in ("PROCURALI_SITE_WORK_DIR", "TMPDIR", "HOME"):
+                self.assertTrue(Path(env[key]).is_relative_to(state), key)
+            self.assertTrue(Path(env["TMPDIR"]).is_dir())
+            self.assertTrue(Path(env["HOME"]).is_dir())
+
     def test_failed_builds_back_off_up_to_fifteen_minutes(self) -> None:
         self.assertEqual(site_sync.failure_backoff_secs(0, poll_secs=5), 5)
         self.assertEqual(site_sync.failure_backoff_secs(1, poll_secs=5), 30)

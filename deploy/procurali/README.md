@@ -40,7 +40,16 @@ the static export into `<release>`; the release goes live only after `index.html
 `ofertas/index.html`, `api/*.json`, `sitemap.xml` and `_next/static/` are verified. A failed build
 keeps the current site live and retries with exponential backoff (up to 15 minutes).
 Environment overrides: `PROCURALI_SITE_NODE` (Node executable), `PROCURALI_SITE_BUILD_TIMEOUT_SECS`
-(default 900) and `PROCURALI_SITE_WORK_DIR` (writable copy used when the release is read-only).
+(default 900) and `PROCURALI_BUILD_CPUS` (Next.js static-generation workers, default 2).
+
+The unit runs with `ProtectSystem=strict`/`ProtectHome=true`, so the release under `/opt` is
+read-only: the builder copies it once per release into
+`/var/lib/procurali-site-sync/builder/work/` (older copies are removed) and keeps `TMPDIR` and
+`HOME` beside it. The Hub token and URL are removed from the builder environment because the
+site sync already fetched the snapshot. `next build` needs more than the original
+256M/512M/50% CPU budget; install [the drop-in](procurali-site-sync.nextjs.conf) as
+`/etc/systemd/system/procurali-site-sync.service.d/10-nextjs-build.conf`
+(`MemoryHigh=1536M`, `MemoryMax=2G`, `CPUQuota=200%`).
 The builder digest covers the builder sources but not generated output, so each release that
 changes the storefront forces one rebuild. The deploy agent keeps the three newest releases.
 
