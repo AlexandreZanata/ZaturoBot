@@ -49,7 +49,7 @@ fn connection(
     let version: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
     if version == 0 {
         connection.execute_batch(&format!("BEGIN IMMEDIATE;\n{migration}\nCOMMIT;"))?;
-    } else if expected_version == 10 && matches!(version, 1 | 4 | 5 | 7 | 9) {
+    } else if expected_version == 11 && matches!(version, 1 | 4 | 5 | 7 | 9 | 10) {
         let base = if version == 1 {
             include_str!("../migrations/0004_hub_transfers.sql")
         } else {
@@ -65,14 +65,19 @@ fn connection(
         } else {
             ""
         };
-        let computer = if version != 9 {
+        let computer = if matches!(version, 1 | 4 | 5 | 7) {
             include_str!("../migrations/0009_hub_computer.sql")
         } else {
             ""
         };
-        connection.execute_batch(&format!(
-            "BEGIN IMMEDIATE;\n{base}\n{activity}\n{shared}\n{computer}\n{}\nCOMMIT;",
+        let commerce = if version != 10 {
             include_str!("../migrations/0010_hub_mercadolivre_commerce.sql")
+        } else {
+            ""
+        };
+        connection.execute_batch(&format!(
+            "BEGIN IMMEDIATE;\n{base}\n{activity}\n{shared}\n{computer}\n{commerce}\n{}\nCOMMIT;",
+            include_str!("../migrations/0011_hub_telegram_approval.sql")
         ))?;
     } else if expected_version == 8 && matches!(version, 2 | 3 | 6) {
         let base = if version == 2 {

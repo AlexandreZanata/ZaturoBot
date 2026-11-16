@@ -8,7 +8,7 @@ use zaturo_core::{
     MercadoLivreIngestBatchRequest, MercadoLivreIngestReport, MercadoLivreProductState,
     MercadoLivreSpec, MercadoLivreVariant, MinioProductImage, SiteCatalogCategory,
     SiteCatalogEvidenceSource, SiteCatalogGalleryItem, SiteCatalogMediaRight, SiteCatalogOffer,
-    SiteCatalogPriceObservation, SiteCatalogSnapshot, TelegramDeliveryAck, TelegramDeliveryStatus,
+    SiteCatalogPriceObservation, SiteCatalogSnapshot, TelegramDeliveryStatus,
     TelegramOfferQueueItem, ValidatedMercadoLivreProduct, format_cuiaba_display,
     format_cuiaba_short, format_telegram_caption_pt_br, format_utc_iso_ms,
 };
@@ -44,10 +44,10 @@ impl Repository<'_> {
             .iter()
             .map(|p| p.product_id.clone())
             .collect();
-        let telegram_queued_count = request
+        let telegram_awaiting_approval_count = request
             .products
             .iter()
-            .filter(|p| p.state == MercadoLivreProductState::Approved)
+            .filter(|p| awaits_telegram_approval(p.state))
             .count();
 
         let report = MercadoLivreIngestReport {
@@ -56,7 +56,8 @@ impl Repository<'_> {
             ingested_at_ms: now_ms,
             product_count: request.products.len(),
             image_count,
-            telegram_queued_count,
+            telegram_queued_count: 0,
+            telegram_awaiting_approval_count,
             product_ids,
             payload_sha256: payload_sha256.to_owned(),
         };
@@ -287,7 +288,17 @@ impl Repository<'_> {
             )?;
         }
 
-        if product.state == MercadoLivreProductState::Approved {
+        // A new observation supersedes every unsent delivery of the product on this channel, so
+        // repeated ingests can never post the same product twice or post a superseded price.
+        self.connection.execute(
+            "UPDATE ml_telegram_deliveries
+             SET status = 'skipped', error_code = 'superseded', updated_at_ms = ?3
+             WHERE product_id = ?1 AND channel_id = ?2
+               AND status IN ('awaiting_approval', 'queued')",
+            params![product.product_id, channel_id, now_ms],
+        )?;
+
+        if awaits_telegram_approval(product.state) {
             let lead = &product.images[0];
             let delivery_id = format!("tg-{}-{}", product.product_id, batch_id);
             let message_text = format_telegram_caption_pt_br(product);
@@ -296,7 +307,7 @@ impl Repository<'_> {
                     delivery_id, product_id, offer_id, channel_id, message_text,
                     image_public_url, image_object_key, status, external_message_id,
                     error_code, created_at_ms, updated_at_ms, published_at_ms
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'queued', NULL, NULL, ?8, ?8, NULL)",
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'awaiting_approval', NULL, NULL, ?8, ?8, NULL)",
                 params![
                     delivery_id,
                     product.product_id,
@@ -723,140 +734,230 @@ impl Repository<'_> {
         Ok(obs)
     }
 
+    /// List deliveries newest first. With `fresh_at_ms`, only deliveries whose offer is the
+    /// product's current observation and is still inside its freshness window are returned.
     pub fn ml_telegram_queue(
         &self,
         channel_id: Option<&str>,
         status: Option<TelegramDeliveryStatus>,
+        fresh_at_ms: Option<i64>,
         limit: u32,
     ) -> Result<Vec<TelegramOfferQueueItem>, Error> {
         let status_str = status.map(|s| s.as_str().to_owned());
-        let mut stmt = self.connection.prepare(
-            "SELECT
-                d.delivery_id, d.product_id, d.offer_id, d.channel_id,
-                p.title, p.brand, p.model,
-                o.price_brl_cents, o.reference_price_cents, o.discount_label,
-                o.share_link, o.share_id,
-                d.image_public_url, d.image_object_key, d.message_text,
-                d.status, d.external_message_id, d.created_at_ms, d.updated_at_ms, d.published_at_ms
-             FROM ml_telegram_deliveries d
-             JOIN ml_products p ON p.product_id = d.product_id
-             JOIN ml_offers o ON o.id = d.offer_id
+        let mut stmt = self.connection.prepare(&format!(
+            "{DELIVERY_SELECT}
              WHERE (?1 IS NULL OR d.channel_id = ?1)
                AND (?2 IS NULL OR d.status = ?2)
+               AND (?3 IS NULL OR ({OFFER_FRESH_AT_3}))
              ORDER BY d.updated_at_ms DESC, d.delivery_id DESC
-             LIMIT ?3",
+             LIMIT ?4"
+        ))?;
+        let rows = stmt.query_map(
+            params![channel_id, status_str, fresh_at_ms, limit],
+            delivery_row,
         )?;
-        let rows = stmt.query_map(params![channel_id, status_str, limit], |r| {
-            Ok((
-                r.get::<_, String>(0)?,
-                r.get::<_, String>(1)?,
-                r.get::<_, String>(2)?,
-                r.get::<_, String>(3)?,
-                r.get::<_, String>(4)?,
-                r.get::<_, String>(5)?,
-                r.get::<_, Option<String>>(6)?,
-                r.get::<_, i64>(7)?,
-                r.get::<_, Option<i64>>(8)?,
-                r.get::<_, Option<String>>(9)?,
-                r.get::<_, String>(10)?,
-                r.get::<_, String>(11)?,
-                r.get::<_, Option<String>>(12)?,
-                r.get::<_, Option<String>>(13)?,
-                r.get::<_, String>(14)?,
-                r.get::<_, String>(15)?,
-                r.get::<_, Option<String>>(16)?,
-                r.get::<_, i64>(17)?,
-                r.get::<_, i64>(18)?,
-                r.get::<_, Option<i64>>(19)?,
-            ))
-        })?;
-        let mut items = Vec::new();
-        for row in rows {
-            let (
-                delivery_id,
-                product_id,
-                offer_id,
-                channel_id,
-                title,
-                brand,
-                model,
-                price_brl_cents,
-                reference_price_cents,
-                discount_label,
-                share_link,
-                share_id,
-                image_public_url,
-                image_object_key,
-                message_text,
-                status_raw,
-                external_message_id,
-                created_at_ms,
-                updated_at_ms,
-                published_at_ms,
-            ) = row?;
-            let status = TelegramDeliveryStatus::parse(&status_raw).ok_or(Error::SchemaVersion)?;
-            items.push(TelegramOfferQueueItem {
-                delivery_id,
-                product_id,
-                offer_id,
-                channel_id,
-                title,
-                brand,
-                model,
-                price_brl_cents,
-                reference_price_cents,
-                discount_label,
-                share_link,
-                share_id,
-                image_public_url,
-                image_object_key,
-                message_text,
-                status,
-                external_message_id,
-                created_at_ms,
-                updated_at_ms,
-                published_at_ms,
-            });
-        }
-        Ok(items)
+        rows.map(|row| row?.into_item()).collect()
     }
 
-    pub fn ack_ml_telegram_delivery(
+    /// Load one delivery by its exact identifier.
+    pub fn ml_telegram_delivery(
         &self,
         delivery_id: &str,
-        ack: &TelegramDeliveryAck,
-        now_ms: i64,
     ) -> Result<Option<TelegramOfferQueueItem>, Error> {
-        let published_at_ms = if ack.status == TelegramDeliveryStatus::Published {
-            Some(now_ms)
-        } else {
-            None
-        };
+        self.connection
+            .query_row(
+                &format!("{DELIVERY_SELECT} WHERE d.delivery_id = ?1"),
+                [delivery_id],
+                delivery_row,
+            )
+            .optional()?
+            .map(DeliveryRow::into_item)
+            .transpose()
+    }
+
+    /// Load the delivery for the product's current offer on one channel.
+    pub fn ml_current_telegram_delivery(
+        &self,
+        product_id: &str,
+        channel_id: &str,
+    ) -> Result<Option<TelegramOfferQueueItem>, Error> {
+        self.connection
+            .query_row(
+                &format!(
+                    "{DELIVERY_SELECT}
+                     WHERE d.product_id = ?1 AND d.channel_id = ?2 AND o.is_current = 1"
+                ),
+                [product_id, channel_id],
+                delivery_row,
+            )
+            .optional()?
+            .map(DeliveryRow::into_item)
+            .transpose()
+    }
+
+    /// Whether the delivery's offer is the product's current observation and still fresh.
+    pub fn ml_telegram_delivery_offer_fresh(
+        &self,
+        delivery_id: &str,
+        now_ms: i64,
+    ) -> Result<bool, Error> {
+        Ok(self
+            .connection
+            .query_row(
+                &format!(
+                    "SELECT 1 FROM ml_telegram_deliveries d
+                     JOIN ml_offers o ON o.id = d.offer_id
+                     WHERE d.delivery_id = ?1 AND {OFFER_FRESH_AT_2}"
+                ),
+                params![delivery_id, now_ms],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some())
+    }
+
+    /// Compare-and-set a delivery status. Returns false when the stored status was not `from`,
+    /// so concurrent publishers cannot both claim or finish the same delivery.
+    pub fn set_ml_telegram_delivery_status(
+        &self,
+        delivery_id: &str,
+        from: TelegramDeliveryStatus,
+        to: TelegramDeliveryStatus,
+        external_message_id: Option<&str>,
+        error_code: Option<&str>,
+        now_ms: i64,
+    ) -> Result<bool, Error> {
+        let published_at_ms = (to == TelegramDeliveryStatus::Published).then_some(now_ms);
         let changed = self.connection.execute(
             "UPDATE ml_telegram_deliveries
-             SET status = ?2,
-                 external_message_id = COALESCE(?3, external_message_id),
-                 error_code = ?4,
-                 updated_at_ms = ?5,
-                 published_at_ms = COALESCE(?6, published_at_ms)
-             WHERE delivery_id = ?1",
+             SET status = ?3,
+                 external_message_id = COALESCE(?4, external_message_id),
+                 error_code = ?5,
+                 updated_at_ms = ?6,
+                 published_at_ms = COALESCE(?7, published_at_ms)
+             WHERE delivery_id = ?1 AND status = ?2",
             params![
                 delivery_id,
-                ack.status.as_str(),
-                ack.external_message_id,
-                ack.error_code,
+                from.as_str(),
+                to.as_str(),
+                external_message_id,
+                error_code,
                 now_ms,
                 published_at_ms
             ],
         )?;
-        if changed == 0 {
-            return Ok(None);
-        }
-        let items = self.ml_telegram_queue(None, None, 50)?;
-        Ok(items
-            .into_iter()
-            .find(|item| item.delivery_id == delivery_id))
+        Ok(changed == 1)
     }
+
+    /// Record the owner's product approval without touching withdrawn products.
+    pub fn approve_ml_product(&self, product_id: &str, now_ms: i64) -> Result<(), Error> {
+        self.connection.execute(
+            "UPDATE ml_products SET state = 'approved', updated_at_ms = ?2
+             WHERE product_id = ?1 AND state <> 'withdrawn'",
+            params![product_id, now_ms],
+        )?;
+        Ok(())
+    }
+}
+
+const DELIVERY_SELECT: &str = "SELECT
+        d.delivery_id, d.product_id, d.offer_id, d.channel_id,
+        p.title, p.brand, p.model,
+        o.price_brl_cents, o.reference_price_cents, o.discount_label,
+        o.share_link, o.share_id,
+        d.image_public_url, d.image_object_key, d.message_text,
+        d.status, d.external_message_id, d.created_at_ms, d.updated_at_ms, d.published_at_ms
+     FROM ml_telegram_deliveries d
+     JOIN ml_products p ON p.product_id = d.product_id
+     JOIN ml_offers o ON o.id = d.offer_id";
+
+const OFFER_FRESH_AT_2: &str =
+    "o.is_current = 1 AND o.observed_at_ms + o.freshness_ttl_minutes * 60000 >= ?2";
+const OFFER_FRESH_AT_3: &str =
+    "o.is_current = 1 AND o.observed_at_ms + o.freshness_ttl_minutes * 60000 >= ?3";
+
+struct DeliveryRow {
+    delivery_id: String,
+    product_id: String,
+    offer_id: String,
+    channel_id: String,
+    title: String,
+    brand: String,
+    model: Option<String>,
+    price_brl_cents: i64,
+    reference_price_cents: Option<i64>,
+    discount_label: Option<String>,
+    share_link: String,
+    share_id: String,
+    image_public_url: Option<String>,
+    image_object_key: Option<String>,
+    message_text: String,
+    status: String,
+    external_message_id: Option<String>,
+    created_at_ms: i64,
+    updated_at_ms: i64,
+    published_at_ms: Option<i64>,
+}
+
+fn delivery_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<DeliveryRow> {
+    Ok(DeliveryRow {
+        delivery_id: r.get(0)?,
+        product_id: r.get(1)?,
+        offer_id: r.get(2)?,
+        channel_id: r.get(3)?,
+        title: r.get(4)?,
+        brand: r.get(5)?,
+        model: r.get(6)?,
+        price_brl_cents: r.get(7)?,
+        reference_price_cents: r.get(8)?,
+        discount_label: r.get(9)?,
+        share_link: r.get(10)?,
+        share_id: r.get(11)?,
+        image_public_url: r.get(12)?,
+        image_object_key: r.get(13)?,
+        message_text: r.get(14)?,
+        status: r.get(15)?,
+        external_message_id: r.get(16)?,
+        created_at_ms: r.get(17)?,
+        updated_at_ms: r.get(18)?,
+        published_at_ms: r.get(19)?,
+    })
+}
+
+impl DeliveryRow {
+    fn into_item(self) -> Result<TelegramOfferQueueItem, Error> {
+        let status = TelegramDeliveryStatus::parse(&self.status).ok_or(Error::SchemaVersion)?;
+        Ok(TelegramOfferQueueItem {
+            delivery_id: self.delivery_id,
+            product_id: self.product_id,
+            offer_id: self.offer_id,
+            channel_id: self.channel_id,
+            title: self.title,
+            brand: self.brand,
+            model: self.model,
+            price_brl_cents: self.price_brl_cents,
+            reference_price_cents: self.reference_price_cents,
+            discount_label: self.discount_label,
+            share_link: self.share_link,
+            share_id: self.share_id,
+            image_public_url: self.image_public_url,
+            image_object_key: self.image_object_key,
+            message_text: self.message_text,
+            status,
+            external_message_id: self.external_message_id,
+            created_at_ms: self.created_at_ms,
+            updated_at_ms: self.updated_at_ms,
+            published_at_ms: self.published_at_ms,
+        })
+    }
+}
+
+/// Ingest never approves publication; it only proposes current offers for owner review.
+fn awaits_telegram_approval(state: MercadoLivreProductState) -> bool {
+    matches!(
+        state,
+        MercadoLivreProductState::Candidate | MercadoLivreProductState::Approved
+    )
 }
 
 fn verify_seven_day_sample_db(
@@ -1044,7 +1145,8 @@ mod tests {
             .unwrap();
         assert_eq!(report.product_count, 1);
         assert_eq!(report.image_count, 1);
-        assert_eq!(report.telegram_queued_count, 1);
+        assert_eq!(report.telegram_queued_count, 0);
+        assert_eq!(report.telegram_awaiting_approval_count, 1);
 
         let catalog = store
             .read(|repo| repo.ml_site_catalog(1_763_231_300_000))
@@ -1058,29 +1160,92 @@ mod tests {
                 .starts_with("https://media.procurali.com.br/")
         );
 
-        let queued = store
+        let awaiting = store
             .read(|repo| {
-                repo.ml_telegram_queue(Some("@procurali"), Some(TelegramDeliveryStatus::Queued), 20)
+                repo.ml_telegram_queue(
+                    Some("@procurali"),
+                    Some(TelegramDeliveryStatus::AwaitingApproval),
+                    None,
+                    20,
+                )
             })
             .unwrap();
-        assert_eq!(queued.len(), 1);
-        assert!(queued[0].message_text.contains("https://meli.la/1iWQZbJ"));
+        assert_eq!(awaiting.len(), 1);
+        assert!(awaiting[0].message_text.contains("https://meli.la/1iWQZbJ"));
+        let id = awaiting[0].delivery_id.clone();
+
+        // Compare-and-set refuses a transition from a status the row is not in.
+        let wrong_from = store
+            .transaction(|repo| {
+                repo.set_ml_telegram_delivery_status(
+                    &id,
+                    TelegramDeliveryStatus::Queued,
+                    TelegramDeliveryStatus::Sending,
+                    None,
+                    None,
+                    1_763_231_400_000,
+                )
+            })
+            .unwrap();
+        assert!(!wrong_from);
+
+        // Re-ingesting the same product supersedes the unsent delivery.
+        store
+            .transaction(|repo| {
+                repo.save_ml_ingest_batch(
+                    "batch-2",
+                    "idem-2",
+                    &"d".repeat(64),
+                    &req,
+                    1_763_231_410_000,
+                )
+            })
+            .unwrap();
+        let old = store
+            .read(|repo| repo.ml_telegram_delivery(&id))
+            .unwrap()
+            .unwrap();
+        assert_eq!(old.status, TelegramDeliveryStatus::Skipped);
+        let current = store
+            .read(|repo| repo.ml_current_telegram_delivery("MLB39410080", "@procurali"))
+            .unwrap()
+            .unwrap();
+        assert_ne!(current.delivery_id, id);
+        assert_eq!(current.status, TelegramDeliveryStatus::AwaitingApproval);
+
+        // Freshness is bounded by observed_at_ms + freshness_ttl_minutes.
+        let observed = 1_763_231_280_000_i64;
+        let fresh = |now| {
+            store
+                .read(|repo| repo.ml_telegram_delivery_offer_fresh(&current.delivery_id, now))
+                .unwrap()
+        };
+        assert!(fresh(observed + 30 * 60_000));
+        assert!(!fresh(observed + 30 * 60_000 + 1));
+        assert!(!fresh_old(&store, &id, observed));
 
         let updated = store
             .transaction(|repo| {
-                repo.ack_ml_telegram_delivery(
-                    &queued[0].delivery_id,
-                    &TelegramDeliveryAck {
-                        status: TelegramDeliveryStatus::Published,
-                        external_message_id: Some("98765".into()),
-                        error_code: None,
-                    },
-                    1_763_231_400_000,
-                )
+                assert!(repo.set_ml_telegram_delivery_status(
+                    &current.delivery_id,
+                    TelegramDeliveryStatus::AwaitingApproval,
+                    TelegramDeliveryStatus::Published,
+                    Some("98765"),
+                    None,
+                    1_763_231_420_000,
+                )?);
+                repo.ml_telegram_delivery(&current.delivery_id)
             })
             .unwrap()
             .unwrap();
         assert_eq!(updated.status, TelegramDeliveryStatus::Published);
+        assert_eq!(updated.published_at_ms, Some(1_763_231_420_000));
         assert_eq!(updated.external_message_id.as_deref(), Some("98765"));
+    }
+
+    fn fresh_old(store: &HubStore, id: &str, now: i64) -> bool {
+        store
+            .read(|repo| repo.ml_telegram_delivery_offer_fresh(id, now))
+            .unwrap()
     }
 }

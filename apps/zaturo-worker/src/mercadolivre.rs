@@ -409,7 +409,8 @@ async fn normalize_and_upload_product(
         observed_at_ms,
         freshness_ttl_minutes: DEFAULT_ML_FRESHNESS_TTL_MINUTES,
         evidence_sha256,
-        state: MercadoLivreProductState::Approved,
+        // Ingest only proposes offers; publication needs the owner's per-offer approval.
+        state: MercadoLivreProductState::Candidate,
     };
     validated.validates().map_err(anyhow::Error::msg)?;
     Ok(validated)
@@ -1016,9 +1017,7 @@ mod tests {
         sync::{Arc, Mutex},
     };
     use tokio::task::JoinHandle;
-    use zaturo_core::{
-        SiteCatalogSnapshot, TelegramDeliveryAck, TelegramDeliveryStatus, TelegramOfferQueueItem,
-    };
+    use zaturo_core::{SiteCatalogSnapshot, TelegramDeliveryStatus, TelegramOfferQueueItem};
     use zaturo_hub::{AppState, config::HubConfig};
     use zaturo_transfer::minio::MinioConfig;
 
@@ -1393,7 +1392,8 @@ mod tests {
             .unwrap();
         assert_eq!(report.product_count, 4);
         assert_eq!(report.image_count, 4);
-        assert_eq!(report.telegram_queued_count, 4);
+        assert_eq!(report.telegram_queued_count, 0);
+        assert_eq!(report.telegram_awaiting_approval_count, 4);
 
         let http = reqwest::Client::builder().no_proxy().build().unwrap();
         let catalog: SiteCatalogSnapshot = http
@@ -1416,40 +1416,32 @@ mod tests {
                 .starts_with(&format!("http://{minio_addr}/procurali-media/"))
         }));
 
-        let queue: Vec<TelegramOfferQueueItem> = http
-            .get(format!(
-                "{hub_url}/v1/commerce/mercadolivre/telegram-queue?channel_id=%40procurali&status=queued&limit=10"
-            ))
-            .bearer_auth(DEVICE)
-            .send()
-            .await
-            .unwrap()
-            .error_for_status()
-            .unwrap()
-            .json()
-            .await
-            .unwrap();
-        assert_eq!(queue.len(), 4);
-
-        let acked: TelegramOfferQueueItem = http
-            .post(format!(
-                "{hub_url}/v1/commerce/mercadolivre/telegram-queue/{}/ack",
-                queue[0].delivery_id
-            ))
-            .bearer_auth(DEVICE)
-            .json(&TelegramDeliveryAck {
-                status: TelegramDeliveryStatus::Published,
-                external_message_id: Some("tg-ml-1".into()),
-                error_code: None,
-            })
-            .send()
-            .await
-            .unwrap()
-            .error_for_status()
-            .unwrap()
-            .json()
-            .await
-            .unwrap();
-        assert_eq!(acked.status, TelegramDeliveryStatus::Published);
+        let queue = |status: &'static str| {
+            let http = http.clone();
+            let hub_url = hub_url.clone();
+            async move {
+                http.get(format!(
+                    "{hub_url}/v1/commerce/mercadolivre/telegram-queue?channel_id=%40procurali&status={status}&limit=10"
+                ))
+                .bearer_auth(DEVICE)
+                .send()
+                .await
+                .unwrap()
+                .error_for_status()
+                .unwrap()
+                .json::<Vec<TelegramOfferQueueItem>>()
+                .await
+                .unwrap()
+            }
+        };
+        // Ingested offers wait for the owner's per-offer approval; none is publishable yet.
+        assert!(queue("queued").await.is_empty());
+        let awaiting = queue("awaiting_approval").await;
+        assert_eq!(awaiting.len(), 4);
+        assert!(
+            awaiting
+                .iter()
+                .all(|item| item.status == TelegramDeliveryStatus::AwaitingApproval)
+        );
     }
 }

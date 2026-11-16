@@ -315,6 +315,20 @@ ADR-0022's generic prepared capture still requires its explicit open button. Nev
 images in background or change FLAG_SECURE/focus clearing. Main-PC Hub deployment and
 same-signature APK boundary remain. See the [contract](REMOTE_PRIVATE_CAPTURE.md).
 
+## ADR-0024 — Per-offer Telegram approval and pre-send claim - accepted
+
+Version 0.10's ingest marked every scraped offer approved and queued it for the public
+channel, so one `allow_live_publish` flag let every later batch post without review, and a
+lost Hub acknowledgement after a successful send re-queued the post. AGENTS.md requires
+explicit owner authorization for external communication and forbids retrying an uncertain
+external side effect. Ingest therefore only creates `awaiting_approval` deliveries and
+supersedes older unsent deliveries of the same product. The owner approves one product's
+current, still-fresh offer through the owner-only Hub route or `zaturo-hub commerce approve`.
+Publishers must claim (`queued -> sending`) before sending and may then only finish
+(`published`/`failed`); a `sending` delivery is never re-queued automatically and needs
+owner review if its result was lost. Claims on stale or superseded offers are skipped.
+Public bot replies only repeat published offers. See [migrations](MIGRATIONS.md).
+
 ## Procurali content and website planning note
 
 The owner requested the next-stage creative/short-video instructions, business model,
