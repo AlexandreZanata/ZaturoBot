@@ -15,6 +15,7 @@ import hashlib
 import http.client
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -22,6 +23,7 @@ import sys
 import tarfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -99,6 +101,54 @@ def download_to_file(url: str, dest: Path, token: str | None = None, timeout: in
     with urllib.request.urlopen(req, timeout=timeout) as resp, tmp.open("wb") as out:
         shutil.copyfileobj(resp, out)
     os.replace(tmp, dest)
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req: Any, fp: Any, code: int, msg: str, headers: Any, newurl: str) -> Any:
+        return None
+
+
+def parse_procurali_tag_from_url(url: str) -> str | None:
+    parsed = urllib.parse.urlparse(url)
+    marker = "/releases/tag/"
+    if marker not in parsed.path:
+        return None
+    tag = urllib.parse.unquote(parsed.path.split(marker, 1)[1].strip("/").split("/", 1)[0])
+    return tag if tag.startswith("procurali-") else None
+
+
+def parse_latest_procurali_tag_from_atom(atom_xml: str) -> str | None:
+    for match in re.finditer(r"/releases/tag/(procurali-[A-Za-z0-9._-]+)", atom_xml):
+        return match.group(1)
+    return None
+
+
+def github_latest_procurali_tag_web(repo: str, timeout: int = 20) -> str | None:
+    """Finds the latest `procurali-*` release tag via github.com without using REST API quota."""
+    latest_url = f"https://github.com/{repo}/releases/latest"
+    opener = urllib.request.build_opener(_NoRedirectHandler())
+    req = urllib.request.Request(latest_url, method="HEAD", headers={"User-Agent": USER_AGENT})
+    try:
+        with opener.open(req, timeout=timeout) as resp:
+            tag = parse_procurali_tag_from_url(resp.geturl())
+            if tag:
+                return tag
+    except urllib.error.HTTPError as err:
+        try:
+            location = err.headers.get("Location", "")
+        finally:
+            err.close()
+        tag = parse_procurali_tag_from_url(location)
+        if tag:
+            return tag
+
+    atom_req = urllib.request.Request(
+        f"https://github.com/{repo}/releases.atom",
+        headers={"User-Agent": USER_AGENT},
+    )
+    with urllib.request.urlopen(atom_req, timeout=timeout) as resp:
+        atom_xml = resp.read().decode("utf-8", errors="replace")
+    return parse_latest_procurali_tag_from_atom(atom_xml)
 
 
 def sha256_file(path: Path) -> str:
@@ -366,6 +416,15 @@ def deploy_blue_green_release(
             os.chmod(sync_tmp, 0o755)
             os.replace(sync_tmp, sync_dest)
 
+    agent_dir = paths.opt_root / "agent"
+    agent_src = release_dir / "deploy" / "procurali" / "procurali_deploy_agent.py"
+    if agent_dir.is_dir() and agent_src.is_file():
+        agent_dest = agent_dir / "procurali-deploy-agent.py"
+        agent_tmp = agent_dir / f".procurali-deploy-agent.py.next.{os.getpid()}"
+        shutil.copy2(agent_src, agent_tmp)
+        os.chmod(agent_tmp, 0o755)
+        os.replace(agent_tmp, agent_dest)
+
     cmd_runner(
         [
             "systemctl",
@@ -419,20 +478,52 @@ def run_once(
     paths: DeployPaths,
     required_checks: tuple[str, ...],
     dry_run: bool = False,
+    latest_tag_fn: Callable[[str], str | None] = github_latest_procurali_tag_web,
+    get_json_fn: Callable[..., Any] = github_get_json,
+    download_fn: Callable[..., None] = download_to_file,
 ) -> dict[str, Any]:
     gh_token = os.environ.get("GITHUB_TOKEN", "").strip() or None
-    releases = github_get_json(
-        f"https://api.github.com/repos/{repo}/releases?per_page=10",
-        token=gh_token,
-    )
-    rel = find_latest_procurali_release(releases)
-    if rel is None:
-        return {"status": "idle", "reason": "no_procurali_release_found"}
+    current_rec = read_deploy_record(paths.deploy_record_file)
+    tag: str | None = None
+    manifest_url: str | None = None
+    bundle_url: str | None = None
 
-    assets = {str(a["name"]): a for a in rel.get("assets") or []}
+    try:
+        tag = latest_tag_fn(repo)
+    except urllib.error.HTTPError as err:
+        err.close()
+        if err.code != 404 or not gh_token:
+            raise
+
+    if tag is not None:
+        if (
+            current_rec
+            and current_rec.get("status") == "ok"
+            and current_rec.get("release_tag") == tag
+        ):
+            return {
+                "status": "up_to_date",
+                "commit_sha": current_rec.get("commit_sha"),
+                "release_tag": tag,
+            }
+        manifest_url = f"https://github.com/{repo}/releases/download/{tag}/{MANIFEST_ASSET_NAME}"
+        bundle_url = f"https://github.com/{repo}/releases/download/{tag}/{BUNDLE_ASSET_NAME}"
+    else:
+        releases = get_json_fn(
+            f"https://api.github.com/repos/{repo}/releases?per_page=10",
+            token=gh_token,
+        )
+        rel = find_latest_procurali_release(releases)
+        if rel is None:
+            return {"status": "idle", "reason": "no_procurali_release_found"}
+        tag = str(rel["tag_name"])
+        assets = {str(a["name"]): a for a in rel.get("assets") or []}
+        manifest_url = str(assets[MANIFEST_ASSET_NAME]["browser_download_url"])
+        bundle_url = str(assets[BUNDLE_ASSET_NAME]["browser_download_url"])
+
     manifest_tmp = paths.state_dir / "manifest.download.json"
-    download_to_file(
-        str(assets[MANIFEST_ASSET_NAME]["browser_download_url"]),
+    download_fn(
+        manifest_url,
         manifest_tmp,
         token=gh_token,
     )
@@ -441,15 +532,14 @@ def run_once(
     if len(commit_sha) < 12:
         raise ValueError("manifest missing valid commit_sha")
 
-    current_rec = read_deploy_record(paths.deploy_record_file)
     if current_rec and current_rec.get("status") == "ok" and current_rec.get("commit_sha") == commit_sha:
         return {
             "status": "up_to_date",
             "commit_sha": commit_sha,
-            "release_tag": rel.get("tag_name"),
+            "release_tag": tag,
         }
 
-    check_runs = github_get_json(
+    check_runs = get_json_fn(
         f"https://api.github.com/repos/{repo}/commits/{commit_sha}/check-runs?per_page=100",
         token=gh_token,
     )
@@ -458,7 +548,7 @@ def run_once(
         return {
             "status": "waiting_ci",
             "commit_sha": commit_sha,
-            "release_tag": rel.get("tag_name"),
+            "release_tag": tag,
             "reason": reason,
         }
 
@@ -466,13 +556,13 @@ def run_once(
         return {
             "status": "ready_dry_run",
             "commit_sha": commit_sha,
-            "release_tag": rel.get("tag_name"),
+            "release_tag": tag,
             "reason": reason,
         }
 
     archive_tmp = paths.state_dir / f"{commit_sha[:12]}-{BUNDLE_ASSET_NAME}"
-    download_to_file(
-        str(assets[BUNDLE_ASSET_NAME]["browser_download_url"]),
+    download_fn(
+        bundle_url,
         archive_tmp,
         token=gh_token,
     )
