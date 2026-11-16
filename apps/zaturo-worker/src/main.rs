@@ -120,6 +120,24 @@ enum Commerce {
         #[arg(long)]
         output: Option<PathBuf>,
     },
+    WatchMl {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        state_file: PathBuf,
+        #[arg(long, default_value = "hardware-e-perifericos")]
+        category: String,
+        #[arg(long)]
+        channel: Option<String>,
+        #[arg(long)]
+        source_base_dir: Option<PathBuf>,
+        #[arg(long)]
+        whatsapp_drafts_out: Option<PathBuf>,
+        #[arg(long, default_value_t = 5)]
+        poll_seconds: u64,
+        #[arg(long)]
+        once: bool,
+    },
 }
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() -> Result<()> {
@@ -204,22 +222,14 @@ async fn main() -> Result<()> {
                     }
                     telegram_report = Some(tg_out);
                 } else if let Some(out_path) = &whatsapp_drafts_out {
-                    let items = zaturo_worker::telegram::fetch_hub_queue_with_token(
-                        &config.hub_url,
+                    let pkg = fetch_whatsapp_package(
+                        &config,
                         &token,
-                        Some(&target_channel),
-                        None,
+                        &target_channel,
+                        resolved_tg.as_ref(),
                         50,
                     )
                     .await?;
-                    let pkg = zaturo_core::build_whatsapp_assisted_package(
-                        &items,
-                        &target_channel,
-                        resolved_tg
-                            .as_ref()
-                            .and_then(|t| t.site_base_url.as_deref()),
-                        zaturo_worker::now_ms(),
-                    );
                     write_json_output(out_path, &pkg)?;
                 }
                 if let Some(tg) = telegram_report {
@@ -306,27 +316,118 @@ async fn main() -> Result<()> {
                 let target_channel = channel
                     .or_else(|| resolved_tg.as_ref().map(|t| t.default_channel_id.clone()))
                     .unwrap_or_else(|| "@procurali".to_owned());
-                let items = zaturo_worker::telegram::fetch_hub_queue_with_token(
-                    &config.hub_url,
+                let pkg = fetch_whatsapp_package(
+                    &config,
                     &token,
-                    Some(&target_channel),
-                    None,
+                    &target_channel,
+                    resolved_tg.as_ref(),
                     limit,
                 )
                 .await?;
-                let pkg = zaturo_core::build_whatsapp_assisted_package(
-                    &items,
-                    &target_channel,
-                    resolved_tg
-                        .as_ref()
-                        .and_then(|t| t.site_base_url.as_deref()),
-                    zaturo_worker::now_ms(),
-                );
                 if let Some(out_path) = output {
                     write_json_output(&out_path, &pkg)?;
                     println!("Wrote WhatsApp assisted drafts to {}", out_path.display());
                 } else {
                     println!("{}", serde_json::to_string_pretty(&pkg)?);
+                }
+            }
+            Commerce::WatchMl {
+                input,
+                state_file,
+                category,
+                channel,
+                source_base_dir,
+                whatsapp_drafts_out,
+                poll_seconds,
+                once,
+            } => {
+                let resolved_tg = config
+                    .telegram
+                    .as_ref()
+                    .map(|t| t.with_env_overrides())
+                    .transpose()?;
+                let target_channel = channel
+                    .or_else(|| resolved_tg.as_ref().map(|t| t.default_channel_id.clone()))
+                    .unwrap_or_else(|| "@procurali".to_owned());
+                let poll_interval = std::time::Duration::from_secs(poll_seconds.max(1));
+                loop {
+                    if input.exists() {
+                        let options = zaturo_worker::mercadolivre::BatchIngestOptions {
+                            worker_id: config.worker_id.clone(),
+                            default_category_slug: category.clone(),
+                            channel_id: target_channel.clone(),
+                            now_ms: zaturo_worker::now_ms(),
+                        };
+                        match zaturo_worker::mercadolivre::ingest_file_if_changed(
+                            &config,
+                            &token,
+                            &input,
+                            &state_file,
+                            &options,
+                            source_base_dir.as_deref(),
+                        )
+                        .await
+                        {
+                            Ok(Some(report)) => {
+                                if let Some(out_path) = &whatsapp_drafts_out {
+                                    let pkg = fetch_whatsapp_package(
+                                        &config,
+                                        &token,
+                                        &target_channel,
+                                        resolved_tg.as_ref(),
+                                        50,
+                                    )
+                                    .await?;
+                                    write_json_output(out_path, &pkg)?;
+                                }
+                                println!(
+                                    "{}",
+                                    serde_json::to_string_pretty(&serde_json::json!({
+                                        "status": "ingested",
+                                        "report": report,
+                                    }))?
+                                );
+                            }
+                            Ok(None) => {
+                                if let Some(out_path) = &whatsapp_drafts_out
+                                    && once
+                                    && !out_path.exists()
+                                {
+                                    let pkg = fetch_whatsapp_package(
+                                        &config,
+                                        &token,
+                                        &target_channel,
+                                        resolved_tg.as_ref(),
+                                        50,
+                                    )
+                                    .await?;
+                                    write_json_output(out_path, &pkg)?;
+                                }
+                                if once {
+                                    println!(
+                                        "{}",
+                                        serde_json::to_string_pretty(&serde_json::json!({
+                                            "status": "unchanged",
+                                            "input": input.display().to_string(),
+                                        }))?
+                                    );
+                                }
+                            }
+                            Err(err) if !once => {
+                                tracing::warn!(error = %err, "watch_ml_cycle_failed");
+                            }
+                            Err(err) => return Err(err),
+                        }
+                    } else if once {
+                        anyhow::bail!("input batch file does not exist: {}", input.display());
+                    }
+                    if once {
+                        break;
+                    }
+                    tokio::select! {
+                        _ = tokio::signal::ctrl_c() => break,
+                        _ = tokio::time::sleep(poll_interval) => {}
+                    }
                 }
             }
         },
@@ -437,6 +538,32 @@ async fn main() -> Result<()> {
         }
     }
     Ok(())
+}
+
+async fn fetch_whatsapp_package(
+    config: &WorkerConfig,
+    token: &str,
+    channel: &str,
+    resolved_tg: Option<&zaturo_worker::telegram::TelegramBotConfig>,
+    limit: u32,
+) -> Result<zaturo_core::WhatsappAssistedPackage> {
+    let items = zaturo_worker::telegram::fetch_hub_queue_with_token(
+        &config.hub_url,
+        token,
+        Some(channel),
+        None,
+        limit,
+    )
+    .await?;
+    let site_base_url = resolved_tg
+        .and_then(|t| t.site_base_url.as_deref())
+        .or_else(|| config.minio.as_ref().map(|m| m.public_base_url.as_str()));
+    Ok(zaturo_core::build_whatsapp_assisted_package(
+        &items,
+        channel,
+        site_base_url,
+        zaturo_worker::now_ms(),
+    ))
 }
 
 fn write_json_output<T: serde::Serialize>(path: &std::path::Path, value: &T) -> Result<()> {

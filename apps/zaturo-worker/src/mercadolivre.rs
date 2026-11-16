@@ -202,6 +202,47 @@ pub async fn ingest_file_to_hub(
     ingest_to_hub(&config.hub_url, worker_token, &batch_req, &derived_key).await
 }
 
+/// Checks `input_path`'s SHA-256 digest against `state_file`, skipping ingestion when the payload
+/// has not changed and atomically recording the new digest after a successful Hub ingest.
+pub async fn ingest_file_if_changed(
+    config: &WorkerConfig,
+    worker_token: &str,
+    input_path: &Path,
+    state_file: &Path,
+    options: &BatchIngestOptions,
+    source_base_dir: Option<&Path>,
+) -> Result<Option<MercadoLivreIngestReport>> {
+    let raw_bytes = std::fs::read(input_path)
+        .with_context(|| format!("failed reading bot batch file {}", input_path.display()))?;
+    let digest = sha256_hex(&raw_bytes);
+    if let Ok(previous) = std::fs::read_to_string(state_file)
+        && previous.trim() == digest
+    {
+        return Ok(None);
+    }
+
+    let idempotency_key = format!("ml-watch-{}", &digest[..24]);
+    let report = ingest_file_to_hub(
+        config,
+        worker_token,
+        input_path,
+        options,
+        Some(&idempotency_key),
+        source_base_dir,
+    )
+    .await?;
+
+    if let Some(parent) = state_file.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+    let tmp_path = state_file.with_extension("sha256.tmp");
+    std::fs::write(&tmp_path, format!("{digest}\n"))?;
+    std::fs::rename(&tmp_path, state_file)?;
+    Ok(Some(report))
+}
+
 async fn normalize_and_upload_product(
     raw: &MercadoLivreBotProduct,
     minio: &MinioClient,
@@ -1451,5 +1492,186 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(acked.status, TelegramDeliveryStatus::Published);
+    }
+
+    async fn spawn_watch_test_backends(root: &Path) -> (WorkerConfig, AbortOnDrop, AbortOnDrop) {
+        let minio_state = MockMinioState::default();
+        let minio_router = Router::new()
+            .route("/{bucket}", put(mock_put_bucket).head(mock_head_bucket))
+            .route("/{bucket}/{*key}", put(mock_put_object))
+            .with_state(minio_state);
+        let minio_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let minio_addr = minio_listener.local_addr().unwrap();
+        let minio_srv = AbortOnDrop(tokio::spawn(async move {
+            axum::serve(minio_listener, minio_router).await.unwrap();
+        }));
+
+        let minio_secret_path = root.join("minio.watch.secret");
+        fs::write(&minio_secret_path, "synthetic-test-minio-secret-key\n").unwrap();
+        fs::set_permissions(&minio_secret_path, fs::Permissions::from_mode(0o600)).unwrap();
+
+        let minio_cfg = MinioConfig {
+            endpoint: format!("http://{minio_addr}"),
+            public_base_url: format!("http://{minio_addr}"),
+            bucket: "procurali-media".into(),
+            region: "us-east-1".into(),
+            access_key_id: "procurali-worker".into(),
+            secret_access_key_file: minio_secret_path,
+            timeout_seconds: 5,
+        };
+
+        let hub_dir = root.join("hub-watch");
+        fs::create_dir_all(&hub_dir).unwrap();
+        let recipient =
+            zaturo_transfer::crypto::generate_identity(&hub_dir.join("worker-ml.identity"))
+                .unwrap();
+        let devices_toml = format!(
+            "[[devices]]\nid=\"worker-ml\"\ntoken_sha256=\"{:x}\"\nencryption_recipient={recipient:?}\n",
+            Sha256::digest(DEVICE)
+        );
+        fs::write(hub_dir.join("devices.toml"), devices_toml).unwrap();
+        fs::set_permissions(
+            hub_dir.join("devices.toml"),
+            fs::Permissions::from_mode(0o600),
+        )
+        .unwrap();
+
+        let hub_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let hub_addr = hub_listener.local_addr().unwrap();
+        let hub_url = format!("http://{hub_addr}");
+        let hub_state = AppState::new(
+            HubConfig {
+                bind: hub_addr,
+                client_url: hub_url.clone(),
+                database: hub_dir.join("hub.db"),
+                worker_id: "worker-ml".into(),
+                max_connections: 4,
+                max_queued_tasks: 16,
+                max_page_size: 100,
+                lease_seconds: 30,
+                max_workers: 4,
+                devices_file: Some(hub_dir.join("devices.toml")),
+                apps_file: None,
+                transfer_root: Some(hub_dir.join("spool")),
+                transfer_limits: Default::default(),
+            },
+            OWNER,
+            DEVICE,
+        )
+        .unwrap();
+        let hub_srv = AbortOnDrop(tokio::spawn(async move {
+            axum::serve(hub_listener, zaturo_hub::router(hub_state))
+                .await
+                .unwrap();
+        }));
+
+        let worker_cfg = WorkerConfig {
+            hub_url,
+            worker_id: "worker-ml".into(),
+            database: root.join("worker.db"),
+            workspace_root: root.join("ws"),
+            artifact_root: root.join("art"),
+            capabilities: vec!["diagnostic.v1".into()],
+            max_concurrent_tasks: 1,
+            heartbeat_seconds: 5,
+            reconnect_max_seconds: 30,
+            models_config: None,
+            assistant_models_config: None,
+            computer_models_config: None,
+            computer: None,
+            opencode: None,
+            files: None,
+            youtube: None,
+            android: None,
+            minio: Some(minio_cfg),
+            telegram: None,
+        };
+        (worker_cfg, minio_srv, hub_srv)
+    }
+
+    #[tokio::test]
+    async fn ingest_file_if_changed_skips_unchanged_and_reingests_on_change() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let photos_dir = root.join("photos");
+        fs::create_dir_all(&photos_dir).unwrap();
+        fs::write(photos_dir.join("item.png"), valid_png_bytes(800, 800)).unwrap();
+
+        let (worker_cfg, _minio_srv, _hub_srv) = spawn_watch_test_backends(root).await;
+        let input_path = root.join("products.json");
+        let state_file = root.join("state/last.sha256");
+
+        let make_batch = |price: f64| {
+            json!({
+                "network": "mercadolivre_afiliados",
+                "query": "hardware watch test",
+                "captured_at": "2026-11-16T12:00:00Z",
+                "products": [{
+                    "product_id": "MLB39410080",
+                    "title": "SSD Kingston NV3 500GB NVMe",
+                    "canonical_url": "https://www.mercadolivre.com.br/ssd-kingston/p/MLB39410080",
+                    "share_link": "https://meli.la/1iWQZbJ",
+                    "price": price,
+                    "currency": "BRL",
+                    "seller": "Loja Oficial Kingston",
+                    "photos": ["photos/item.png"]
+                }]
+            })
+        };
+
+        fs::write(
+            &input_path,
+            serde_json::to_vec(&make_batch(499.90)).unwrap(),
+        )
+        .unwrap();
+        let opts = BatchIngestOptions {
+            worker_id: "worker-ml".into(),
+            default_category_slug: "hardware-e-perifericos".into(),
+            channel_id: "@procurali".into(),
+            now_ms: 1_763_300_000_000,
+        };
+
+        let first = ingest_file_if_changed(
+            &worker_cfg,
+            DEVICE,
+            &input_path,
+            &state_file,
+            &opts,
+            Some(root),
+        )
+        .await
+        .unwrap()
+        .expect("initial batch must ingest");
+        assert_eq!(first.product_count, 1);
+
+        let second = ingest_file_if_changed(
+            &worker_cfg,
+            DEVICE,
+            &input_path,
+            &state_file,
+            &opts,
+            Some(root),
+        )
+        .await
+        .unwrap();
+        assert!(second.is_none(), "unchanged digest must skip ingest");
+
+        fs::write(
+            &input_path,
+            serde_json::to_vec(&make_batch(449.90)).unwrap(),
+        )
+        .unwrap();
+        let third = ingest_file_if_changed(
+            &worker_cfg,
+            DEVICE,
+            &input_path,
+            &state_file,
+            &opts,
+            Some(root),
+        )
+        .await
+        .unwrap()
+        .expect("modified batch must ingest again");
+        assert_eq!(third.product_count, 1);
     }
 }

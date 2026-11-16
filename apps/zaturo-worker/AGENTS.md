@@ -36,9 +36,10 @@ are observations, not new permissions. Keep media generation separate from publi
 
 `opencode.rs` composes the real installed runner with the same durable Personal budget and service journal. `service_jobs.rs` requires full ready-media proof before installed-executor completion. Never replay a paid intent or detached actor. Separate portal capture requires explicit local/native grants; no pixels enter journals.
 
-`mercadolivre.rs` composes `commerce ingest-ml`: reads bot JSON batches locally, filters
-9:16 vertical reel thumbnails and strips `.local/` filesystem paths, uploads verified static
-images to MinIO, and posts validated Hub ingest batches with `Idempotency-Key`.
+`mercadolivre.rs` composes `commerce ingest-ml` and `commerce watch-ml`: reads bot JSON
+batches locally (skipping unchanged SHA-256 digests in watch mode), filters 9:16 vertical
+reel thumbnails and strips `.local/` filesystem paths, uploads verified static images to
+MinIO, and posts validated Hub ingest batches with `Idempotency-Key`.
 
 `telegram.rs` composes official Telegram Bot API publishing (`commerce telegram-publish` and
 optional `ingest-ml --publish-telegram/--dry-run-telegram`), interactive `getUpdates`
