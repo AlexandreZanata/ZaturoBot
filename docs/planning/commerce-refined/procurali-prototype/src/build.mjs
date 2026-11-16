@@ -770,7 +770,7 @@ Disallow: /
 
 const isEntrypoint =
   Boolean(process.argv[1]) &&
-  pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url;
+  pathToFileURL(fs.realpathSync(path.resolve(process.argv[1]))).href === import.meta.url;
 
 if (isEntrypoint) {
   buildSite(parseCliArgs(process.argv.slice(2))).catch((err) => {

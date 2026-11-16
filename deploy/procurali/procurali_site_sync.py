@@ -126,22 +126,33 @@ def rebuild_site(
     target_dir = releases_dir / release_id
     releases_dir.mkdir(parents=True, exist_ok=True)
 
-    proc = subprocess.run(
-        ["node", str(builder_script), "--api-snapshot", str(snap_path), "--out-dir", str(target_dir)],
-        capture_output=True,
-        text=True,
-        timeout=60,
-        check=True,
-    )
-    verify_built_site(target_dir)
-    if chown_caddy:
-        subprocess.run(
-            ["chown", "-R", "caddy:caddy", str(target_dir)],
+    try:
+        proc = subprocess.run(
+            [
+                "node",
+                str(builder_script.resolve()),
+                "--api-snapshot",
+                str(snap_path),
+                "--out-dir",
+                str(target_dir),
+            ],
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=60,
             check=True,
         )
+        verify_built_site(target_dir)
+        if chown_caddy:
+            subprocess.run(
+                ["chown", "-R", "caddy:caddy", str(target_dir)],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=True,
+            )
+    except Exception:
+        shutil.rmtree(target_dir, ignore_errors=True)
+        raise
     atomic_symlink_swap(target_dir, live_site_link)
     prune_old_releases(releases_dir, live_target=target_dir)
     save_text(state_dir / "last.etag", etag)
@@ -189,6 +200,9 @@ def main() -> int:
                     last_builder = current_builder
             else:
                 log("site_sync_unexpected_status", status=resp.status)
+        except subprocess.CalledProcessError as exc:
+            stderr_tail = (exc.stderr or "").strip()[-400:]
+            log("site_sync_error", error=str(exc), stderr=stderr_tail)
         except Exception as exc:
             log("site_sync_error", error=str(exc))
         finally:

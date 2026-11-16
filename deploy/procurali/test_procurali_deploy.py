@@ -176,6 +176,45 @@ class ProcuraliDeployTests(unittest.TestCase):
             self.assertEqual((live / "index.html").read_text(encoding="utf-8"), "<html>v2</html>")
             self.assertEqual(os.readlink(live), str(rel2))
 
+    def test_failed_rebuild_site_cleans_up_release_dir_and_keeps_live_site(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            live_target = root / "releases" / "bootstrap"
+            for sub in ("ofertas", "api", "assets"):
+                (live_target / sub).mkdir(parents=True, exist_ok=True)
+            (live_target / "index.html").write_text("<html>bootstrap</html>", encoding="utf-8")
+            (live_target / "ofertas" / "index.html").write_text("ok", encoding="utf-8")
+            (live_target / "api" / "catalog.json").write_text("{}", encoding="utf-8")
+            (live_target / "api" / "whatsapp-assisted-drafts.json").write_text("{}", encoding="utf-8")
+            (live_target / "assets" / "app.js").write_text("// ok", encoding="utf-8")
+
+            live_link = root / "site"
+            site_sync.atomic_symlink_swap(live_target, live_link)
+
+            broken_builder = root / "builder" / "src" / "build.mjs"
+            broken_builder.parent.mkdir(parents=True, exist_ok=True)
+            broken_builder.write_text("console.error('boom'); process.exit(1);\n", encoding="utf-8")
+            symlink_builder = root / "current-build.mjs"
+            symlink_builder.symlink_to(broken_builder)
+
+            releases_dir = root / "releases"
+            state_dir = root / "state"
+            with self.assertRaises(subprocess.CalledProcessError) as ctx:
+                site_sync.rebuild_site(
+                    b'{"offers":[]}',
+                    "etag-1",
+                    "digest-1",
+                    builder_script=symlink_builder,
+                    releases_dir=releases_dir,
+                    live_site_link=live_link,
+                    state_dir=state_dir,
+                    chown_caddy=False,
+                )
+            self.assertIn("boom", ctx.exception.stderr)
+            self.assertEqual(os.readlink(live_link), str(live_target))
+            self.assertEqual((live_link / "index.html").read_text(encoding="utf-8"), "<html>bootstrap</html>")
+            self.assertEqual([p.name for p in releases_dir.iterdir()], ["bootstrap"])
+
 
 if __name__ == "__main__":
     unittest.main()
