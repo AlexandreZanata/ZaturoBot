@@ -351,3 +351,20 @@ runtime ADR, expanded provider grant, publication policy or deployment authoriza
 Commercial urgency and comparative-price claims require supporting evidence. Personal
 WhatsApp group listing/manual sharing is distinct from official API automation eligibility.
 Current setup/budget decisions remain in [open questions](OPEN_QUESTIONS.md).
+
+## ADR-0026 — Phone screenshots are unconditional one-shots
+
+The owner reported a print request receiving the navigation-only “no SMS sent” summary.
+Default phone/SMS print captures the current screen, independently of SMS send/arrival or
+pixel change; opening Messages is an explicit optional step. The native command parser
+recognizes sm, SMS, singular/plural mensagem and phone targets, and does not mistake a
+negated SMS event for a negated screenshot. Actual capture negations remain declined.
+
+Hub intercepts phone-print text even with an incorrect navigation action and returns a
+metadata-only Android capture hint without a navigation/model task. The native app still
+confirms the private-view grant. Prepared print images open automatically only when ready
+and Hub is focused; focus loss suspends polling without revoking opaque pending consent.
+One-shot service results cannot complete as unchanged; that state belongs only to an
+explicit watch. Existing consent, expiry, keyguard/focus restrictions and private transport
+stay intact. Main-PC same-signature APK/admin rollout boundary remains. See
+[remote private capture](REMOTE_PRIVATE_CAPTURE.md).

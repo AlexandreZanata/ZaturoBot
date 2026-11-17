@@ -131,3 +131,13 @@ a debug keystore, uninstall the enrolled app or clear its data to make an update
 
 
 Version0.8 adds native URL and actual SMS-screen capture; see the [remote private capture contract](../../docs/REMOTE_PRIVATE_CAPTURE.md) for grants, transport, update and physical acceptance.
+
+
+## Phone print correction (0.8.1/code7)
+
+“enviar print do sm” and SMS/current-phone screenshot requests use native confirmation
+and a current-screen one-shot, even with no new/sent SMS or identical pixels. Opening
+Messages is optional. Same-phone captures can prepare15seconds so the owner can leave
+FLAG_SECURE Hub; on return the ready image opens automatically. Pending metadata is not
+an image, focus loss stops polling/download/display, and expiry remains unchanged.
+Install with the same existing signature and preserve app data/enrollment.

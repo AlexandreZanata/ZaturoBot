@@ -19,11 +19,12 @@ internal object PrivateCaptureCommand {
     }.getOrDefault(false)
     fun parse(message: String): Request? {
         val plain=Normalizer.normalize(message.trim().lowercase(),Normalizer.Form.NFD).replace(Regex("\\p{M}+"),"")
-        if(!Regex("\\b(print|captura|screenshot)\\b").containsMatchIn(plain)) return null
-        if(Regex("\\b(nao|nunca|se|talvez|poderia)\\b").containsMatchIn(plain)) return Request.Declined
+        if(!Regex("\\b(prints?|captur(a|e|ar)|screenshot)\\b").containsMatchIn(plain)) return null
+        val denied=Regex("\\b(nao|nunca|sem)\\s+(?:(?:me|o|a|um|uma)\\s+)*(?:(?:envie|enviar|mande|mandar|tire|tirar|faca|fazer)\\s+(?:(?:me|o|a|um|uma)\\s+)*)?(?:prints?|captur(a|e|ar)|screenshot)\\b")
+        if(denied.containsMatchIn(plain) || Regex("^(se|talvez|poderia)\\b").containsMatchIn(plain)) return Request.Declined
         val urls=Regex("https?://[^\\s]+",RegexOption.IGNORE_CASE).findAll(message).toList()
         if(urls.size==1 && validUrl(urls[0].value)) return Request.Page(urls[0].value)
-        if(urls.isEmpty() && Regex("\\b(sms|mensagens)\\b").containsMatchIn(plain)) return Request.Messages
+        if(urls.isEmpty() && Regex("\\b(sms|sm|mensagem|mensagens|celular|telefone|smartphone)\\b").containsMatchIn(plain)) return Request.Messages
         return Request.Choose
     }
 }

@@ -102,6 +102,6 @@ with <=1024-char HTML captions and `InlineKeyboardMarkup`, `429 retry_after` rec
 failure handling, and `getUpdates` interactive command replies for `/start`, `/ofertas`,
 `/hardware`, `/buscar`, `/whatsapp`, and `/ajuda`). WhatsApp group sharing uses only
 human-assisted WhatsApp Web copy/paste packages (`WhatsappAssistedPackage`, CLI
-`whatsapp-drafts`, and `site/api/whatsapp-assisted-drafts.json`) plus absolute `https://`
+`whatsapp-drafts`, and `api/whatsapp-assisted-drafts.json` in the Procurali static export) plus absolute `https://`
 Open Graph `og:image` tags on offer pages — never the Meta WhatsApp API or unofficial
 WhatsApp Web automation.

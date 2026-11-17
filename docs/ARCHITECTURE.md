@@ -106,3 +106,9 @@ opaque sessions only. BrowserPrivateView uses zaturo-computer's separate pinned 
 renderer; AndroidMessagesPrivateView uses zaturo-android's fixed focus-bound SMS bundle.
 Both reuse the existing encrypted ephemeral private relay and native viewer lifecycle.
 No dependency edge or SQL schema is added. See [capture](REMOTE_PRIVATE_CAPTURE.md).
+
+
+Phone-print chat fallback creates only a CaptureHint with source=android/target worker,
+never a navigation/model task or private grant. Native confirmation creates the existing
+one-shot private-view session. Prepared readiness polling stops on focus loss; only a
+focused ready callback starts frame consumption. No dependency edge/schema is added.

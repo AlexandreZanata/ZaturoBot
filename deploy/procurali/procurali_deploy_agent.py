@@ -462,7 +462,7 @@ def deploy_blue_green_release(
 
 
 def prune_old_releases(
-    releases_dir: Path, *, current_link: Path, keep: int = 5
+    releases_dir: Path, *, current_link: Path, keep: int = 3
 ) -> list[Path]:
     if not releases_dir.is_dir():
         return []

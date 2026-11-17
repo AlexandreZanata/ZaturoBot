@@ -28,7 +28,7 @@ only their public age key enters app_viewers SQL. Owner-confirmed captures remai
 
 Prepared USB capture is a native-confirmed fixed15-second one-shot under the original viewer and <=60-second expiry. Only opaque preparation metadata survives focus changes; no app background frame fetch. Never use an assistant/MCP request as native consent.
 
-`mercadolivre.rs` exposes authenticated ingest routes (`POST /v1/device/commerce/mercadolivre/ingest`
+`mercadolivre/` (`mod.rs`, `auth.rs`, `ingest.rs`, `catalog_handlers.rs`, `telegram_handlers.rs`) exposes authenticated ingest routes (`POST /v1/device/commerce/mercadolivre/ingest`
 for enrolled devices and owner-only `POST /v1/commerce/mercadolivre/ingest`) with an
 explicit 4 MiB route body limit, plus `GET /v1/device/commerce/mercadolivre/reference-catalog`
 (compact ETag-cached catalog/price-trend reference for enrolled local workers), warm-cached

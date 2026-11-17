@@ -4,7 +4,7 @@ Scope: frontend data structures and integration boundaries between future Zaturo
 
 JSON Schema (Draft 2020-12): [cms-schemas.json](contracts/cms-schemas.json).  
 Fictional demo fixtures: [demo-catalog.mjs](data/demo-catalog.mjs).  
-Pure contract validators: [validate-contracts.mjs](src/validate-contracts.mjs).
+Pure contract validators: [contracts.mjs](lib/contracts.mjs).
 
 ## 1. Core Entities
 
@@ -30,7 +30,7 @@ In this prototype, `/encontre-com-ia` runs `runDeterministicFinder()` locally ag
 
 ## 3. SEO, Search Console and Event Measurement
 
-- **Demo staging robots policy:** all prototype pages emit `<meta name="robots" content="noindex, nofollow">` and `site/robots.txt` sets `Disallow: /`.
+- **Demo staging robots policy:** all prototype pages emit `<meta name="robots" content="noindex, nofollow">` and the exported `robots.txt` sets `Disallow: /`.
 - **Search Console setup note for the owner:** no connected property or verification token is fabricated in this prototype. Before launching on `procurali.com.br`, verify domain ownership in Google Search Console, remove staging `noindex` from canonical public routes (keeping `/cms-preview/`, previews and filter combinations `noindex`), and submit `sitemap.xml`.
 - **Product / Offer JSON-LD eligibility:** intentionally omitted on fictional demo offers. Emit `Product`/`Offer` structured data only when real price, `BRL` currency, availability and official URLs satisfy platform eligibility, without ever manufacturing `AggregateRating` or `Review`.
 - **Privacy-respecting analytics:** distinguish `outbound_offer_click`, `community_link_click` and `finder_demo_query` asynchronously without blocking direct anchor navigation, without third-party ad pixels, and without inferring attributed affiliate sales from site clicks.

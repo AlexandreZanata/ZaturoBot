@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Watches ZaturoBot Hub's ETag-cached site-catalog and publishes static builds atomically."""
+"""Watches ZaturoBot Hub's ETag-cached site-catalog and publishes static builds atomically.
+
+The builder is the Procurali Next.js storefront packaged by `package_site_builder.py`:
+`<site-builder>/src/build.mjs` runs `next build` (static export) for each catalog snapshot,
+preferably with the Node runtime bundled at `<site-builder>/runtime/node`.
+"""
 
 from __future__ import annotations
 
@@ -28,21 +33,95 @@ RELEASES_DIR = Path(os.environ.get("PROCURALI_SITE_RELEASES_DIR", "/srv/procural
 LIVE_SITE_LINK = Path(os.environ.get("PROCURALI_LIVE_SITE_DIR", "/srv/procurali/site"))
 KEEP_RELEASES = max(2, int(os.environ.get("PROCURALI_SITE_KEEP_RELEASES", "5")))
 POLL_SECS = max(2, int(os.environ.get("PROCURALI_SITE_SYNC_POLL_SECS", "5")))
+BUILD_TIMEOUT_SECS = max(60, int(os.environ.get("PROCURALI_SITE_BUILD_TIMEOUT_SECS", "900")))
+MAX_FAILURE_BACKOFF_SECS = 900
+
+# Paths below the builder package root that builds generate or that never affect output.
+DIGEST_EXCLUDED_TOP_LEVEL = {
+    ".generated",
+    ".next",
+    "node_modules",
+    "out",
+    "public",
+    "runtime",
+    "next-env.d.ts",
+}
+DIGEST_EXCLUDED_PREFIXES = ("out-", ".next-")
 
 
 def log(msg: str, **fields: object) -> None:
     print(json.dumps({"event": msg, **fields}, ensure_ascii=False), flush=True)
 
 
+def builder_package_root(builder_path: Path = BUILDER_SCRIPT) -> Path:
+    """`<root>/src/build.mjs` -> `<root>`, resolving the `/opt/procurali/current` symlink."""
+    return builder_path.resolve().parent.parent
+
+
 def compute_builder_digest(builder_path: Path = BUILDER_SCRIPT) -> str:
-    src_dir = builder_path.parent
+    """Hashes the builder sources (app, data, brand, lockfile...) but not generated output.
+
+    A new release with a changed storefront therefore forces a rebuild even when the Hub
+    catalog ETag is unchanged, while repeated in-place builds do not.
+    """
+    root = builder_package_root(builder_path)
     h = hashlib.sha256()
-    if src_dir.is_dir():
-        for file_path in sorted(p for p in src_dir.rglob("*") if p.is_file()):
-            h.update(file_path.relative_to(src_dir).as_posix().encode("utf-8"))
+    if not root.is_dir():
+        return h.hexdigest()
+    for dirpath, dirnames, filenames in os.walk(root):
+        current = Path(dirpath)
+        if current == root:
+            dirnames[:] = [
+                d
+                for d in dirnames
+                if d not in DIGEST_EXCLUDED_TOP_LEVEL and not d.startswith(DIGEST_EXCLUDED_PREFIXES)
+            ]
+            filenames = [f for f in filenames if f not in DIGEST_EXCLUDED_TOP_LEVEL]
+        dirnames.sort()
+        for name in sorted(filenames):
+            file_path = current / name
+            if not file_path.is_file():
+                continue
+            h.update(file_path.relative_to(root).as_posix().encode("utf-8"))
             h.update(b"\0")
             h.update(file_path.read_bytes())
     return h.hexdigest()
+
+
+def builder_environment(state_dir: Path = STATE_DIR) -> dict[str, str]:
+    """Environment for `next build` inside the hardened unit (ProtectSystem=strict, ProtectHome).
+
+    Only the state directory is writable, so the read-only release is copied there, and the
+    temporary files and Node's home directory live there as well.
+    """
+    work_root = state_dir / "builder"
+    env = dict(os.environ)
+    # The snapshot is already fetched; the build never talks to the Hub or sees its token.
+    for key in ("PROCURALI_HUB_TOKEN", "PROCURALI_HUB_API_URL", "PROCURALI_API_SNAPSHOT"):
+        env.pop(key, None)
+    env.update(
+        {
+            "NEXT_TELEMETRY_DISABLED": "1",
+            "PROCURALI_SITE_WORK_DIR": str(work_root / "work"),
+            "TMPDIR": str(work_root / "tmp"),
+            "HOME": str(work_root / "home"),
+            "PROCURALI_BUILD_CPUS": os.environ.get("PROCURALI_BUILD_CPUS", "2"),
+        }
+    )
+    for key in ("TMPDIR", "HOME"):
+        Path(env[key]).mkdir(parents=True, exist_ok=True)
+    return env
+
+
+def resolve_node_executable(builder_path: Path = BUILDER_SCRIPT) -> str:
+    """Prefers PROCURALI_SITE_NODE, then the runtime bundled with the release, then PATH."""
+    explicit = os.environ.get("PROCURALI_SITE_NODE", "").strip()
+    if explicit:
+        return explicit
+    bundled = builder_package_root(builder_path) / "runtime" / "node"
+    if bundled.is_file() and os.access(bundled, os.X_OK):
+        return str(bundled)
+    return "node"
 
 
 def verify_built_site(site_dir: Path) -> None:
@@ -51,11 +130,14 @@ def verify_built_site(site_dir: Path) -> None:
         site_dir / "ofertas" / "index.html",
         site_dir / "api" / "catalog.json",
         site_dir / "api" / "whatsapp-assisted-drafts.json",
-        site_dir / "assets" / "app.js",
+        site_dir / "sitemap.xml",
     ]
     for path in required:
         if not path.is_file() or path.stat().st_size == 0:
             raise RuntimeError(f"built static site missing required artifact: {path}")
+    next_assets = site_dir / "_next" / "static"
+    if not next_assets.is_dir() or not any(next_assets.iterdir()):
+        raise RuntimeError(f"built static site missing Next.js assets: {next_assets}")
 
 
 def atomic_symlink_swap(target_dir: Path, link_path: Path) -> None:
@@ -129,7 +211,7 @@ def rebuild_site(
     try:
         proc = subprocess.run(
             [
-                "node",
+                resolve_node_executable(builder_script),
                 str(builder_script.resolve()),
                 "--api-snapshot",
                 str(snap_path),
@@ -138,8 +220,9 @@ def rebuild_site(
             ],
             capture_output=True,
             text=True,
-            timeout=60,
+            timeout=BUILD_TIMEOUT_SECS,
             check=True,
+            env=builder_environment(state_dir),
         )
         verify_built_site(target_dir)
         if chown_caddy:
@@ -171,9 +254,11 @@ def main() -> int:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     last_etag = load_text(ETAG_PATH)
     last_builder = load_text(BUILDER_DIGEST_PATH)
+    consecutive_failures = 0
 
     while True:
         conn = None
+        failed = False
         try:
             current_builder = compute_builder_digest()
             force_rebuild = (
@@ -195,7 +280,10 @@ def main() -> int:
                 if not isinstance(data, dict) or not data.get("offers"):
                     log("site_sync_skipped_empty_catalog", status=resp.status)
                 elif etag != last_etag or force_rebuild:
+                    # Only build failures back off; Hub/network errors keep the normal poll.
+                    failed = True
                     rebuild_site(body, etag, current_builder)
+                    failed = False
                     last_etag = etag
                     last_builder = current_builder
             else:
@@ -211,7 +299,15 @@ def main() -> int:
                     conn.close()
                 except Exception:
                     pass
-        time.sleep(POLL_SECS)
+        consecutive_failures = consecutive_failures + 1 if failed else 0
+        time.sleep(failure_backoff_secs(consecutive_failures))
+
+
+def failure_backoff_secs(consecutive_failures: int, poll_secs: int = POLL_SECS) -> int:
+    """A failing Next.js build is expensive, so retries back off up to 15 minutes."""
+    if consecutive_failures <= 0:
+        return poll_secs
+    return min(MAX_FAILURE_BACKOFF_SECS, max(poll_secs, 30 * 2 ** (consecutive_failures - 1)))
 
 
 if __name__ == "__main__":

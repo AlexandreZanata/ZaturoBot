@@ -62,8 +62,10 @@ operator responsibilities. Review [security](SECURITY.md) and [limits](RESOURCE_
 Updates merged to `main` are published only after `.github/workflows/check.yml` passes both
 `check` (`cargo xtask check --locked`) and `android`:
 
-1. The `release-bundle` job compiles `zaturo-hub` and `zaturo-worker`, packages the pure-Node
-   site builder, and attaches `procurali-bundle-linux-amd64.tar.gz` + `manifest.json` +
+1. The `check` job also runs the Procurali storefront suite (`npm ci && npm test`, a Next.js
+   static export). The `release-bundle` job compiles `zaturo-hub` and `zaturo-worker`, packages
+   the Next.js site builder with its pinned `node_modules` and a Node 24 runtime
+   (`deploy/procurali/package_site_builder.py`, smoke-tested in CI), and attaches `procurali-bundle-linux-amd64.tar.gz` + `manifest.json` +
    `SHA256SUMS` to an immutable `procurali-<shortsha>` GitHub Release (no VPS IP or SSH key
    exists in repository secrets).
 2. On the Linux VPS, the [Procurali auto-deploy helpers](../deploy/procurali/README.md)

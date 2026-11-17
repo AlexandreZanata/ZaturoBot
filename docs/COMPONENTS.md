@@ -49,7 +49,7 @@ stable discovery keys; [architecture.toml](../architecture.toml) is the dependen
 - `zaturo-worker` — `apps/zaturo-worker`: outbound connection, journal reconciliation,
   authorized execution, result reporting, Mercado Livre batch MinIO-upload + Hub ingestion
   CLI (`commerce ingest-ml`), official Telegram Bot API publisher/poller & human-assisted
-  WhatsApp Web draft exporter (`telegram.rs`), and reconnect.
+  WhatsApp Web draft exporter (`telegram/`), and reconnect.
 - Local MCP — `deploy/mcp`: four compact stdio tools over scoped authenticated hub APIs,
   private profile installation and inert shared coordination; no automatic executor.
 - `xtask` — `xtask`: the shared CI/local quality entry point, architecture/documentation
@@ -60,12 +60,13 @@ stable discovery keys; [architecture.toml](../architecture.toml) is the dependen
 The [Procurali content/site proposal](planning/commerce-refined/PROCURALI-BUSINESS-AND-SITE.md)
 and its creative/Fable handoffs remain planning artifacts without automatic group auto-publishing
 or model-driven recommendations. Separately, the owner-authorized Mercado Livre affiliate
-ingestor spans `crates/core/src/mercadolivre.rs`, `crates/db/src/mercadolivre.rs` (Hub
-schema 11), `crates/transfer/src/minio.rs`, `crates/services/src/mercadolivre.rs`,
-`apps/zaturo-hub/src/mercadolivre.rs`, `apps/zaturo-worker/src/mercadolivre.rs`,
-`apps/zaturo-worker/src/telegram.rs`, and the zero-downtime pull deployment helpers in
+ingestor spans `crates/core/src/mercadolivre/`, `crates/db/src/mercadolivre/` (Hub
+schema 11), `crates/transfer/src/minio.rs`, `crates/services/src/mercadolivre/`,
+`apps/zaturo-hub/src/mercadolivre/`, `apps/zaturo-worker/src/mercadolivre/`,
+`apps/zaturo-worker/src/telegram/`, and the zero-downtime pull deployment helpers in
 [Procurali deploy](../deploy/procurali/README.md),
-serving validated snapshots to the Procurali static site builder, the official Telegram Bot
+serving validated snapshots to the Procurali Next.js static-export site builder
+(`docs/planning/commerce-refined/procurali-prototype/src/build.mjs`), the official Telegram Bot
 API queue/command responder, and human-assisted WhatsApp Web draft packages without Meta API.
 
 `diagnostic` is the direct task kind. Phase 2 adds `assisted_diagnostic` with capability
@@ -89,3 +90,9 @@ native-confirmed URL → bounded PNG memory transport using a separate profile a
 existing subreaper. Typed USB SMS capture verifies foreground/keyguard around the frame
 and optionally returns to the companion under a separate grant. Native Android commands
 intercept private capture requests before ordinary chat/model submission.
+
+
+Android PreparedCapturePolicy binds automatic prepared-print opening to ready state,
+focused Hub and expiry. Hub/core recognize phone print requests and expose only an
+Android native-capture hint, preserving the private-view consent boundary. No SMS event
+or pixel-change gate applies to one-shot delivery; unchanged belongs to explicit watch.

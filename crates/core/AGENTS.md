@@ -30,7 +30,7 @@ Generation requests do not imply publication. Opening SMS is a separate confirme
 
 `intent_router.rs` validates bounded registered proposals against original owner text; `opencode.rs` owns work orders/process/billing evidence and `video_artifact.rs` owns opaque media proof. No model proposal grants additional operations.
 
-`mercadolivre.rs` owns pure validation, deterministic price/commission/installment/spec/JSON-LD parsing, UTC/Cuiabá timestamp formatting, SHA-256 evidence digests, price trend comparisons (`PriceTrendKind`, `MercadoLivrePriceComparison`, `CommerceReferenceCatalog`), site catalog mapping (`SiteCatalogSnapshot`), and pt-BR Telegram/WhatsApp formatting (SKU-deduplicated drafts and price-drop captions); preserve exact `https://meli.la/...` affiliate links and perform no I/O here.
+`mercadolivre/` (`mod.rs`, `model.rs`, `catalog.rs`, `parse.rs`, `telegram.rs`, `whatsapp.rs`, `intelligence.rs`) owns pure validation, deterministic price/commission/installment/spec/JSON-LD parsing, UTC/Cuiabá timestamp formatting, SHA-256 evidence digests, price trend comparisons (`PriceTrendKind`, `MercadoLivrePriceComparison`, `CommerceReferenceCatalog`), site catalog mapping (`SiteCatalogSnapshot`), and pt-BR Telegram/WhatsApp formatting (SKU-deduplicated drafts and price-drop captions); preserve exact `https://meli.la/...` affiliate links and perform no I/O here.
 
 
 The owner authorized0.8 remote private URL and SMS images plus source publication.
@@ -39,3 +39,9 @@ private browser profile separate from semantic sessions; SMS verifies unlocked f
 before/after capture and optional fixed companion return needs its own grant. Never
 self-approve capture, copy account profiles or publish private evidence. Preserve the
 main-PC administration/same-signature APK boundary.
+
+
+ADR-0026: a phone print is a current-screen one-shot, never SMS navigation or a send/arrival
+watch. Hub fallback returns a native Android hint without model/task execution. One-shot
+results require a frame; only explicit watch may be unchanged. Prepared print consumption
+requires ready state, focused Hub and unexpired original native confirmation.

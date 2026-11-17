@@ -146,7 +146,11 @@ impl Engine {
             let mut response="Mensagem salva sem execução automática.".to_owned();
             let mut selected_target=target.clone();
             let mut service=None;
-            let action=match request.action {
+            let phone_capture=matches!(request.action,None|Some(ChatAction::Assistant|ChatAction::AndroidOpenMessages)) && zaturo_core::requested_phone_capture(&request.message);
+            let action=if phone_capture {
+                response="Para enviar a imagem da tela atual do celular, confirme Capturar tela atual do celular no aplicativo. O print não depende de SMS novo ou enviado. Se esse botão não aparecer, atualize o aplicativo para0.8.1.".into();
+                None
+            } else {match request.action {
                 Some(ChatAction::ComputerConfirm)=>{if let zaturo_core::ChatIntent::ComputerApproval{id,allow}=zaturo_core::chat_intent(&request.message){response=crate::computer::approve(r,&id,allow,&self.limits,now)?;}else{response="Confirmação inválida. Use a ação exata exibida no aplicativo nativo.".into();}None},
                 Some(ChatAction::Assistant)=>match zaturo_core::chat_intent(&request.message) {
                     zaturo_core::ChatIntent::ComputerApproval{..}=>{response="A confirmação deve ser enviada pela interface nativa do proprietário; a IA e o MCP não podem aprovar suas próprias ações.".into();None},
@@ -173,7 +177,7 @@ impl Engine {
                         service.as_ref().map(|_|ChatAction::Assistant)
                     }
                 },other=>other,
-            };
+            }};
             let task=if let Some(action)=action {
                 let mut task=NewTask::diagnostic(selected_target.clone(),format!("chat-{}",request.idempotency_key));
                 task.request=request.message.clone();
@@ -200,7 +204,7 @@ impl Engine {
             }else{None};
             let owner=FeedItem{id:Uuid::new_v4().to_string(),created_at:now,kind:FeedKind::Chat,role:"owner".into(),text:request.message.clone(),task_id:task.as_ref().map(|t|t.id.clone()),artifact_id:None,sensitive:false,capture:None};
             r.insert_feed(&owner,&format!("chat:{}:owner",request.idempotency_key))?;
-            let message=FeedItem{id:Uuid::new_v4().to_string(),created_at:now.saturating_add(1),kind:FeedKind::Chat,role:"assistant".into(),text:response,task_id:task.as_ref().map(|t|t.id.clone()),artifact_id:None,sensitive:false,capture:None};
+            let message=FeedItem{id:Uuid::new_v4().to_string(),created_at:now.saturating_add(1),kind:FeedKind::Chat,role:"assistant".into(),text:response,task_id:task.as_ref().map(|t|t.id.clone()),artifact_id:None,sensitive:false,capture:if phone_capture {Some(zaturo_core::CaptureHint{worker:target.clone(),source:"android".into()})}else{None}};
             r.insert_feed(&message,&format!("chat:{}:reply",request.idempotency_key))?;
             let reply=ChatReply{message,task};r.save_chat(&request.idempotency_key,&request,&reply)?;Ok(reply)
         })

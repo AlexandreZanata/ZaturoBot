@@ -168,6 +168,11 @@ Native Android URL selection/bot-owned page opening and SMS foreground images re
 ephemeral relay. Source and offline validation are separate from the required0.8 Hub/APK
 rollout and actual device display acceptance. See [capture](REMOTE_PRIVATE_CAPTURE.md).
 
+Remote private capture follow-up: Android0.8.1 defaults phone/SMS prints to the current
+screen without SMS/change dependencies; ready prepared prints open automatically in
+focused Hub. Older-client fallback returns native capture metadata rather than navigation.
+Physical acceptance still requires the compatible Hub and same-signature APK rollout.
+
 ## Procurali commerce content and website planning
 
 The owner requested a business model, creative/short-video instructions, organic discovery,

@@ -37,10 +37,15 @@ on both child creation and executor grant, and permits only public browser reads
 model output nor native approval expands it into desktop observation, input or social
 actions. Explicit general computer tasks retain their separate bounded native grants.
 
-`mercadolivre.rs` owns `Engine::ingest_mercadolivre_batch` (idempotency-key + SHA-256
+`mercadolivre/` (`mod.rs`, `cache.rs`, `ingest_and_telegram.rs`, `search.rs`, `alerts.rs`) owns `Engine::ingest_mercadolivre_batch` (idempotency-key + SHA-256
 conflict detection and non-sensitive activity notice emission), `mercadolivre_site_catalog`,
 `mercadolivre_reference_catalog` (precompiled ETag-cached `CommerceReferenceCatalog` with
 30d price trends and Telegram stats), `mercadolivre_telegram_queue`, owner-only
 `approve_mercadolivre_telegram_delivery`, and `ack_mercadolivre_telegram_delivery`
 (enforcing `TelegramDeliveryStatus::ack_transition_allowed`, pre-send `queued -> sending` claim,
 freshness/superseded guards, and warm cache invalidation on ack).
+
+ADR-0026: a phone print is a current-screen one-shot, never SMS navigation or a send/arrival
+watch. Hub fallback returns a native Android hint without model/task execution. One-shot
+results require a frame; only explicit watch may be unchanged. Prepared print consumption
+requires ready state, focused Hub and unexpired original native confirmation.

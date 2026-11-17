@@ -48,7 +48,8 @@ impl FeedItem {
     pub fn validates(&self) -> bool {
         !self.sensitive
             && self.capture.as_ref().is_none_or(|c| {
-                c.source == "desktop" && crate::validate_identifier(&c.worker).is_ok()
+                matches!(c.source.as_str(), "desktop" | "android")
+                    && crate::validate_identifier(&c.worker).is_ok()
             })
             && !self.id.is_empty()
             && self.id.len() <= 64
