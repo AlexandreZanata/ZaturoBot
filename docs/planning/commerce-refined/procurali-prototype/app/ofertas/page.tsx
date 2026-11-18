@@ -1,38 +1,27 @@
 import { getCatalog } from "@/lib/catalog";
 import { breadcrumbLd, pageMetadata } from "@/lib/seo";
-import { JsonLd, Notice, PageHero } from "@/components/site/primitives";
+import { JsonLd, PageHero } from "@/components/site/primitives";
 import { OffersExplorer } from "@/components/pages/offers-explorer";
 
 export const metadata = pageMetadata({
   route: "/ofertas/",
-  title: "Ofertas e registros demonstrativos",
-  description: "Filtre ofertas de demonstração por categoria, faixa de preço e condição com transparência de observação.",
+  title: "Ofertas do Mercado Livre com preço conferido",
+  description: "Compare ofertas do Mercado Livre por categoria, faixa de preço e condição, com horário de observação e link de afiliado sinalizado.",
 });
 
 export default function OffersPage() {
   const catalog = getCatalog();
+  const liveCount = catalog.offers.filter((o) => !o.isDemoFixture && o.state === "approved").length;
   return (
     <>
       <JsonLd data={[breadcrumbLd([{ name: "Início", path: "/" }, { name: "Ofertas", path: "/ofertas/" }])]} />
       <PageHero
         crumbs={[{ label: "Início", href: "/" }, { label: "Ofertas" }]}
-        kicker="Catálogo de testes · 4 ofertas reais Mercado Livre + fixtures"
-        title="Ofertas e registros observados"
-        lead={
-          <>
-            Filtre por categoria, faixa de preço e condições documentadas. Itens reais do Mercado Livre trazem link oficial{" "}
-            <code>meli.la</code> sinalizado; fixtures de demonstração mantêm o botão desativado.
-          </>
-        }
+        kicker={`${liveCount} ${liveCount === 1 ? "oferta ativa" : "ofertas ativas"} · Mercado Livre`}
+        title="Ofertas com preço conferido"
+        lead="Filtre por categoria, faixa de preço e condição. Cada oferta mostra quando o preço foi observado, e o link de afiliado vem sempre sinalizado."
       />
       <div className="container-site py-10">
-        <Notice variant="warning" className="mb-8">
-          <p>
-            <strong>Composição do catálogo de testes:</strong> 4 ofertas reais de hardware/periféricos do Mercado Livre Afiliados
-            (links oficiais <code>meli.la</code>) + 6 fixtures demonstrativos para testar estados reais do sistema (ativos demo,
-            desatualizado &gt;30 min, expirado histórico e bloqueado por mídia).
-          </p>
-        </Notice>
         <OffersExplorer offers={catalog.offers} categories={catalog.categories} mediaRights={catalog.mediaRights} />
       </div>
     </>

@@ -87,7 +87,7 @@ export function SiteFooter() {
         <div className="container-site flex flex-col gap-2 py-6 text-xs text-muted sm:flex-row sm:justify-between">
           <span>{SITE_META.affiliateDisclosure}</span>
           <span>
-            Ambiente de testes sem coleta oculta · ofertas reais sinalizadas como link de afiliado · {SITE_META.domain}
+            Sem coleta oculta · ofertas sinalizadas como link de afiliado · {SITE_META.domain}
           </span>
         </div>
       </div>

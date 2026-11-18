@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { SITE_META } from "@/data/demo-catalog.mjs";
-import { getCatalog } from "@/lib/catalog";
 import { SiteHeader } from "@/components/site/header";
 import { SiteFooter } from "@/components/site/footer";
 import { BottomNav } from "@/components/site/bottom-nav";
@@ -46,9 +45,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { themeColor: "#143D2B", width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const offers = getCatalog().offers;
-  const liveCount = offers.filter((o) => !o.isDemoFixture && o.state === "approved").length;
-  const demoCount = offers.filter((o) => o.isDemoFixture).length;
   return (
     <html lang="pt-BR" className={`${firaSans.variable} ${firaMono.variable}`}>
       <body>
@@ -59,24 +55,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Pular para o conteúdo principal
         </a>
         <SavedProvider>
-          <div role="note" aria-label="Aviso de ambiente de testes" className="border-b border-line text-xs text-muted">
-            <div className="container-site flex min-h-8 items-center justify-between gap-4 py-1.5">
-              <span>
-                <strong className="font-medium text-ink">Catálogo em teste</strong>
-                <span className="hidden sm:inline">
-                  {" "}
-                  — {liveCount} {liveCount === 1 ? "oferta real" : "ofertas reais"} do Mercado Livre
-                  {demoCount > 0 ? " + fixtures de estado" : ""}
-                </span>
-              </span>
-              <span className="hidden md:inline">
-                Canal oficial:{" "}
-                <a href={SITE_META.telegramUrl} target="_blank" rel="noopener" className="text-ink underline decoration-neutral-300 underline-offset-2">
-                  {SITE_META.telegramHandle}
-                </a>
-              </span>
-            </div>
-          </div>
           <SiteHeader telegramUrl={SITE_META.telegramUrl} />
           <main id="conteudo-principal" tabIndex={-1} className="outline-none">
             {children}

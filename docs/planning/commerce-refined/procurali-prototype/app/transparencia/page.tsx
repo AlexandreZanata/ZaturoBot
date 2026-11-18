@@ -32,7 +32,7 @@ export default function TransparencyPage() {
         </li>
         <li>
           <strong>Estado atual do piloto:</strong> a inscrição no programa de afiliados da Shopee com o canal no Telegram segue sob
-          análise; as 4 ofertas reais de hardware do <strong>Mercado Livre Afiliados</strong> presentes neste protótipo utilizam links
+          análise; as ofertas reais do <strong>Mercado Livre Afiliados</strong> publicadas aqui utilizam links
           oficiais <code>meli.la</code> para validação de fluxo, enquanto os demais itens fictícios de demonstração mantêm o botão
           desativado.
         </li>
