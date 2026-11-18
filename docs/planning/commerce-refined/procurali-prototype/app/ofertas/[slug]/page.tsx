@@ -8,10 +8,12 @@ import {
   formatTelegramHtmlOffer,
   formatWhatsappWebAssistedText,
   isOfferFresh,
+  offerKind,
+  priceStats,
   verifySevenDaySample,
 } from "@/lib/contracts.mjs";
 import { usablePriceIntelligence } from "@/lib/price-intel";
-import { breadcrumbLd, pageMetadata } from "@/lib/seo";
+import { breadcrumbLd, pageMetadata, absoluteUrl, canonicalUrl, isIndexableOffer } from "@/lib/seo";
 import { Badge, Breadcrumbs, JsonLd, Notice } from "@/components/site/primitives";
 import { PriceIntelPanel } from "@/components/site/price-intel";
 import { AffiliateCta, MiniOfferCard, PriceBlock, StatusBadge, mediaSrc } from "@/components/site/offer";
@@ -38,6 +40,7 @@ export async function generateMetadata({ params }: Params) {
       ? `${offer.oneLineReason} Registro real do Mercado Livre observado em ${offer.observedAtDisplay}.`
       : `${offer.oneLineReason} Dados demonstrativos fictícios com horário de observação e limitações.`,
     ogImage: offer.imagePath,
+    noindex: !isIndexableOffer(offer),
   });
 }
 
@@ -61,7 +64,14 @@ export default async function OfferDetailPage({ params }: Params) {
   const freshness = isOfferFresh(offer, SITE_META.prototypeReferenceTimeUtc);
   const sevenDay = verifySevenDaySample(offer);
   const cta = buildOfficialAffiliateAnchorProps(offer, catalog.mediaRights);
-  const alternatives = catalog.offers.filter((o) => (offer.alternativeOfferSlugs || []).includes(o.slug));
+  // Same-kind offers first (true price comparison), then the editor's suggested alternatives.
+  const kind = offerKind(offer);
+  const sameKind = catalog.offers.filter((o) => o.slug !== offer.slug && o.state === "approved" && offerKind(o) === kind);
+  const suggested = catalog.offers.filter(
+    (o) => (offer.alternativeOfferSlugs || []).includes(o.slug) && !sameKind.some((s) => s.slug === o.slug)
+  );
+  const alternatives = [...sameKind.sort((a, b) => a.priceBrlCents - b.priceBrlCents), ...suggested].slice(0, 4);
+  const obsStats = priceStats(offer.priceObservations.map((o) => o.priceBrlCents));
   const gallery = (offer.galleryPaths || []).map((g) => ({ src: mediaSrc(g.path), alt: g.alt }));
   const specs = offer.specs || [];
   const variants = offer.variants || [];
@@ -78,6 +88,29 @@ export default async function OfferDetailPage({ params }: Params) {
       { name: offer.title, path: route },
     ]),
   ];
+  if (isIndexableOffer(offer)) {
+    jsonLd.push({
+      "@context": "https://schema.org",
+      "@type": "Product",
+      name: offer.title,
+      description: offer.oneLineReason,
+      image: [offer.imagePath, ...(offer.galleryPaths || []).map((g) => g.path)].filter(Boolean).map(absoluteUrl),
+      sku: offer.productId || undefined,
+      ...(offer.brand ? { brand: { "@type": "Brand", name: offer.brand } } : {}),
+      ...(offer.model ? { model: offer.model } : {}),
+      category: category?.name,
+      offers: {
+        "@type": "Offer",
+        url: canonicalUrl(route),
+        priceCurrency: "BRL",
+        price: (offer.priceBrlCents / 100).toFixed(2),
+        availability: offer.availability === "InStock" ? "https://schema.org/InStock" : "https://schema.org/LimitedAvailability",
+        itemCondition: "https://schema.org/NewCondition",
+        ...(offer.priceValidUntil ? { priceValidUntil: offer.priceValidUntil } : {}),
+        seller: { "@type": "Organization", name: offer.sellerName || offer.merchant || "Mercado Livre" },
+      },
+    });
+  }
   if (faqItems.length > 0) {
     jsonLd.push({
       "@context": "https://schema.org",
@@ -427,6 +460,25 @@ export default async function OfferDetailPage({ params }: Params) {
           <SectionHeading sub={offer.sevenDayCoverageNote}>
             Histórico de observações de preço ({offer.priceObservations.length})
           </SectionHeading>
+          {obsStats && obsStats.count > 1 && (
+            <dl className="mb-6 grid max-w-xl grid-cols-3 gap-6">
+              {[
+                ["Menor observado", obsStats.min],
+                ["Média observada", obsStats.avg],
+                ["Maior observado", obsStats.max],
+              ].map(([label, cents]) => (
+                <div key={label as string}>
+                  <dt className="text-xs text-muted">{label}</dt>
+                  <dd className="mt-1 text-lg font-semibold text-ink tabular-nums">{formatBrl(cents as number)}</dd>
+                </div>
+              ))}
+              <p className="col-span-3 -mt-3 text-sm text-neutral-700">
+                {offer.priceBrlCents <= obsStats.min
+                  ? "O preço atual é o menor da série observada."
+                  : `O preço atual está ${formatBrl(offer.priceBrlCents - obsStats.min)} acima do menor valor observado.`}
+              </p>
+            </dl>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="border-b border-line text-xs tracking-wide text-muted uppercase">
@@ -521,13 +573,26 @@ export default async function OfferDetailPage({ params }: Params) {
 
         {alternatives.length > 0 && (
           <section>
-            <SectionHeading>Alternativas para comparar</SectionHeading>
+            <SectionHeading>{sameKind.length > 0 ? "Compare com similares" : "Também pode interessar"}</SectionHeading>
             <div className="grid gap-x-16 md:grid-cols-2">
-              {alternatives.map((alt) => (
-                <MiniOfferCard key={alt.slug} offer={alt}>
-                  <p className="mt-1 line-clamp-2 text-sm text-neutral-600">{alt.oneLineReason}</p>
-                </MiniOfferCard>
-              ))}
+              {alternatives.map((alt) => {
+                const delta = alt.priceBrlCents - offer.priceBrlCents;
+                const comparable = offerKind(alt) === kind;
+                return (
+                  <MiniOfferCard key={alt.slug} offer={alt}>
+                    {comparable ? (
+                      <p className={delta < 0 ? "text-xs font-medium text-emerald-700" : "text-xs text-neutral-700"}>
+                        {delta === 0
+                          ? "Mesmo preço deste item"
+                          : `${formatBrl(Math.abs(delta))} ${delta < 0 ? "mais barato" : "mais caro"} que este item`}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted">Complemento · outro tipo de produto, sem comparação de preço</p>
+                    )}
+                    <p className="mt-1 line-clamp-2 text-sm text-neutral-600">{alt.oneLineReason}</p>
+                  </MiniOfferCard>
+                );
+              })}
             </div>
           </section>
         )}

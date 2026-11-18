@@ -24,7 +24,9 @@ export function getOffer(slug: string): Offer | undefined {
 function cardsFromCatalog(offers: Offer[]): ShowcaseCard[] {
   return offers
     .filter((o) => o.state === "approved" || o.state === "stale")
-    .slice(0, 8)
+    // Approved listings first so stale ones never push live offers off the home page.
+    .sort((a, b) => Number(a.state !== "approved") - Number(b.state !== "approved"))
+    .slice(0, 12)
     .map((o, idx) => {
       const isStale = o.state === "stale";
       return {

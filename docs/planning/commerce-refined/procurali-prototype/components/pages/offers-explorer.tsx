@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
 import { RotateCcw, Search } from "lucide-react";
-import { filterAndSortOffers } from "@/lib/contracts.mjs";
+import { comparePricesByKind, formatBrl, priceStats, searchOffers } from "@/lib/contracts.mjs";
 import type { Category, MediaRight, Offer } from "@/lib/types";
 import { OfferRow } from "@/components/site/offer";
 import { Notice } from "@/components/site/primitives";
@@ -102,7 +101,22 @@ export function OffersExplorer({
     }
   }, [state, hydrated]);
 
-  const results = useMemo(() => filterAndSortOffers(offers, state), [offers, state]);
+  // Category names are searchable too ("iluminação", "organização de mesa").
+  const searchable = useMemo(() => {
+    const names = new Map(categories.map((c) => [c.slug, c.name]));
+    return offers.map((o) => ({ ...o, categoryName: names.get(o.categorySlug) || "" }));
+  }, [offers, categories]);
+  const { results, approximate } = useMemo(() => searchOffers(searchable, state), [searchable, state]);
+  const comparison = useMemo(() => comparePricesByKind(results), [results]);
+  // Never leave an empty page: suggest the active catalog when the filters match nothing.
+  const suggestions = useMemo(
+    () => (results.length === 0 ? searchOffers(searchable, { statusFilter: "ativas" }).results.slice(0, 4) : []),
+    [searchable, results.length]
+  );
+  const stats = useMemo(
+    () => priceStats(results.filter((o) => o.state === "approved").map((o) => o.priceBrlCents)),
+    [results]
+  );
   const set = (patch: Partial<FilterState>) => setState((prev) => ({ ...prev, ...patch }));
   const dirty = PARAMS.some(([key]) => state[key] !== DEFAULTS[key]);
 
@@ -207,44 +221,68 @@ export function OffersExplorer({
       </form>
 
       <div className="min-w-0">
-        <p id="offers-results-count" aria-live="polite" className="mb-4 text-sm text-muted">
-          <strong className="text-ink">{results.length} oferta(s)</strong> exibida(s) · Ordenação:{" "}
-          {SORT_LABELS[state.sort] || SORT_LABELS.relevance}.
-        </p>
-        <div id="offers-results" className="border-b border-line">
-          <AnimatePresence initial={false} mode="popLayout">
-            {results.length === 0 ? (
-              <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <Notice variant="warning">
-                  <h3 className="font-semibold">Nenhuma oferta encontrada com esses filtros</h3>
-                  <p>
-                    Nenhuma opção do catálogo demonstrativo corresponde a todos os critérios escolhidos (ou itens
-                    desatualizados/expirados estão ocultos pelo filtro atual).
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setState(DEFAULTS)}
-                    className="mt-1 inline-flex min-h-10 items-center rounded-md border border-amber-300 bg-white px-4 text-sm font-semibold"
-                  >
-                    Limpar filtros
-                  </button>
-                </Notice>
-              </motion.div>
-            ) : (
-              results.map((offer) => (
-                <motion.div
-                  key={offer.slug}
-                  layout
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.98 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <OfferRow offer={offer} mediaRights={mediaRights} headingLevel={2} />
-                </motion.div>
-              ))
-            )}
-          </AnimatePresence>
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-x-6 gap-y-3 border-b border-line pb-4">
+          <p id="offers-results-count" aria-live="polite" className="text-sm text-muted">
+            <strong className="text-ink">
+              {results.length} {results.length === 1 ? "oferta" : "ofertas"}
+            </strong>
+            {state.query.trim() ? <> para “{state.query.trim()}”</> : null} · {SORT_LABELS[state.sort] || SORT_LABELS.relevance}
+          </p>
+          {stats && stats.count > 1 && (
+            <dl className="flex gap-6 text-xs text-muted" aria-label="Comparação de preços dos resultados">
+              <div>
+                <dt>Menor</dt>
+                <dd className="mt-0.5 text-sm font-semibold text-ink tabular-nums">{formatBrl(stats.min)}</dd>
+              </div>
+              <div>
+                <dt>Média</dt>
+                <dd className="mt-0.5 text-sm font-semibold text-ink tabular-nums">{formatBrl(stats.avg)}</dd>
+              </div>
+              <div>
+                <dt>Maior</dt>
+                <dd className="mt-0.5 text-sm font-semibold text-ink tabular-nums">{formatBrl(stats.max)}</dd>
+              </div>
+            </dl>
+          )}
+        </div>
+        {approximate && (
+          <p className="mb-2 text-sm text-neutral-700">
+            Nenhuma oferta tem todas as palavras buscadas. Mostrando as mais próximas, da mais para a menos relevante.
+          </p>
+        )}
+        <div id="offers-results" className="border-b border-line [&>div:first-child>article]:border-t-0">
+          {results.length === 0 ? (
+            <Notice variant="warning">
+              <h3 className="font-semibold">Nenhuma oferta encontrada com esses filtros</h3>
+              <p>
+                Nenhuma opção do catálogo corresponde a todos os critérios escolhidos (ou itens
+                desatualizados/expirados estão ocultos pelo filtro atual).
+              </p>
+              <button
+                type="button"
+                onClick={() => setState(DEFAULTS)}
+                className="mt-1 inline-flex min-h-10 items-center rounded-md border border-amber-300 bg-white px-4 text-sm font-semibold"
+              >
+                Limpar filtros
+              </button>
+            </Notice>
+          ) : null}
+          {suggestions.length > 0 && (
+            <div className="mt-10">
+              <h3 className="text-sm font-semibold text-ink">Ofertas ativas que podem interessar</h3>
+              {suggestions.map((offer) => (
+                <OfferRow key={offer.slug} offer={offer} mediaRights={mediaRights} headingLevel={2} />
+              ))}
+            </div>
+          )}
+          {results.length === 0 ? null : (
+            // Plain keyed list: exit animations could leave filtered-out rows on screen.
+            results.map((offer) => (
+              <div key={offer.slug} className="animate-[fade-in_200ms_ease-out]">
+                <OfferRow offer={offer} mediaRights={mediaRights} headingLevel={2} comparison={comparison[offer.slug]} />
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

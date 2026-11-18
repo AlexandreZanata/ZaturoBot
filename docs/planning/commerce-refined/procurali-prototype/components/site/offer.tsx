@@ -3,6 +3,7 @@ import { ArrowUpRight } from "lucide-react";
 import { SITE_META } from "@/data/demo-catalog.mjs";
 import { buildOfficialAffiliateAnchorProps, formatBrl, resolveMediaSrc, verifySevenDaySample } from "@/lib/contracts.mjs";
 import type { MediaRight, Offer, ShowcaseCard } from "@/lib/types";
+import type { PriceComparison } from "@/lib/contracts.mjs";
 import { Badge, buttonClass } from "@/components/site/primitives";
 import { SaveButton } from "@/components/site/saved";
 import { CopyButton } from "@/components/site/copy-button";
@@ -60,6 +61,17 @@ export function PriceBlock({ offer, size = "md" }: { offer: Offer; size?: "md" |
         </p>
       )}
     </div>
+  );
+}
+
+/** Like-for-like price position among offers of the same product kind. */
+export function ComparisonNote({ comparison }: { comparison: PriceComparison }) {
+  return comparison.isCheapest ? (
+    <p className="text-xs font-medium text-emerald-700">Menor preço entre {comparison.peers} similares</p>
+  ) : (
+    <p className="text-xs text-neutral-700">
+      <span className="tabular-nums">{formatBrl(comparison.deltaCents)}</span> acima do similar mais barato
+    </p>
   );
 }
 
@@ -121,10 +133,12 @@ export function OfferRow({
   offer,
   mediaRights,
   headingLevel = 3,
+  comparison,
 }: {
   offer: Offer;
   mediaRights: MediaRight[];
   headingLevel?: 2 | 3;
+  comparison?: PriceComparison;
 }) {
   const Heading = headingLevel === 2 ? "h2" : "h3";
   const sevenDay = verifySevenDaySample(offer);
@@ -164,6 +178,7 @@ export function OfferRow({
       </div>
       <div className="flex flex-col gap-1.5 sm:col-start-2 lg:col-start-3">
         <PriceBlock offer={offer} />
+        {comparison && <ComparisonNote comparison={comparison} />}
         <p className="text-xs text-muted">{offer.installmentSummary || offer.shortCondition || offer.paymentConditions}</p>
         {offer.validUntilDisplay && <p className="text-xs text-amber-800">{offer.validUntilDisplay}</p>}
         <p className="text-xs text-muted">Obs. {offer.observedAtDisplay} · frete não incluído</p>
