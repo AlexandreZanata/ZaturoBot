@@ -4,6 +4,7 @@ import { buttonClass } from "@/components/site/primitives";
 export const metadata = {
   title: { absolute: "Página não encontrada (404) — Procurali" },
   description: "Página não encontrada neste protótipo do Procurali.",
+  robots: { index: false, follow: true },
 };
 
 export default function NotFound() {

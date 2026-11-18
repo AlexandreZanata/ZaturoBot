@@ -43,6 +43,12 @@ export function canonicalUrl(routePath) {
   return `https://${SITE_META.domain}${clean}`;
 }
 
+/**
+ * Product states the public site may render. Hub products still waiting for the owner's
+ * approval (`candidate`) or withdrawn are never published, not even as unavailable pages.
+ */
+const PUBLISHABLE_STATES = new Set(["approved", "stale", "expired", "missing_rights"]);
+
 function mergeCatalogSnapshot(snapshot, sourceLabel) {
   const snapshotCats = Array.isArray(snapshot.categories) ? snapshot.categories : [];
   const seenCats = new Set(snapshotCats.map((c) => c.slug));
@@ -50,7 +56,7 @@ function mergeCatalogSnapshot(snapshot, sourceLabel) {
     schemaVersion: snapshot.schemaVersion || 1,
     generatedAtUtc: snapshot.generatedAtUtc || new Date().toISOString(),
     sourceLabel,
-    offers: snapshot.offers || [],
+    offers: (snapshot.offers || []).filter((o) => PUBLISHABLE_STATES.has(o?.state)),
     categories: [...snapshotCats, ...CATEGORIES.filter((c) => !seenCats.has(c.slug))],
     mediaRights:
       Array.isArray(snapshot.mediaRights) && snapshot.mediaRights.length > 0
@@ -101,39 +107,63 @@ export async function resolveCatalog(options = {}) {
   };
 }
 
-/** Public routes listed in the sitemap (excludes /cms-preview/, /criativos/ and 404). */
-export function sitemapRoutes(catalog) {
+/** Offer pages that search engines may index: real, approved Mercado Livre listings only. */
+export function isIndexableOffer(offer) {
+  return !offer.isDemoFixture && offer.state === "approved";
+}
+
+function isoDate(value, fallback) {
+  const ms = Date.parse(value || "");
+  return Number.isFinite(ms) ? new Date(ms).toISOString().slice(0, 10) : fallback;
+}
+
+/**
+ * Sitemap entries with real last-modified dates. Excludes /cms-preview/, /criativos/, 404,
+ * demo fixtures, unavailable offers and categories without any indexable offer.
+ */
+export function sitemapEntries(catalog) {
+  const catalogDate = isoDate(catalog.generatedAtUtc, new Date().toISOString().slice(0, 10));
+  const offers = catalog.offers.filter(isIndexableOffer);
+  const offerDate = (o) => isoDate(o.observedAt, catalogDate);
+  const newestIn = (list) => list.map(offerDate).sort().at(-1) || catalogDate;
+  const listed = new Set(offers.map((o) => o.categorySlug));
+  const page = (route, lastmod = catalogDate, priority = "0.5", changefreq = "weekly") => ({ route, lastmod, priority, changefreq });
   return [
-    "/",
-    "/ofertas/",
-    ...catalog.offers.map((o) => `/ofertas/${o.slug}/`),
-    "/categorias/",
-    ...catalog.categories.map((c) => `/categorias/${c.slug}/`),
-    "/guias/",
-    ...GUIDES.map((g) => `/guias/${g.slug}/`),
-    "/selecoes-da-semana/",
-    "/encontre-com-ia/",
-    "/grupos/",
-    "/sobre/",
-    "/como-selecionamos/",
-    "/transparencia/",
-    "/privacidade/",
-    "/termos/",
-    "/contato/",
+    page("/", newestIn(offers), "1.0", "daily"),
+    page("/ofertas/", newestIn(offers), "0.9", "daily"),
+    ...offers.map((o) => page(`/ofertas/${o.slug}/`, offerDate(o), "0.8", "daily")),
+    page("/categorias/", catalogDate, "0.6"),
+    ...catalog.categories
+      .filter((c) => listed.has(c.slug))
+      .map((c) => page(`/categorias/${c.slug}/`, newestIn(offers.filter((o) => o.categorySlug === c.slug)), "0.7", "daily")),
+    page("/guias/", catalogDate, "0.7"),
+    ...GUIDES.map((g) => page(`/guias/${g.slug}/`, catalogDate, "0.7", "monthly")),
+    page("/selecoes-da-semana/", catalogDate, "0.6"),
+    page("/encontre-com-ia/", catalogDate, "0.4", "monthly"),
+    page("/grupos/", catalogDate, "0.4", "monthly"),
+    ...["/sobre/", "/como-selecionamos/", "/transparencia/", "/privacidade/", "/termos/", "/contato/"].map((r) =>
+      page(r, catalogDate, "0.3", "yearly")
+    ),
   ];
 }
 
-const ROBOTS_TXT = `# Procurali — Ambiente de protótipo / staging
-# Em staging de demonstração, manter indexação bloqueada.
-# Antes do lançamento em procurali.com.br, substituir por:
-# User-agent: *
-# Allow: /
-# Disallow: /cms-preview/
-# Sitemap: https://procurali.com.br/sitemap.xml
+/** Public routes listed in the sitemap. */
+export function sitemapRoutes(catalog) {
+  return sitemapEntries(catalog).map((e) => e.route);
+}
 
+const ROBOTS_TXT = `# Procurali — guia independente de compras
 User-agent: *
-Disallow: /
+Allow: /
+Disallow: /api/
+# /cms-preview/ and /criativos/ stay crawlable so engines can read their noindex tag.
+
+Sitemap: https://${SITE_META.domain}/sitemap.xml
 `;
+
+function xmlEscape(value) {
+  return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
 
 export async function prepare(options = {}) {
   const generatedDir = options.generatedDir ?? path.join(ROOT, ".generated");
@@ -175,8 +205,11 @@ export async function prepare(options = {}) {
 
   const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${sitemapRoutes(catalog)
-  .map((r) => `  <url>\n    <loc>${canonicalUrl(r)}</loc>\n    <lastmod>2026-11-15</lastmod>\n  </url>`)
+${sitemapEntries(catalog)
+  .map(
+    (e) =>
+      `  <url>\n    <loc>${xmlEscape(canonicalUrl(e.route))}</loc>\n    <lastmod>${e.lastmod}</lastmod>\n    <changefreq>${e.changefreq}</changefreq>\n    <priority>${e.priority}</priority>\n  </url>`
+  )
   .join("\n")}
 </urlset>
 `;

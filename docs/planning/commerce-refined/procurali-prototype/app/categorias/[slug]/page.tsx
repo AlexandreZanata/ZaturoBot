@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { GUIDES } from "@/data/demo-catalog.mjs";
 import { getCatalog } from "@/lib/catalog";
-import { breadcrumbLd, pageMetadata } from "@/lib/seo";
+import { breadcrumbLd, pageMetadata, isIndexableOffer } from "@/lib/seo";
 import { JsonLd, PageHero, SectionTitle } from "@/components/site/primitives";
 import { OfferRow } from "@/components/site/offer";
 
@@ -15,9 +15,17 @@ export function generateStaticParams() {
 
 export async function generateMetadata({ params }: Params) {
   const { slug } = await params;
-  const cat = getCatalog().categories.find((c) => c.slug === slug);
+  const catalog = getCatalog();
+  const cat = catalog.categories.find((c) => c.slug === slug);
   if (!cat) return {};
-  return pageMetadata({ route: `/categorias/${cat.slug}/`, title: `${cat.name} — Categoria`, description: cat.description });
+  // Categories holding only demo fixtures stay out of search results (and of sitemap.xml).
+  const hasLiveOffer = catalog.offers.some((o) => o.categorySlug === cat.slug && isIndexableOffer(o));
+  return pageMetadata({
+    route: `/categorias/${cat.slug}/`,
+    title: `${cat.name} — Categoria`,
+    description: cat.description,
+    noindex: !hasLiveOffer,
+  });
 }
 
 export default async function CategoryPage({ params }: Params) {

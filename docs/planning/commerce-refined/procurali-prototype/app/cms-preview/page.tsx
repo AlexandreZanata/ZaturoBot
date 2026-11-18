@@ -8,6 +8,7 @@ export const metadata = pageMetadata({
   route: "/cms-preview/",
   title: "Mockup de fila editorial e contratos (não produtivo)",
   description: "Prévia visual não produtiva das aprovações, teto de IA e Search Console.",
+  noindex: true,
 });
 
 export default function CmsPreviewPage() {
@@ -125,8 +126,8 @@ export default function CmsPreviewPage() {
             <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm text-neutral-700 marker:text-neutral-300">
               <li>Nenhuma propriedade conectada nem token de verificação foi inserido neste protótipo.</li>
               <li>
-                Antes de publicar em <code>procurali.com.br</code>, remova a meta tag global de staging <code>noindex</code> nas páginas
-                públicas e mantenha <code>/cms-preview/</code> protegido e fora do índice.
+                As páginas públicas já são indexáveis; <code>/cms-preview/</code>, <code>/criativos/</code>, fixtures de demonstração e
+                ofertas indisponíveis ficam com <code>noindex</code> e fora do <code>sitemap.xml</code>.
               </li>
               <li>
                 Verifique a propriedade do domínio no Search Console após configurar DNS/TLS e envie <code>sitemap.xml</code>.

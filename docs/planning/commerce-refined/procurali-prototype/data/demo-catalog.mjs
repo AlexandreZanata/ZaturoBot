@@ -35,7 +35,7 @@ export const SITE_META = {
   affiliateDisclosure: "Link de afiliado: podemos receber comissão se você comprar.",
   priceChangeNotice:
     "Preço e disponibilidade podem mudar. Confirme as condições na loja.",
-  isDemoStaging: true,
+  isDemoStaging: false,
 };
 
 export const AI_BUDGET_POLICY = {

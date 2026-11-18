@@ -12,6 +12,17 @@ export function buildOfficialAffiliateAnchorProps(
 ): { enabled: boolean; href: string | null; rel: string | null; target: string | null; label: string; reason: string };
 export function checkForbiddenClaims(text: string): string[];
 export function filterAndSortOffers(offers: Offer[], state: Record<string, unknown>): Offer[];
+export function searchOffers(
+  offers: Offer[],
+  state: Record<string, unknown>
+): { results: Offer[]; approximate: boolean; tokens: string[] };
+export function normalizeSearchText(text: string): string;
+export function searchTokens(query: string): string[];
+export function scoreOfferForQuery(offer: Offer, tokens: string[]): { matched: number; score: number };
+export function offerKind(offer: Offer): string;
+export type PriceComparison = { peers: number; cheapestCents: number; deltaCents: number; isCheapest: boolean };
+export function comparePricesByKind(offers: Offer[]): Record<string, PriceComparison>;
+export function priceStats(cents: number[]): { min: number; max: number; avg: number; count: number } | null;
 export type FinderMatch = {
   slug: string;
   title: string;

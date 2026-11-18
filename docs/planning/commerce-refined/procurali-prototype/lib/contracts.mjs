@@ -291,13 +291,110 @@ export function checkForbiddenClaims(text) {
   return FORBIDDEN_UNSUPPORTED_CLAIMS.filter((phrase) => normalized.includes(phrase));
 }
 
+const SEARCH_STOPWORDS = new Set([
+  "a", "o", "as", "os", "um", "uma", "de", "da", "do", "das", "dos", "e", "em", "no", "na", "nos", "nas",
+  "com", "sem", "para", "pra", "por", "ate", "que", "ou", "pol", "polegada", "polegadas",
+]);
+
+/** Lowercase, accent-free text with punctuation collapsed to spaces ("Mecânico" → "mecanico"). */
+export function normalizeSearchText(text) {
+  return String(text || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+/** Meaningful query tokens: accent-free, without Portuguese stopwords or single letters. */
+export function searchTokens(query) {
+  return normalizeSearchText(query)
+    .split(" ")
+    .filter((t) => t.length > 1 && !SEARCH_STOPWORDS.has(t));
+}
+
 /**
- * Filters and sorts catalog offers explicitly.
+ * Everyday Portuguese words mapped to the catalog vocabulary, so "fone", "tela" or
+ * "armazenamento" still find headsets, monitors and SSDs.
+ */
+const SEARCH_SYNONYMS = {
+  fone: ["headset", "fone"],
+  fones: ["headset", "fone"],
+  ouvido: ["headset"],
+  headphone: ["headset"],
+  tela: ["monitor"],
+  display: ["monitor"],
+  gamer: ["gamer", "gaming"],
+  armazenamento: ["ssd", "armazenamento"],
+  hd: ["ssd", "hd"],
+  disco: ["ssd"],
+  m2: ["m 2", "nvme"],
+  periferico: ["periferico", "teclado", "headset", "mouse"],
+  perifericos: ["periferico", "teclado", "headset", "mouse"],
+  carregador: ["carregador", "gan"],
+  luminaria: ["luminaria", "iluminacao"],
+  luz: ["luminaria", "iluminacao"],
+  cabo: ["cabo", "cabos"],
+  tomada: ["tomada", "tomadas", "filtro"],
+  adaptador: ["adaptador", "hub"],
+  suporte: ["suporte"],
+  escritorio: ["home office", "mesa"],
+  ergonomico: ["ergonomia"],
+  ergonomica: ["ergonomia"],
+};
+
+function tokenVariants(token) {
+  const variants = [token, ...(SEARCH_SYNONYMS[token] || []).map((v) => v.replace(/ /g, ""))];
+  // Simple plural folding: "teclados" → "teclado", "monitores" → "monitor".
+  if (token.length > 4 && token.endsWith("es")) variants.push(token.slice(0, -2));
+  if (token.length > 3 && token.endsWith("s")) variants.push(token.slice(0, -1));
+  return variants;
+}
+
+function fieldMatches(field, token) {
+  // `compact` lets "200 hz" match "200Hz" and "pcie 4" match "pcie-4".
+  return tokenVariants(token).some((v) => field.words.some((w) => w.startsWith(v)) || field.compact.includes(v));
+}
+
+function searchFields(offer) {
+  const weighted = [
+    [3, [offer.title, offer.brand, offer.model]],
+    [2, [offer.exactVariant, offer.productId, ...(offer.tags || [])]],
+    [1, [offer.oneLineReason, offer.forWhomItMakesSense, offer.sellerName, offer.merchant, offer.categorySlug, offer.categoryName]],
+  ];
+  return weighted.map(([weight, parts]) => {
+    const text = normalizeSearchText(parts.filter(Boolean).join(" "));
+    return { weight, words: text.split(" "), compact: text.replace(/ /g, "") };
+  });
+}
+
+/**
+ * Scores an offer for the query tokens: matched token count and a weighted relevance score
+ * (title/brand/model hits weigh more than tags, which weigh more than editorial text).
+ */
+export function scoreOfferForQuery(offer, tokens) {
+  const fields = searchFields(offer);
+  let matched = 0;
+  let score = 0;
+  for (const token of tokens) {
+    const best = fields.reduce((acc, f) => (fieldMatches(f, token) ? Math.max(acc, f.weight) : acc), 0);
+    if (best > 0) {
+      matched += 1;
+      score += best;
+    }
+  }
+  return { matched, score };
+}
+
+/**
+ * Filters and sorts catalog offers explicitly, and reports how the text query matched.
+ * Every meaningful query word must match (accent- and plural-insensitive); when none of the
+ * offers match every word, offers matching some of the words are returned as `approximate`.
  * @param {Array<object>} offers
  * @param {object} options
- * @returns {Array<object>}
+ * @returns {{results: Array<object>, approximate: boolean, tokens: Array<string>}}
  */
-export function filterAndSortOffers(
+export function searchOffers(
   offers,
   {
     category = "todas",
@@ -308,7 +405,7 @@ export function filterAndSortOffers(
     statusFilter = "ativas",
   } = {}
 ) {
-  const q = String(query || "").trim().toLowerCase();
+  const tokens = searchTokens(query);
 
   const filtered = offers.filter((offer) => {
     if (statusFilter === "ativas" && offer.state !== "approved") {
@@ -329,43 +426,94 @@ export function filterAndSortOffers(
     if (condition === "com-cupom" && !offer.couponCondition) return false;
     if (condition === "amostra-7-dias" && !verifySevenDaySample(offer).eligible) return false;
     if (condition === "pix-sem-cupom" && offer.couponCondition) return false;
-
-    if (q) {
-      const haystack = [
-        offer.title,
-        offer.exactVariant,
-        offer.oneLineReason,
-        offer.forWhomItMakesSense,
-        offer.brand || "",
-        offer.model || "",
-        offer.productId || "",
-        offer.sellerName || "",
-        offer.merchant || "",
-        ...(offer.tags || []),
-      ]
-        .join(" ")
-        .toLowerCase();
-      if (!haystack.includes(q)) return false;
-    }
     return true;
   });
 
-  const sorted = [...filtered];
-  if (sort === "price_asc") {
-    sorted.sort((a, b) => a.priceBrlCents - b.priceBrlCents);
-  } else if (sort === "recent") {
-    sorted.sort((a, b) => Date.parse(b.observedAt) - Date.parse(a.observedAt));
-  } else {
-    // Editorial relevance: approved first, real affiliate offers before demo fixtures, then observedAt desc
-    sorted.sort((a, b) => {
-      if (a.state === "approved" && b.state !== "approved") return -1;
-      if (a.state !== "approved" && b.state === "approved") return 1;
-      if (!a.isDemoFixture && b.isDemoFixture) return -1;
-      if (a.isDemoFixture && !b.isDemoFixture) return 1;
-      return Date.parse(b.observedAt) - Date.parse(a.observedAt);
-    });
+  let pool = filtered.map((offer) => ({ offer, matched: 0, score: 0 }));
+  let approximate = false;
+  if (tokens.length > 0) {
+    const scored = filtered.map((offer) => ({ offer, ...scoreOfferForQuery(offer, tokens) }));
+    const exact = scored.filter((s) => s.matched === tokens.length);
+    if (exact.length > 0 || tokens.length === 1) {
+      pool = exact;
+    } else {
+      pool = scored.filter((s) => s.matched > 0);
+      approximate = pool.length > 0;
+    }
   }
-  return sorted;
+
+  const editorial = (a, b) => {
+    if (a.state === "approved" && b.state !== "approved") return -1;
+    if (a.state !== "approved" && b.state === "approved") return 1;
+    if (!a.isDemoFixture && b.isDemoFixture) return -1;
+    if (a.isDemoFixture && !b.isDemoFixture) return 1;
+    return Date.parse(b.observedAt) - Date.parse(a.observedAt);
+  };
+
+  if (sort === "price_asc") {
+    pool.sort((a, b) => a.offer.priceBrlCents - b.offer.priceBrlCents);
+  } else if (sort === "recent") {
+    pool.sort((a, b) => Date.parse(b.offer.observedAt) - Date.parse(a.offer.observedAt));
+  } else {
+    // Editorial relevance: best text match first, then approved, real before demo, newest first.
+    pool.sort((a, b) => b.matched - a.matched || b.score - a.score || editorial(a.offer, b.offer));
+  }
+  return { results: pool.map((s) => s.offer), approximate, tokens };
+}
+
+/**
+ * Filters and sorts catalog offers explicitly.
+ * @param {Array<object>} offers
+ * @param {object} options
+ * @returns {Array<object>}
+ */
+export function filterAndSortOffers(offers, options = {}) {
+  return searchOffers(offers, options).results;
+}
+
+/** Product kind used for like-for-like price comparison (first tag, e.g. "ssd", "monitor"). */
+export function offerKind(offer) {
+  return normalizeSearchText((offer.tags || [])[0] || offer.categorySlug || "");
+}
+
+/**
+ * Compares the prices of approved offers within the same product kind.
+ * Offers of different kinds (an SSD and a monitor) are never compared with each other.
+ * @param {Array<object>} offers
+ * @returns {Record<string, {peers: number, cheapestCents: number, deltaCents: number, isCheapest: boolean}>}
+ */
+export function comparePricesByKind(offers) {
+  const groups = new Map();
+  for (const offer of offers) {
+    if (offer.state !== "approved" || !Number.isFinite(offer.priceBrlCents)) continue;
+    const kind = offerKind(offer);
+    if (!groups.has(kind)) groups.set(kind, []);
+    groups.get(kind).push(offer);
+  }
+  const out = {};
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    const cheapestCents = Math.min(...group.map((o) => o.priceBrlCents));
+    for (const offer of group) {
+      out[offer.slug] = {
+        peers: group.length,
+        cheapestCents,
+        deltaCents: offer.priceBrlCents - cheapestCents,
+        isCheapest: offer.priceBrlCents === cheapestCents,
+      };
+    }
+  }
+  return out;
+}
+
+/** Min/max/average of a list of prices in cents (ignores non-finite values). */
+export function priceStats(cents) {
+  const values = cents.filter((c) => Number.isFinite(c));
+  if (values.length === 0) return null;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const avg = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+  return { min, max, avg, count: values.length };
 }
 
 /**

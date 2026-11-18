@@ -8,6 +8,7 @@ export const metadata = pageMetadata({
   route: "/criativos/",
   title: "Kit criativo e identidade visual",
   description: "Logotipos, templates SVG determinísticos, roteiro vertical e rascunhos Telegram/WhatsApp.",
+  noindex: true,
 });
 
 const LOGOS = [

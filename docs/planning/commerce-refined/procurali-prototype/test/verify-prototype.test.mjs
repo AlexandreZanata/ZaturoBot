@@ -22,6 +22,8 @@ import {
   checkForbiddenClaims,
   contrastRatio,
   filterAndSortOffers,
+  searchOffers,
+  comparePricesByKind,
   formatBrl,
   isOfferFresh,
   isSafePublicAssetPath,
@@ -85,7 +87,21 @@ test("1. All required static pages exist, use pt-BR, single H1, unique metadata,
     const rel = path.relative(SITE_DIR, file);
 
     assert.match(html, /<html lang="pt-BR"/, `${rel}: missing pt-BR lang attribute`);
-    assert.match(html, /<meta name="robots" content="noindex, nofollow"\/?>/, `${rel}: demo staging must stay noindex`);
+    // Public pages are indexable; internal tools, 404, demo fixtures and unavailable offers are not.
+    const demoOrUnavailableOffer = OFFERS.some(
+      (o) => (o.isDemoFixture || o.state !== "approved") && rel === path.join("ofertas", o.slug, "index.html")
+    );
+    const demoOnlyCategory = CATEGORIES.some(
+      (c) =>
+        rel === path.join("categorias", c.slug, "index.html") &&
+        !OFFERS.some((o) => o.categorySlug === c.slug && !o.isDemoFixture && o.state === "approved")
+    );
+    const internal = /^(cms-preview|criativos)\//.test(rel) || /^404/.test(rel) || rel === "_not-found.html";
+    if (internal || demoOrUnavailableOffer || demoOnlyCategory) {
+      assert.match(html, /<meta name="robots" content="noindex, follow"\/?>/, `${rel}: must be noindex`);
+    } else {
+      assert.match(html, /<meta name="robots" content="index, follow"\/?>/, `${rel}: public page must be indexable`);
+    }
     assert.match(html, /href="#conteudo-principal"/, `${rel}: missing skip link`);
     assert.match(html, /<main id="conteudo-principal"/, `${rel}: missing main landmark`);
 
@@ -274,6 +290,25 @@ test("5. Filters, 7-day sample verification, freshness check, and deterministic 
   });
   assert.equal(redragonSearch.length, 2);
 
+  // Multi-word, accent-insensitive search with an approximate fallback
+  const keyboard = searchOffers(OFFERS, { query: "Teclado mecânico ABNT2" });
+  assert.equal(keyboard.approximate, false);
+  assert.deepEqual(keyboard.results.map((o) => o.slug), ["teclado-mecanico-redragon-kumara-elite-k552-krs"]);
+  assert.equal(searchOffers(OFFERS, { query: "teclado mecanico" }).results[0].slug, keyboard.results[0].slug);
+  assert.equal(searchOffers(OFFERS, { query: "Monitor 27 polegadas 200 Hz" }).results[0].slug, "monitor-gamer-lg-ultragear-27-ips-200hz-27g523b");
+  const headset = searchOffers(OFFERS, { query: "Headset com microfone removível" });
+  assert.equal(headset.approximate, true);
+  assert.equal(headset.results[0].slug, "headset-gamer-redragon-zeus-lite-53mm-h510-lt");
+
+  // Price comparison never mixes product kinds
+  const cmp = comparePricesByKind([
+    ...OFFERS,
+    { ...OFFERS.find((o) => o.slug.startsWith("headset-")), slug: "headset-b", priceBrlCents: 9900 },
+  ]);
+  assert.equal(cmp["headset-b"].isCheapest, true);
+  assert.equal(cmp["headset-gamer-redragon-zeus-lite-53mm-h510-lt"].deltaCents, 13041 - 9900);
+  assert.equal(cmp["ssd-kingston-nv3-500gb-nvme-pcie-40"], undefined);
+
   const nonActive = filterAndSortOffers(OFFERS, { statusFilter: "nao-ativas" });
   assert.equal(nonActive.length, 3);
 
@@ -297,7 +332,7 @@ test("5. Filters, 7-day sample verification, freshness check, and deterministic 
   }
 });
 
-test("6. Metadata, truthful JSON-LD, sitemap exclusions, and staging robots.txt", () => {
+test("6. Metadata, truthful JSON-LD, sitemap exclusions, and public robots.txt", () => {
   const guideHtml = fs.readFileSync(
     path.join(SITE_DIR, "guias", GUIDES[0].slug, "index.html"),
     "utf8"
@@ -311,8 +346,26 @@ test("6. Metadata, truthful JSON-LD, sitemap exclusions, and staging robots.txt"
   assert.doesNotMatch(sitemap, /cms-preview/);
   assert.doesNotMatch(sitemap, /404/);
 
+  // Only real approved offers (and categories that hold one) are listed, with real dates.
+  for (const o of OFFERS) {
+    const listed = sitemap.includes(`/ofertas/${o.slug}/`);
+    assert.equal(listed, !o.isDemoFixture && o.state === "approved", `sitemap listing for ${o.slug}`);
+  }
+  assert.doesNotMatch(sitemap, /criativos/);
+  assert.match(sitemap, /<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/);
+
   const robots = fs.readFileSync(path.join(SITE_DIR, "robots.txt"), "utf8");
-  assert.match(robots, /Disallow: \//);
+  assert.match(robots, /^Allow: \/$/m);
+  assert.doesNotMatch(robots, /^Disallow: \/$/m);
+  assert.match(robots, /^Sitemap: https:\/\/procurali\.com\.br\/sitemap\.xml$/m);
+
+  const liveOffer = OFFERS.find((o) => !o.isDemoFixture && o.state === "approved");
+  const liveHtml = fs.readFileSync(path.join(SITE_DIR, "ofertas", liveOffer.slug, "index.html"), "utf8");
+  assert.match(liveHtml, /"@type":"Product"|"@type": "Product"/);
+  assert.match(liveHtml, /"priceCurrency":\s?"BRL"/);
+  assert.doesNotMatch(liveHtml, /AggregateRating/);
+  const home = fs.readFileSync(path.join(SITE_DIR, "index.html"), "utf8");
+  assert.match(home, /"@type":\s?"SearchAction"/);
 });
 
 test("7. WCAG contrast pairings, CSS responsiveness rules, and form/image accessibility", () => {
@@ -660,5 +713,25 @@ test("10. VPS site-builder entrypoint (src/build.mjs) exports a full site from a
   } finally {
     execFileSync(process.execPath, ["scripts/prepare.mjs"], { cwd: ROOT, stdio: "pipe" });
     nodeFs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+test("11. Hub snapshot: products awaiting owner approval (candidate) are never published", async () => {
+  const { resolveCatalog } = await import("../scripts/prepare.mjs");
+  const live = OFFERS.filter((o) => !o.isDemoFixture);
+  const snapshot = {
+    schemaVersion: 1,
+    generatedAtUtc: "2026-11-15T18:32:00Z",
+    offers: [...live, { ...live[0], id: "offer-candidate", slug: "produto-candidato", state: "candidate" }],
+  };
+  const dir = nodeFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), "procurali-candidate-"));
+  const file = nodePath.join(dir, "snapshot.json");
+  nodeFs.writeFileSync(file, JSON.stringify(snapshot));
+  try {
+    const catalog = await resolveCatalog({ apiSnapshotPath: file });
+    assert.equal(catalog.offers.length, live.length);
+    assert.ok(!catalog.offers.some((o) => o.slug === "produto-candidato"));
+  } finally {
+    nodeFs.rmSync(dir, { recursive: true, force: true });
   }
 });
