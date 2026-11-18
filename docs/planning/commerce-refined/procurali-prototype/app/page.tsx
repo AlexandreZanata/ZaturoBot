@@ -167,7 +167,7 @@ export default function HomePage() {
         <SectionTitle
           id="vitrine-heading"
           title="Achados do dia"
-          sub={`${liveCount} promoções reais do Mercado Livre em teste, observadas em 15/11.`}
+          sub={`${liveCount} ${liveCount === 1 ? "promoção ativa" : "promoções ativas"} do Mercado Livre, com horário de observação em cada oferta.`}
           action={<MoreLink href="/ofertas/">Ver catálogo completo</MoreLink>}
         />
         <div className="grid grid-cols-2 gap-x-5 gap-y-12 lg:grid-cols-4 lg:gap-x-8">
